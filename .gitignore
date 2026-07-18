@@ -1,0 +1,33 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.apk
+*.aab
+*.keystore
+.idea/
+*.iml
+.cxx/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Env / secrets
+.env
+.env.local
+
+# Runtime logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

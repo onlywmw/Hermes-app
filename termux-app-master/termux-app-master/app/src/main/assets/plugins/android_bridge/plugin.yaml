@@ -1,0 +1,6 @@
+id: android_bridge
+name: Android Bridge
+version: 0.1.0
+description: Expose Android system capabilities to Hermes via a Unix socket bridge.
+author: Hermes Android Integration
+entry_point: register

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hermes_app_name">Hermes</string>
+    <string name="hermes_dashboard_title">Hermes 智能体控制台</string>
+    <string name="hermes_status">服务状态</string>
+    <string name="hermes_status_idle">空闲</string>
+    <string name="hermes_status_running">运行中</string>
+    <string name="hermes_status_not_running">未运行</string>
+    <string name="hermes_status_format">服务：%1$s</string>
+    <string name="hermes_ssh_info">SSH 远程访问</string>
+    <string name="hermes_ssh_address_format">地址：%1$s</string>
+    <string name="hermes_ssh_fingerprint_format">主机指纹：%1$s</string>
+    <string name="hermes_ssh_not_available">SSH 尚未可用</string>
+    <string name="hermes_start_agent">启动智能体</string>
+    <string name="hermes_stop_agent">停止智能体</string>
+    <string name="hermes_open_terminal">打开终端</string>
+    <string name="hermes_notification_title">Hermes 智能体</string>
+    <string name="hermes_notification_text">Hermes 智能体服务正在后台运行</string>
+    <string name="hermes_notification_action_stop">停止</string>
+    <string name="hermes_setup_bootstrap">正在检查 Termux 环境…</string>
+    <string name="hermes_setup_installing">正在安装基础依赖…</string>
+    <string name="hermes_setup_sshd">正在启动 SSH 服务…</string>
+    <string name="hermes_setup_starting_agent">正在启动智能体…</string>
+    <string name="hermes_setup_done">就绪</string>
+    <string name="hermes_setup_failed">初始化失败</string>
+    <string name="hermes_bootstrap_missing">Termux 环境缺失，请先打开终端完成初始化。</string>
+    <string name="hermes_accessibility_description">允许 Hermes 查看屏幕内容并自动点击、输入，以完成自动化任务。</string>
+    <string name="hermes_open_accessibility_settings">打开无障碍设置</string>
+    <string name="hermes_open_device_admin_settings">打开设备管理员设置</string>
+    <string name="hermes_settings">模型/API 设置</string>
+    <string name="hermes_settings_title">模型与 API 设置</string>
+    <string name="hermes_api_key_hint">API Key</string>
+    <string name="hermes_model_hint">模型名称</string>
+    <string name="hermes_save">保存并重启服务</string>
+
+    <string-array name="hermes_provider_ids">
+        <item>deepseek</item>
+        <item>kimi</item>
+        <item>qwen</item>
+        <item>zhipu</item>
+        <item>doubao</item>
+        <item>yi</item>
+        <item>openrouter</item>
+    </string-array>
+    <string-array name="hermes_provider_names">
+        <item>DeepSeek</item>
+        <item>Kimi (Moonshot)</item>
+        <item>通义千问 (DashScope)</item>
+        <item>智谱 GLM</item>
+        <item>豆包 (火山方舟)</item>
+        <item>零一万物 Yi</item>
+        <item>OpenRouter</item>
+    </string-array>
+    <string name="hermes_chat_title">对话</string>
+    <string name="hermes_chat_hint">输入指令…</string>
+    <string name="hermes_send">发送</string>
+</resources>

@@ -1,0 +1,20 @@
+model:
+  provider: openrouter
+  # api_key loaded from ~/.hermes/.env
+
+toolsets:
+  - android_control
+  - termux
+  - shell
+  - file
+  - web_search
+
+terminal:
+  backend: termux
+
+server:
+  dashboard: false
+  gateway: true
+
+android_bridge:
+  socket_path: /data/data/com.termux/files/usr/tmp/hermes_bridge.sock
