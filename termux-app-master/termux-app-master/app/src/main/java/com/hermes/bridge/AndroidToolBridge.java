@@ -16,6 +16,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
 import android.net.Uri;
@@ -213,9 +214,23 @@ public class AndroidToolBridge {
             return new JSONObject().put("success", false).put("error", "CameraManager unavailable");
         }
         try {
-            String cameraId = cameraManager.getCameraIdList()[0];
+            // 不能直接用 cameraIdList[0]：多摄设备上前几个可能是无闪光灯的副摄/前摄，
+            // 对无闪光摄像头 setTorchMode 会静默失败（灯不亮也不报错）。
+            String cameraId = null;
+            for (String id : cameraManager.getCameraIdList()) {
+                CameraCharacteristics cc = cameraManager.getCameraCharacteristics(id);
+                Boolean hasFlash = cc.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                if (hasFlash != null && hasFlash) {
+                    cameraId = id;
+                    break;
+                }
+            }
+            if (cameraId == null) {
+                return new JSONObject().put("success", false)
+                    .put("error", "设备没有可用的闪光灯");
+            }
             cameraManager.setTorchMode(cameraId, on);
-            return new JSONObject().put("success", true);
+            return new JSONObject().put("success", true).put("camera_id", cameraId);
         } catch (CameraAccessException e) {
             return new JSONObject().put("success", false).put("error", e.getMessage());
         }
