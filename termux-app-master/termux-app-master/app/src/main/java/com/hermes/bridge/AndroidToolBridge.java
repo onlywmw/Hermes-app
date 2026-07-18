@@ -21,15 +21,27 @@ import android.hardware.camera2.CameraManager;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.Manifest;
+import android.accessibilityservice.AccessibilityService;
+import android.app.ActivityManager;
 import android.os.BatteryManager;
 import android.os.Build;
+import android.os.Environment;
+import android.os.StatFs;
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.provider.CalendarContract;
 import android.provider.Settings;
 import android.os.Vibrator;
 import android.provider.ContactsContract;
+import android.speech.tts.TextToSpeech;
 import android.telephony.SmsManager;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
+import android.net.wifi.WifiManager;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -39,13 +51,17 @@ import com.hermes.service.HermesAccessibilityService;
 import com.hermes.service.HermesDeviceAdminReceiver;
 import com.termux.R;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Dispatches JSON-RPC method calls from Hermes into Android system APIs.
@@ -122,6 +138,43 @@ public class AndroidToolBridge {
                 return handleAlarmSet(params);
             case "calendar_add":
                 return handleCalendarAdd(params);
+            case "timer_set":
+                return handleTimerSet(params);
+            case "alarm_list":
+                return AlarmReceiver.list(mContext);
+            case "alarm_cancel":
+                return new JSONObject().put("success",
+                    AlarmReceiver.cancel(mContext, params.optInt("id", -1)));
+            case "calendar_list":
+                return handleCalendarList(params);
+            case "calendar_delete":
+                return handleCalendarDelete(params);
+            case "media":
+                return handleMedia(params);
+            case "global":
+                return handleGlobal(params);
+            case "swipe":
+                return handleSwipe(params);
+            case "screenshot":
+                return handleScreenshot();
+            case "tts_speak":
+                return handleTtsSpeak(params);
+            case "share_text":
+                return handleShareText(params);
+            case "dial":
+                return handleDial(params);
+            case "network_status":
+                return handleNetworkStatus();
+            case "airplane":
+                return handleAirplane(params);
+            case "input_tap":
+                return handleInputTap(params);
+            case "input_swipe":
+                return handleInputSwipe(params);
+            case "screencap":
+                return handleScreencap();
+            case "reboot":
+                return handleReboot(params);
             default:
                 return new JSONObject().put("error", "Unknown method: " + method);
         }
@@ -687,5 +740,319 @@ public class AndroidToolBridge {
             if (cursor != null) cursor.close();
         }
         return -1;
+    }
+
+    // ===================== 基础功能扩展（v2.4.0） =====================
+
+    private JSONObject handleTimerSet(@NonNull JSONObject params) throws JSONException {
+        long seconds = params.optLong("seconds", 0);
+        String message = params.optString("message", "⏱️ 倒计时结束");
+        if (seconds <= 0 || seconds > 86400) {
+            return new JSONObject().put("success", false)
+                .put("error", "seconds 需在 1-86400 之间");
+        }
+        long triggerAt = System.currentTimeMillis() + seconds * 1000;
+        int id = (int) (triggerAt / 1000);
+        String error = AlarmReceiver.schedule(mContext, id, triggerAt, message);
+        if (error != null) {
+            return new JSONObject().put("success", false).put("error", error);
+        }
+        String when = new SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault())
+            .format(new java.util.Date(triggerAt));
+        return new JSONObject().put("success", true)
+            .put("trigger_at", when).put("id", id).put("message", message);
+    }
+
+    private JSONObject handleCalendarList(@NonNull JSONObject params) throws JSONException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+            && mContext.checkSelfPermission(Manifest.permission.READ_CALENDAR)
+                != PackageManager.PERMISSION_GRANTED) {
+            return new JSONObject().put("success", false)
+                .put("error", "need_calendar_permission");
+        }
+        long startMs = params.optLong("start_ms", System.currentTimeMillis());
+        long endMs = params.optLong("end_ms", startMs + 7L * 86400_000);
+        JSONArray events = new JSONArray();
+        Cursor cursor = null;
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
+        try {
+            cursor = mContext.getContentResolver().query(
+                CalendarContract.Events.CONTENT_URI,
+                new String[]{CalendarContract.Events._ID, CalendarContract.Events.TITLE,
+                    CalendarContract.Events.DTSTART, CalendarContract.Events.DTEND,
+                    CalendarContract.Events.EVENT_LOCATION},
+                CalendarContract.Events.DTSTART + " >= ? AND " + CalendarContract.Events.DTSTART + " <= ?",
+                new String[]{String.valueOf(startMs), String.valueOf(endMs)},
+                CalendarContract.Events.DTSTART + " ASC LIMIT 50");
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    events.put(new JSONObject()
+                        .put("id", cursor.getLong(0))
+                        .put("title", cursor.getString(1))
+                        .put("start", fmt.format(new java.util.Date(cursor.getLong(2))))
+                        .put("end", fmt.format(new java.util.Date(cursor.getLong(3))))
+                        .put("location", cursor.getString(4) == null ? "" : cursor.getString(4)));
+                }
+            }
+        } catch (Exception e) {
+            return new JSONObject().put("success", false)
+                .put("error", "calendar query failed: " + e.getMessage());
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return new JSONObject().put("success", true)
+            .put("events", events).put("count", events.length());
+    }
+
+    private JSONObject handleCalendarDelete(@NonNull JSONObject params) throws JSONException {
+        long eventId = params.optLong("event_id", -1);
+        if (eventId < 0) {
+            return new JSONObject().put("success", false).put("error", "Missing 'event_id'");
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+            && mContext.checkSelfPermission(Manifest.permission.WRITE_CALENDAR)
+                != PackageManager.PERMISSION_GRANTED) {
+            return new JSONObject().put("success", false)
+                .put("error", "need_calendar_permission");
+        }
+        int rows = mContext.getContentResolver().delete(
+            ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId), null, null);
+        return new JSONObject().put("success", rows > 0).put("deleted", rows);
+    }
+
+    private JSONObject handleMedia(@NonNull JSONObject params) throws JSONException {
+        String action = params.optString("action", "play_pause");
+        int keycode;
+        switch (action) {
+            case "next": keycode = KeyEvent.KEYCODE_MEDIA_NEXT; break;
+            case "previous": keycode = KeyEvent.KEYCODE_MEDIA_PREVIOUS; break;
+            case "stop": keycode = KeyEvent.KEYCODE_MEDIA_STOP; break;
+            case "play": keycode = KeyEvent.KEYCODE_MEDIA_PLAY; break;
+            case "pause": keycode = KeyEvent.KEYCODE_MEDIA_PAUSE; break;
+            default: keycode = KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE; action = "play_pause";
+        }
+        AudioManager am = (AudioManager) mContext.getSystemService(Context.AUDIO_SERVICE);
+        if (am == null) {
+            return new JSONObject().put("success", false).put("error", "AudioManager unavailable");
+        }
+        long t = SystemClock.uptimeMillis();
+        am.dispatchMediaKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, keycode, 0));
+        am.dispatchMediaKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, keycode, 0));
+        return new JSONObject().put("success", true).put("action", action);
+    }
+
+    private JSONObject handleGlobal(@NonNull JSONObject params) throws JSONException {
+        String action = params.optString("action", "");
+        int g;
+        switch (action) {
+            case "home": g = AccessibilityService.GLOBAL_ACTION_HOME; break;
+            case "back": g = AccessibilityService.GLOBAL_ACTION_BACK; break;
+            case "recents": g = AccessibilityService.GLOBAL_ACTION_RECENTS; break;
+            case "notifications": g = AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS; break;
+            case "quick_settings": g = AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS; break;
+            case "power": g = AccessibilityService.GLOBAL_ACTION_POWER_DIALOG; break;
+            case "lock":
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    g = AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN;
+                } else {
+                    return new JSONObject().put("success", false).put("error", "需要 Android 9+");
+                }
+                break;
+            default:
+                return new JSONObject().put("success", false)
+                    .put("error", "unknown action: " + action
+                        + "（home/back/recents/notifications/quick_settings/power/lock）");
+        }
+        HermesAccessibilityService svc = HermesAccessibilityService.getInstance();
+        if (svc == null) {
+            return new JSONObject().put("success", false).put("error", "无障碍服务未开启");
+        }
+        boolean ok = svc.globalAction(g);
+        return new JSONObject().put("success", ok).put("action", action);
+    }
+
+    private JSONObject handleSwipe(@NonNull JSONObject params) throws JSONException {
+        HermesAccessibilityService svc = HermesAccessibilityService.getInstance();
+        if (svc == null) {
+            return new JSONObject().put("success", false).put("error", "无障碍服务未开启");
+        }
+        DisplayMetrics dm = mContext.getResources().getDisplayMetrics();
+        int w = dm.widthPixels, h = dm.heightPixels;
+        long duration = params.optLong("duration", 300);
+        float x1, y1, x2, y2;
+        String direction = params.optString("direction", "");
+        switch (direction) {
+            case "up": x1 = w / 2f; x2 = w / 2f; y1 = h * 0.7f; y2 = h * 0.3f; break;
+            case "down": x1 = w / 2f; x2 = w / 2f; y1 = h * 0.3f; y2 = h * 0.7f; break;
+            case "left": x1 = w * 0.8f; x2 = w * 0.2f; y1 = h / 2f; y2 = h / 2f; break;
+            case "right": x1 = w * 0.2f; x2 = w * 0.8f; y1 = h / 2f; y2 = h / 2f; break;
+            default:
+                x1 = params.optInt("x1", 0); y1 = params.optInt("y1", 0);
+                x2 = params.optInt("x2", 0); y2 = params.optInt("y2", 0);
+        }
+        boolean ok = svc.swipe(x1, y1, x2, y2, duration);
+        return new JSONObject().put("success", ok);
+    }
+
+    private JSONObject handleScreenshot() throws JSONException {
+        HermesAccessibilityService svc = HermesAccessibilityService.getInstance();
+        if (svc == null) {
+            return new JSONObject().put("success", false).put("error", "无障碍服务未开启");
+        }
+        File dir = mContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File out = new File(dir, "hermes_" + System.currentTimeMillis() + ".png");
+        boolean ok = svc.takeScreenshotSync(out, 3000);
+        if (!ok) {
+            return new JSONObject().put("success", false).put("error", "截图失败");
+        }
+        return new JSONObject().put("success", true).put("path", out.getAbsolutePath());
+    }
+
+    private TextToSpeech mTts;
+    private boolean mTtsReady;
+
+    private JSONObject handleTtsSpeak(@NonNull JSONObject params) throws JSONException {
+        String text = params.optString("text", "");
+        if (text.isEmpty()) {
+            return new JSONObject().put("success", false).put("error", "Missing 'text'");
+        }
+        if (mTts == null) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            mTts = new TextToSpeech(mContext, status -> {
+                mTtsReady = status == TextToSpeech.SUCCESS;
+                if (mTtsReady) {
+                    mTts.setLanguage(Locale.CHINESE);
+                }
+                latch.countDown();
+            });
+            try {
+                latch.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (!mTtsReady) {
+            return new JSONObject().put("success", false).put("error", "TTS 初始化失败");
+        }
+        mTts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "hermes_tts_" + System.currentTimeMillis());
+        return new JSONObject().put("success", true);
+    }
+
+    private JSONObject handleShareText(@NonNull JSONObject params) throws JSONException {
+        String text = params.optString("text", "");
+        String title = params.optString("title", "分享到…");
+        if (text.isEmpty()) {
+            return new JSONObject().put("success", false).put("error", "Missing 'text'");
+        }
+        Intent send = new Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, text);
+        Intent chooser = Intent.createChooser(send, title)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(chooser);
+        return new JSONObject().put("success", true);
+    }
+
+    private JSONObject handleDial(@NonNull JSONObject params) throws JSONException {
+        String number = params.optString("number", "");
+        if (number.isEmpty()) {
+            return new JSONObject().put("success", false).put("error", "Missing 'number'");
+        }
+        Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        mContext.startActivity(intent);
+        return new JSONObject().put("success", true);
+    }
+
+    private JSONObject handleNetworkStatus() throws JSONException {
+        JSONObject r = new JSONObject();
+        ConnectivityManager cm =
+            (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        String type = "none";
+        String ip = "";
+        if (cm != null) {
+            android.net.Network network = cm.getActiveNetwork();
+            NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+            if (caps != null) {
+                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) type = "wifi";
+                else if (caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) type = "cellular";
+                else type = "other";
+            }
+            LinkProperties lp = cm.getLinkProperties(network);
+            if (lp != null && !lp.getLinkAddresses().isEmpty()) {
+                ip = lp.getLinkAddresses().toString();
+            }
+        }
+        String ssid = "";
+        try {
+            WifiManager wm = (WifiManager) mContext.getApplicationContext()
+                .getSystemService(Context.WIFI_SERVICE);
+            if (wm != null && wm.getConnectionInfo() != null) {
+                ssid = wm.getConnectionInfo().getSSID();
+            }
+        } catch (Exception ignored) {
+        }
+        StatFs stat = new StatFs(Environment.getDataDirectory().getPath());
+        ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
+        ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+        if (am != null) am.getMemoryInfo(mi);
+        r.put("type", type)
+            .put("ssid", ssid)
+            .put("ip", ip)
+            .put("storage_free_gb", Math.round(stat.getAvailableBytes() / 1.07374e9 * 10) / 10.0)
+            .put("mem_avail_mb", mi.availMem / 1048576)
+            .put("uptime_hours", Math.round(SystemClock.elapsedRealtime() / 3600000.0 * 10) / 10.0);
+        return r;
+    }
+
+    // ---- root 系（需设备已 root，KernelSU） ----
+
+    private JSONObject handleAirplane(@NonNull JSONObject params) throws JSONException {
+        boolean on = params.optBoolean("on", true);
+        return handleRootShell(new JSONObject().put("command",
+            "settings put global airplane_mode_on " + (on ? 1 : 0)
+                + " && am broadcast -a android.intent.action.AIRPLANE_MODE --ez state " + on));
+    }
+
+    private JSONObject handleInputTap(@NonNull JSONObject params) throws JSONException {
+        int x = params.optInt("x", -1), y = params.optInt("y", -1);
+        if (x < 0 || y < 0) {
+            return new JSONObject().put("success", false).put("error", "Missing 'x'/'y'");
+        }
+        return handleRootShell(new JSONObject().put("command", "input tap " + x + " " + y));
+    }
+
+    private JSONObject handleInputSwipe(@NonNull JSONObject params) throws JSONException {
+        return handleRootShell(new JSONObject().put("command",
+            "input swipe " + params.optInt("x1", 0) + " " + params.optInt("y1", 0)
+                + " " + params.optInt("x2", 0) + " " + params.optInt("y2", 0)
+                + " " + params.optLong("duration", 300)));
+    }
+
+    private JSONObject handleScreencap() throws JSONException {
+        File dir = mContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        //noinspection ResultOfMethodCallIgnored
+        dir.mkdirs();
+        String path = new File(dir, "hermes_cap_" + System.currentTimeMillis() + ".png")
+            .getAbsolutePath();
+        JSONObject r = handleRootShell(new JSONObject().put("command",
+            "screencap -p " + path + " && chmod 666 " + path));
+        if (r.optBoolean("success", false)) {
+            r.put("path", path);
+        }
+        return r;
+    }
+
+    private JSONObject handleReboot(@NonNull JSONObject params) throws JSONException {
+        String mode = params.optString("mode", "reboot");
+        String cmd;
+        switch (mode) {
+            case "shutdown": cmd = "reboot -p"; break;
+            case "recovery": cmd = "reboot recovery"; break;
+            default: cmd = "reboot"; mode = "reboot";
+        }
+        JSONObject r = handleRootShell(new JSONObject().put("command", cmd));
+        r.put("mode", mode);
+        return r;
     }
 }

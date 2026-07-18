@@ -546,3 +546,133 @@ def register(ctx: PluginContext) -> None:
     )
 
     logger.info("Android bridge plugin registered")
+
+
+# (name, emoji, description, schema, 调用函数)
+_SIMPLE_TOOLS = [
+    ("android_timer_set", "⏱️",
+     "Set a countdown timer (fullscreen alert, Hermes self-managed). Use for 倒计时 / X分钟后叫我.",
+     {"type": "object", "properties": {
+         "seconds": {"type": "integer", "description": "Countdown seconds, 1-86400."},
+         "message": {"type": "string", "default": "⏱️ 倒计时结束"},
+     }, "required": ["seconds"]},
+     lambda seconds, message="⏱️ 倒计时结束": _bridge_call(
+         "timer_set", {"seconds": seconds, "message": message})),
+    ("android_alarm_list", "📋",
+     "List all pending Hermes alarms and timers.",
+     {"type": "object", "properties": {}},
+     lambda: _bridge_call("alarm_list")),
+    ("android_alarm_cancel", "🗑️",
+     "Cancel a Hermes alarm/timer by id (see android_alarm_list).",
+     {"type": "object", "properties": {
+         "id": {"type": "integer", "description": "Alarm id from android_alarm_list."},
+     }, "required": ["id"]},
+     lambda id: _bridge_call("alarm_cancel", {"id": id})),
+    ("android_calendar_list", "📅",
+     "List calendar events in a time range (defaults: now ~ +7 days). Times are Unix epoch ms.",
+     {"type": "object", "properties": {
+         "start_ms": {"type": "integer", "default": 0},
+         "end_ms": {"type": "integer", "default": 0},
+     }},
+     lambda start_ms=0, end_ms=0: _bridge_call(
+         "calendar_list", {"start_ms": start_ms, "end_ms": end_ms})),
+    ("android_calendar_delete", "🗑️",
+     "Delete a calendar event by id (see android_calendar_list).",
+     {"type": "object", "properties": {
+         "event_id": {"type": "integer"},
+     }, "required": ["event_id"]},
+     lambda event_id: _bridge_call("calendar_delete", {"event_id": event_id})),
+    ("android_media", "🎵",
+     "Control media playback: play_pause / play / pause / next / previous / stop. No permission needed.",
+     {"type": "object", "properties": {
+         "action": {"type": "string", "description": "play_pause|play|pause|next|previous|stop"},
+     }, "required": ["action"]},
+     lambda action: _bridge_call("media", {"action": action})),
+    ("android_global", "🧭",
+     "Global navigation: home / back / recents / notifications / quick_settings / power / lock (requires accessibility service).",
+     {"type": "object", "properties": {
+         "action": {"type": "string"},
+     }, "required": ["action"]},
+     lambda action: _bridge_call("global", {"action": action})),
+    ("android_swipe", "👆",
+     "Swipe gesture: direction up/down/left/right, or explicit x1,y1,x2,y2 pixels + duration ms (requires accessibility service).",
+     {"type": "object", "properties": {
+         "direction": {"type": "string", "default": ""},
+         "x1": {"type": "integer", "default": 0}, "y1": {"type": "integer", "default": 0},
+         "x2": {"type": "integer", "default": 0}, "y2": {"type": "integer", "default": 0},
+         "duration": {"type": "integer", "default": 300},
+     }},
+     lambda direction="", x1=0, y1=0, x2=0, y2=0, duration=300: _bridge_call(
+         "swipe", {"direction": direction, "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                   "duration": duration})),
+    ("android_screenshot", "📸",
+     "Take a screenshot via accessibility (API 30+), returns saved PNG path.",
+     {"type": "object", "properties": {}},
+     lambda: _bridge_call("screenshot")),
+    ("android_tts_speak", "📢",
+     "Speak text aloud via TextToSpeech (Chinese). Use for 播报/读出来.",
+     {"type": "object", "properties": {
+         "text": {"type": "string"},
+     }, "required": ["text"]},
+     lambda text: _bridge_call("tts_speak", {"text": text})),
+    ("android_share_text", "🔗",
+     "Open system share sheet to share text/link to another app (e.g. WeChat).",
+     {"type": "object", "properties": {
+         "text": {"type": "string"},
+         "title": {"type": "string", "default": "分享到…"},
+     }, "required": ["text"]},
+     lambda text, title="分享到…": _bridge_call(
+         "share_text", {"text": text, "title": title})),
+    ("android_dial", "📞",
+     "Open the dialer with a phone number prefilled (user confirms to call).",
+     {"type": "object", "properties": {
+         "number": {"type": "string"},
+     }, "required": ["number"]},
+     lambda number: _bridge_call("dial", {"number": number})),
+    ("android_network_status", "📶",
+     "Get network type, WiFi SSID, IP, free storage, memory, uptime.",
+     {"type": "object", "properties": {}},
+     lambda: _bridge_call("network_status")),
+    ("android_airplane", "✈️",
+     "Toggle airplane mode (requires root).",
+     {"type": "object", "properties": {
+         "on": {"type": "boolean", "default": True},
+     }},
+     lambda on=True: _bridge_call("airplane", {"on": on})),
+    ("android_input_tap", "👆",
+     "Tap screen at pixel coordinates via root input injection (no accessibility needed).",
+     {"type": "object", "properties": {
+         "x": {"type": "integer"}, "y": {"type": "integer"},
+     }, "required": ["x", "y"]},
+     lambda x, y: _bridge_call("input_tap", {"x": x, "y": y})),
+    ("android_input_swipe", "👉",
+     "Swipe between pixel coordinates via root input injection.",
+     {"type": "object", "properties": {
+         "x1": {"type": "integer"}, "y1": {"type": "integer"},
+         "x2": {"type": "integer"}, "y2": {"type": "integer"},
+         "duration": {"type": "integer", "default": 300},
+     }, "required": ["x1", "y1", "x2", "y2"]},
+     lambda x1, y1, x2, y2, duration=300: _bridge_call(
+         "input_swipe", {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "duration": duration})),
+    ("android_screencap", "🖥️",
+     "Take a screenshot via root screencap (no accessibility, no prompt), returns PNG path.",
+     {"type": "object", "properties": {}},
+     lambda: _bridge_call("screencap")),
+    ("android_reboot", "🔁",
+     "Reboot / shutdown / reboot-to-recovery (requires root). Confirm with the user first!",
+     {"type": "object", "properties": {
+         "mode": {"type": "string", "description": "reboot|shutdown|recovery", "default": "reboot"},
+     }},
+     lambda mode="reboot": _bridge_call("reboot", {"mode": mode})),
+]
+
+for _name, _emoji, _desc, _schema, _fn in _SIMPLE_TOOLS:
+    registry.register(
+        name=_name,
+        toolset=TOOLSET_NAME,
+        schema=_schema,
+        handler=lambda args, __fn=_fn, **_kw: __fn(**args),
+        check_fn=_check_bridge_available,
+        description=_desc,
+        emoji=_emoji,
+    )

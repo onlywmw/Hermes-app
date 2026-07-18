@@ -379,6 +379,122 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "timer_set",
+            "description": "倒计时。seconds 秒数, message 提示语(可选)",
+            "parameters": {"type": "object", "properties": {"seconds": {"type": "integer"}, "message": {"type": "string"}}, "required": ["seconds"]},
+        },
+    },
+    {"type": "function", "function": {"name": "alarm_list", "description": "列出所有未触发的闹钟和倒计时", "parameters": {"type": "object", "properties": {}}}},
+    {
+        "type": "function",
+        "function": {
+            "name": "alarm_cancel",
+            "description": "按 id 取消闹钟/倒计时",
+            "parameters": {"type": "object", "properties": {"id": {"type": "integer"}}, "required": ["id"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calendar_list",
+            "description": "查询日历日程。start_ms/end_ms 毫秒时间戳(可选，默认现在起7天)",
+            "parameters": {"type": "object", "properties": {"start_ms": {"type": "integer"}, "end_ms": {"type": "integer"}}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calendar_delete",
+            "description": "按 event_id 删除日历日程",
+            "parameters": {"type": "object", "properties": {"event_id": {"type": "integer"}}, "required": ["event_id"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "media",
+            "description": "媒体控制。action: play_pause/play/pause/next/previous/stop",
+            "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "global",
+            "description": "全局导航(需无障碍)。action: home/back/recents/notifications/quick_settings/power/lock",
+            "parameters": {"type": "object", "properties": {"action": {"type": "string"}}, "required": ["action"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "swipe",
+            "description": "手势滑动(需无障碍)。direction: up/down/left/right，或给 x1,y1,x2,y2,duration",
+            "parameters": {"type": "object", "properties": {"direction": {"type": "string"}, "x1": {"type": "integer"}, "y1": {"type": "integer"}, "x2": {"type": "integer"}, "y2": {"type": "integer"}, "duration": {"type": "integer"}}},
+        },
+    },
+    {"type": "function", "function": {"name": "screenshot", "description": "无障碍截图(Android 11+)，返回保存路径", "parameters": {"type": "object", "properties": {}}}},
+    {
+        "type": "function",
+        "function": {
+            "name": "tts_speak",
+            "description": "语音播报文本(中文)",
+            "parameters": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "share_text",
+            "description": "打开系统分享面板分享文本",
+            "parameters": {"type": "object", "properties": {"text": {"type": "string"}, "title": {"type": "string"}}, "required": ["text"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "dial",
+            "description": "打开拨号盘并填入号码",
+            "parameters": {"type": "object", "properties": {"number": {"type": "string"}}, "required": ["number"]},
+        },
+    },
+    {"type": "function", "function": {"name": "network_status", "description": "查询网络类型/WiFi名/IP/存储/内存/开机时长", "parameters": {"type": "object", "properties": {}}}},
+    {
+        "type": "function",
+        "function": {
+            "name": "airplane",
+            "description": "开关飞行模式(需 root)。on true/false",
+            "parameters": {"type": "object", "properties": {"on": {"type": "boolean"}}, "required": ["on"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "input_tap",
+            "description": "root 模拟点击屏幕坐标。x, y 像素",
+            "parameters": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}, "required": ["x", "y"]},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "input_swipe",
+            "description": "root 模拟滑动。x1,y1 到 x2,y2，duration 毫秒",
+            "parameters": {"type": "object", "properties": {"x1": {"type": "integer"}, "y1": {"type": "integer"}, "x2": {"type": "integer"}, "y2": {"type": "integer"}, "duration": {"type": "integer"}}, "required": ["x1", "y1", "x2", "y2"]},
+        },
+    },
+    {"type": "function", "function": {"name": "screencap", "description": "root 无感截图，返回保存路径", "parameters": {"type": "object", "properties": {}}}},
+    {
+        "type": "function",
+        "function": {
+            "name": "reboot",
+            "description": "重启/关机(需 root)。mode: reboot/shutdown/recovery。危险操作，先确认",
+            "parameters": {"type": "object", "properties": {"mode": {"type": "string"}}},
+        },
+    },
 ]
 
 SYSTEM_PROMPT = """你是 Hermes Android 智能体，运行在用户的 Android 设备上。你可以使用以下工具直接控制手机/平板：

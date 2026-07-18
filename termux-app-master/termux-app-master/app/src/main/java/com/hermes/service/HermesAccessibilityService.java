@@ -2,14 +2,22 @@ package com.hermes.service;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Path;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AccessibilityService that exposes UI automation capabilities to Hermes.
@@ -160,5 +168,62 @@ public class HermesAccessibilityService extends AccessibilityService {
             if (found != null) return found;
         }
         return null;
+    }
+
+    /** 全局导航动作：GLOBAL_ACTION_HOME/BACK/RECENTS/NOTIFICATIONS/QUICK_SETTINGS/POWER_DIALOG。 */
+    public boolean globalAction(int action) {
+        return performGlobalAction(action);
+    }
+
+    /** 手势滑动（坐标为屏幕像素）。 */
+    public boolean swipe(float x1, float y1, float x2, float y2, long durationMs) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
+        Path path = new Path();
+        path.moveTo(x1, y1);
+        path.lineTo(x2, y2);
+        GestureDescription gesture = new GestureDescription.Builder()
+            .addStroke(new GestureDescription.StrokeDescription(path, 0, durationMs))
+            .build();
+        return dispatchGesture(gesture, null, null);
+    }
+
+    /** 截图保存为 PNG（API 30+），同步等待结果。 */
+    public boolean takeScreenshotSync(File outFile, long timeoutMs) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false;
+        CountDownLatch latch = new CountDownLatch(1);
+        boolean[] ok = {false};
+        takeScreenshot(Display.DEFAULT_DISPLAY, getMainExecutor(), new TakeScreenshotCallback() {
+            @Override
+            public void onSuccess(ScreenshotResult screenshot) {
+                try {
+                    Bitmap bitmap = Bitmap.wrapHardwareBuffer(
+                        screenshot.getHardwareBuffer(), screenshot.getColorSpace());
+                    screenshot.getHardwareBuffer().close();
+                    if (bitmap != null) {
+                        //noinspection ResultOfMethodCallIgnored
+                        outFile.getParentFile().mkdirs();
+                        try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                        }
+                        ok[0] = true;
+                    }
+                } catch (Exception e) {
+                    Log.e(LOG_TAG, "Screenshot save failed", e);
+                }
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(int errorCode) {
+                Log.w(LOG_TAG, "Screenshot failed: " + errorCode);
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return ok[0];
     }
 }

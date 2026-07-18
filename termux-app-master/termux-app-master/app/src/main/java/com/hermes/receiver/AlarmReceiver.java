@@ -130,6 +130,54 @@ public class AlarmReceiver extends BroadcastReceiver {
         prefs.edit().putString("alarms", kept.toString()).apply();
     }
 
+    /** 列出所有未来闹钟（含倒计时）。 */
+    @NonNull
+    public static JSONObject list(@NonNull Context context) {
+        JSONObject result = new JSONObject();
+        org.json.JSONArray items = new org.json.JSONArray();
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            JSONObject all = new JSONObject(prefs.getString("alarms", "{}"));
+            Iterator<String> keys = all.keys();
+            java.text.SimpleDateFormat fmt =
+                new java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault());
+            while (keys.hasNext()) {
+                String key = keys.next();
+                JSONObject alarm = all.getJSONObject(key);
+                long triggerAt = alarm.optLong("trigger_at", 0);
+                if (triggerAt <= now) continue;
+                items.put(new JSONObject()
+                    .put("id", Integer.parseInt(key))
+                    .put("trigger_at", fmt.format(new java.util.Date(triggerAt)))
+                    .put("message", alarm.optString("message", "Hermes 提醒")));
+            }
+        } catch (JSONException e) {
+            Log.e(LOG_TAG, "Failed to list alarms", e);
+        }
+        try {
+            result.put("alarms", items).put("count", items.length());
+        } catch (JSONException ignored) {
+        }
+        return result;
+    }
+
+    /** 取消一个闹钟；不存在返回 false。 */
+    public static boolean cancel(@NonNull Context context, int id) {
+        AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(context, AlarmReceiver.class)
+            .putExtra(EXTRA_ALARM_ID, id);
+        PendingIntent pending = PendingIntent.getBroadcast(context, id, intent,
+            PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        boolean existed = pending != null;
+        if (pending != null && am != null) {
+            am.cancel(pending);
+            pending.cancel();
+        }
+        remove(context, id);
+        return existed;
+    }
+
     private static void save(@NonNull Context context, int id, long triggerAt, @NonNull String message) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         try {
