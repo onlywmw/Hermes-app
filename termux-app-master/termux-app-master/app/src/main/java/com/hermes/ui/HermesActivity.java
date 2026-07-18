@@ -275,10 +275,185 @@ public class HermesActivity extends AppCompatActivity implements ServiceConnecti
         mChatInput.setText("");
         hideKeyboard();
 
+        // 斜杠命令：硬连桥直接执行，不走 LLM，秒回
+        if (text.startsWith("/")) {
+            mHttpExecutor.execute(() -> {
+                String reply = runDirectCommand(text);
+                runOnUiThread(() -> addChatMessage("Hermes", reply));
+            });
+            return;
+        }
+
         mHttpExecutor.execute(() -> {
             String reply = callAgentChat(text);
             runOnUiThread(() -> addChatMessage("Hermes", reply));
         });
+    }
+
+    private static final String DIRECT_COMMAND_HELP =
+        "可用命令（硬连执行，不走 AI）：\n"
+            + "/手电 [开|关]\n"
+            + "/亮度 [0-255]（不带参数为查询）\n"
+            + "/音量 [数值]（不带参数为查询）\n"
+            + "/震动 [毫秒]\n"
+            + "/锁屏\n"
+            + "/电量 · /设备 · /位置 · /应用\n"
+            + "/打开 <包名或网址>\n"
+            + "/闹钟 <HH:mm> [备注]\n"
+            + "/日历 <标题> <yyyy-MM-dd> <HH:mm>\n"
+            + "/短信 <号码> <内容>\n"
+            + "/剪贴板 [文本]（不带参数为读取）\n"
+            + "/shell <命令>\n"
+            + "/帮助";
+
+    private String runDirectCommand(String text) {
+        if (mHermesService == null) {
+            return "❌ 服务未连接，请先启动 Hermes 服务";
+        }
+        String body = text.substring(1).trim();
+        if (body.isEmpty()) return DIRECT_COMMAND_HELP;
+        String[] parts = body.split("\\s+", 2);
+        String cmd = parts[0];
+        String arg = parts.length > 1 ? parts[1].trim() : "";
+        try {
+            switch (cmd) {
+                case "帮助": case "help": case "?":
+                    return DIRECT_COMMAND_HELP;
+                case "手电": case "torch": {
+                    boolean on = !(arg.equals("关") || arg.equalsIgnoreCase("off")
+                        || arg.equals("0"));
+                    JSONObject r = mHermesService.callTool("torch",
+                        new JSONObject().put("on", on));
+                    return r.optBoolean("success", false)
+                        ? "✅ 手电筒已" + (on ? "打开" : "关闭")
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "亮度": {
+                    if (arg.isEmpty()) {
+                        return "✅ 当前亮度：" + mHermesService.callTool("brightness_get",
+                            new JSONObject()).toString();
+                    }
+                    JSONObject r = mHermesService.callTool("brightness_set",
+                        new JSONObject().put("brightness", Integer.parseInt(arg)));
+                    return r.optBoolean("success", false)
+                        ? "✅ 亮度已设为 " + arg
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "音量": {
+                    if (arg.isEmpty()) {
+                        return "✅ 当前音量：" + mHermesService.callTool("volume_get",
+                            new JSONObject()).toString();
+                    }
+                    JSONObject r = mHermesService.callTool("volume_set",
+                        new JSONObject().put("volume", Integer.parseInt(arg)));
+                    return r.optBoolean("success", false)
+                        ? "✅ 音量已设为 " + arg
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "震动": {
+                    long ms = arg.isEmpty() ? 300 : Long.parseLong(arg);
+                    JSONObject r = mHermesService.callTool("vibrate",
+                        new JSONObject().put("duration", ms));
+                    return r.optBoolean("success", false)
+                        ? "✅ 已震动 " + ms + "ms"
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "锁屏": {
+                    JSONObject r = mHermesService.callTool("device_admin_lock",
+                        new JSONObject());
+                    return r.optBoolean("success", false)
+                        ? "✅ 已锁屏" : "❌ " + r.optString("error", "失败（需设备管理员权限）");
+                }
+                case "电量":
+                    return "✅ " + mHermesService.callTool("battery", new JSONObject()).toString();
+                case "设备":
+                    return "✅ " + mHermesService.callTool("device_info", new JSONObject()).toString();
+                case "位置":
+                    return "✅ " + mHermesService.callTool("location_get", new JSONObject()).toString();
+                case "应用":
+                    return "✅ " + mHermesService.callTool("app_list", new JSONObject()).toString();
+                case "打开": {
+                    if (arg.isEmpty()) return "用法：/打开 <包名或网址>";
+                    JSONObject r;
+                    if (arg.startsWith("http://") || arg.startsWith("https://")) {
+                        r = mHermesService.callTool("open_url",
+                            new JSONObject().put("url", arg));
+                    } else {
+                        r = mHermesService.callTool("app_open",
+                            new JSONObject().put("package", arg));
+                    }
+                    return r.optBoolean("success", false)
+                        ? "✅ 已打开 " + arg : "❌ " + r.optString("error", "失败");
+                }
+                case "闹钟": {
+                    String[] tokens = arg.split("\\s+", 2);
+                    String[] hm = tokens[0].split("[:：]");
+                    if (hm.length != 2) return "用法：/闹钟 <HH:mm> [备注]";
+                    String label = tokens.length > 1 ? tokens[1] : "Hermes 提醒";
+                    JSONObject r = mHermesService.callTool("alarm_set", new JSONObject()
+                        .put("hour", Integer.parseInt(hm[0]))
+                        .put("minutes", Integer.parseInt(hm[1]))
+                        .put("message", label));
+                    return r.optBoolean("success", false)
+                        ? "✅ 闹钟已定：" + r.optString("trigger_at") + "（" + label + "）"
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "日历": {
+                    // 末尾两个 token 是日期和时间，其余为标题
+                    String[] tokens = arg.split("\\s+");
+                    if (tokens.length < 3) return "用法：/日历 <标题> <yyyy-MM-dd> <HH:mm>";
+                    String dateStr = tokens[tokens.length - 2] + " " + tokens[tokens.length - 1];
+                    StringBuilder title = new StringBuilder();
+                    for (int i = 0; i < tokens.length - 2; i++) {
+                        if (i > 0) title.append(' ');
+                        title.append(tokens[i]);
+                    }
+                    java.text.SimpleDateFormat fmt =
+                        new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault());
+                    long startMs = fmt.parse(dateStr).getTime();
+                    JSONObject r = mHermesService.callTool("calendar_add", new JSONObject()
+                        .put("title", title.toString())
+                        .put("start_ms", startMs));
+                    return r.optBoolean("success", false)
+                        ? "✅ 日历已加：" + title + " @ " + dateStr
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "短信": {
+                    String[] tokens = arg.split("\\s+", 2);
+                    if (tokens.length < 2) return "用法：/短信 <号码> <内容>";
+                    JSONObject r = mHermesService.callTool("sms_send", new JSONObject()
+                        .put("to", tokens[0]).put("body", tokens[1]));
+                    return r.optBoolean("success", false)
+                        ? "✅ 短信已发往 " + tokens[0]
+                        : "❌ " + r.optString("error", "失败");
+                }
+                case "剪贴板": {
+                    if (arg.isEmpty()) {
+                        return "✅ 剪贴板：" + mHermesService.callTool("clipboard_read",
+                            new JSONObject()).optString("text", "(空)");
+                    }
+                    JSONObject r = mHermesService.callTool("clipboard_write",
+                        new JSONObject().put("text", arg));
+                    return r.optBoolean("success", false)
+                        ? "✅ 已写入剪贴板" : "❌ " + r.optString("error", "失败");
+                }
+                case "shell": {
+                    if (arg.isEmpty()) return "用法：/shell <命令>";
+                    JSONObject r = mHermesService.callTool("shell",
+                        new JSONObject().put("command", arg));
+                    String out = r.optString("stdout", "");
+                    String err = r.optString("error", "");
+                    if (!err.isEmpty()) return "❌ " + err;
+                    return out.isEmpty() ? "✅ 执行完成（无输出）" : out;
+                }
+                default:
+                    return "未知命令 /" + cmd + "\n\n" + DIRECT_COMMAND_HELP;
+            }
+        } catch (NumberFormatException e) {
+            return "❌ 参数格式不对：" + e.getMessage();
+        } catch (Exception e) {
+            return "❌ 命令执行出错：" + e.getMessage();
+        }
     }
 
     private void addChatMessage(String sender, String text) {

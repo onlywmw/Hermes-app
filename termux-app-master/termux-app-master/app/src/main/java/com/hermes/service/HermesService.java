@@ -18,6 +18,8 @@ import androidx.annotation.Nullable;
 
 import com.hermes.receiver.AlarmReceiver;
 import com.hermes.bridge.HermesSocketServer;
+
+import org.json.JSONObject;
 import com.hermes.ssh.SshManager;
 import com.hermes.ui.HermesActivity;
 import com.termux.R;
@@ -133,6 +135,25 @@ public class HermesService extends Service {
 
     public boolean isAgentRunning() {
         return mIsRunning;
+    }
+
+    /** 进程内直调桥工具（UI 斜杠命令用），绕过 socket 和 LLM。 */
+    @NonNull
+    public JSONObject callTool(@NonNull String method, @NonNull JSONObject params) {
+        try {
+            if (mSocketServer == null) {
+                return new JSONObject().put("success", false)
+                    .put("error", "桥未就绪，请先启动服务");
+            }
+            return mSocketServer.getBridge().handle(method, params);
+        } catch (Exception e) {
+            try {
+                return new JSONObject().put("success", false)
+                    .put("error", e.getMessage());
+            } catch (Exception ignored) {
+                return new JSONObject();
+            }
+        }
     }
 
     public String getStatusText() {

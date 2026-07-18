@@ -72,6 +72,11 @@ public class HermesSocketServer {
         return mSocketPath;
     }
 
+    /** 暴露桥实例，供同进程调用（如 UI 的斜杠命令硬连，跳过 socket）。 */
+    public AndroidToolBridge getBridge() {
+        return mBridge;
+    }
+
     private void listenLoop() {
         // Use localhost TCP for maximum compatibility. Termux Python can connect to
         // 127.0.0.1 without dealing with Android abstract Unix socket namespaces.
