@@ -382,7 +382,7 @@ $('rowSkills').addEventListener('click',function(){openRunDetail('skills');});
 $('runDetailClose').addEventListener('click',closeRunDetail);
 $('runDetailMask').addEventListener('click',closeRunDetail);
 /* 新增模型 → 打开设置页 */
-$('btnAddModel').addEventListener('click',function(){B.openSettings();});
+/* btnAddModel 已删除 — 添加入口在 runtime.js model-add 行内 */
 
 /* ============ 初始化 ============ */
 initLang();
