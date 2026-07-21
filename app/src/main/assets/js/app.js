@@ -30,28 +30,9 @@ document.querySelectorAll('.tray-item').forEach(function(el){
   });
 });
 
-/* ============ Sheet 互斥: 全局锁, 同一时刻只能有一个 sheet ============ */
-var _sheetOpen=false;
-function closeAllSheets(){
-  document.querySelectorAll('.sheet-mask').forEach(function(m){m.classList.remove('open');});
-  document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('open');});
-  _sheetOpen=false;
-}
-function openSheetExclusive(maskId,sheetId){
-  closeAllSheets();
-  $(maskId).classList.add('open');
-  $(sheetId).classList.add('open');
-  _sheetOpen=true;
-}
+/* ============ Sheet 互斥函数已移至 app-room.js (先加载) ============ */
 
-/* ============ 新建房间 sheet (两步) ============ */
-var newMode='single';
-$('fabNew').addEventListener('click',function(){
-  openSheetExclusive('sheetMask','sheetNew');
-  $('sheetStep1').style.display='';$('sheetStep2').style.display='none';
-  $('newRoomName').value='';$('newRoomDesc').value='';
-  $('newRoomName').focus();ev('打开新建房间 sheet');
-});
+/* ============ 新建房间 sheet — 绑定已在 app-room.js, 此处不重复 ============ */
 $('sheetMask').addEventListener('click',closeSheet);
 function closeSheet(){$('sheetMask').classList.remove('open');$('sheetNew').classList.remove('open');}
 
@@ -328,8 +309,7 @@ document.querySelectorAll('.storage-tab').forEach(function(el){
 
 /* Fix 5: 新建文件 sheet */
 function openFileNewSheet(){
-  $('fileNewMask').classList.add('open');
-  $('fileNewSheet').classList.add('open');
+  openSheetExclusive('fileNewMask','fileNewSheet');
   $('fileNewName').value='';
   $('fileNewContent').value='';
   $('fileNewName').focus();

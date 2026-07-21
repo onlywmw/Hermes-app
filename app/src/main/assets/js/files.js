@@ -227,8 +227,7 @@ function useTemplateAction(tname){
 
 /* ---------- 新建模板 sheet ---------- */
 function openTemplateSheet(){
-  $('templateMask').classList.add('open');
-  $('templateSheet').classList.add('open');
+  openSheetExclusive('templateMask','templateSheet');
   $('templateName').value='';
   $('templateContent').value='';
   $('templateName').focus();

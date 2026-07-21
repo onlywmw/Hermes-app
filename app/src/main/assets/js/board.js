@@ -61,8 +61,7 @@ function showBoardTrigger(){
 }
 
 function openBoardPanel(){
-  $('boardPanelMask').classList.add('open');
-  $('boardPanel').classList.add('open');
+  openSheetExclusive('boardPanelMask','boardPanel');
   renderBoardPanel();
   clearTimeout(_boardHideTimer);
 }
@@ -111,8 +110,7 @@ function renderBoardPanel(){
 
 /* 添加应用 sheet */
 function openBoardAddSheet(){
-  $('boardAddMask').classList.add('open');
-  $('boardAddSheet').classList.add('open');
+  openSheetExclusive('boardAddMask','boardAddSheet');
   $('boardAddName').value='';
   $('boardAddUrl').value='';
   $('boardAddName').focus();

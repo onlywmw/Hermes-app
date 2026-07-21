@@ -51,8 +51,7 @@ document.querySelectorAll('.storage-tab').forEach(function(el){
 
 /* Fix 5: 新建文件 sheet */
 function openFileNewSheet(){
-  $('fileNewMask').classList.add('open');
-  $('fileNewSheet').classList.add('open');
+  openSheetExclusive('fileNewMask','fileNewSheet');
   $('fileNewName').value='';
   $('fileNewContent').value='';
   $('fileNewName').focus();
