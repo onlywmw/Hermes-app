@@ -5,6 +5,7 @@
 
 /* ---------- 主刷新 ---------- */
 function refreshRuntime(){
+  refreshHealth();
   refreshProcess();
   refreshChannels();
   refreshModel();
@@ -12,6 +13,31 @@ function refreshRuntime(){
   renderCronJobs();
   renderSkillPage();
   ev('运行页数据已刷新');
+}
+
+/* ---------- 健康总结条 ---------- */
+function refreshHealth(){
+  var info=B.aiInfo();
+  var aiOn=info.enabled&&info.configured;
+  var perms=B.permState();
+  var chOn=(B.present?1:0)+(aiOn?1:0)+(perms.NOTIFY?1:0);
+  var jobs=B.listCron?B.listCron():[];
+  var failedJobs=jobs.filter(function(j){return j.lastStatus&&j.lastStatus.indexOf('FAIL')===0;}).length;
+  var problems=(aiOn?0:1)+failedJobs;
+  var card=$('healthCard');
+  if(problems===0){
+    card.className='health ok';
+    $('healthTitle').textContent=t('rt.healthOk');
+  }else{
+    card.className='health bad';
+    $('healthTitle').textContent=problems+' '+t('rt.healthBad');
+  }
+  var sub=t('rt.healthSub')
+    .replace('{a}',(aiOn?'1/1':'0/1'))
+    .replace('{b}',jobs.length+'')
+    .replace('{c}',chOn+'/3');
+  if(failedJobs>0)sub+=' · '+failedJobs+' FAIL';
+  $('healthSub').textContent=sub;
 }
 
 /* ---------- PROCESS ---------- */
@@ -68,7 +94,13 @@ function refreshModel(){
   ];
   var mh='';
   rows.forEach(function(r){
-    mh+='<div class="model-row'+(r.on?' sel':'')+'" data-model="'+r.key+'"><div><div class="pv">'+esc(r.pv)+'</div><div class="md">'+esc(r.md)+'</div></div><span class="radio"></span></div>';
+    if(r.key==='native'){
+      /* 原生引擎: 永远在线, 不是可选项 → 在线徽章, 无 radio */
+      mh+='<div class="model-row" data-model="'+r.key+'"><div><div class="pv">'+esc(r.pv)+'</div><div class="md">'+esc(r.md)+'</div></div><span class="badge ok"><span class="dot"></span>'+t('rt.online')+'</span></div>';
+    }else{
+      /* AI 模型: radio 单选 */
+      mh+='<div class="model-row'+(r.on?' sel':'')+'" data-model="'+r.key+'"><div><div class="pv">'+esc(r.pv)+'</div><div class="md">'+esc(r.md)+'</div></div><span class="radio"></span></div>';
+    }
   });
   $('modelList').innerHTML=mh;
   document.querySelectorAll('#modelList .model-row').forEach(function(el){

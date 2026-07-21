@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MOV</title>
+<link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/shell.css">
 </head>
 <body>
@@ -12,16 +13,18 @@
 
     <!-- 会话 tab · 房间列表 -->
     <div class="view act" id="view-rooms">
-      <div class="abar">
-        <div style="min-width:0"><h4 data-i18n="rooms.title">房间</h4><div class="sub" data-i18n="rooms.sub">每项目一个聊天室 · 可无限新增</div></div>
-        <span class="grow"></span>
-        <span class="ico-btn" id="btnHelp" title="帮助" data-i18n="help">?</span>
-        <span class="ico-btn" id="btnSettings" title="设置" data-i18n="settings">≡</span>
+      <!-- 大标题头 (mockup bighead) -->
+      <div class="bighead">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div style="min-width:0;flex:1"><h3 data-i18n="rooms.title">房间</h3><div class="bh-sub" id="roomsSub">—</div></div>
+          <span class="ico-btn" id="btnHelp" title="帮助" data-i18n="help">?</span>
+          <span class="ico-btn" id="btnSettings" title="设置" data-i18n="settings">≡</span>
+        </div>
       </div>
       <div class="sbody">
         <div class="room-list" id="roomList"></div>
       </div>
-      <button class="fab" id="fabNew" title="新建房间" data-i18n="rooms.new">+</button>
+      <button class="fab" id="fabNew" title="新建房间" aria-label="新建房间">+</button>
     </div>
 
     <!-- 会话 tab · 房间详情 -->
@@ -125,6 +128,12 @@
     <div class="view" id="view-run">
       <div class="abar"><div><h4 data-i18n="rt.title">运行</h4><div class="sub" id="runSub" data-i18n="rt.sub">原生能力引擎</div></div><span class="grow"></span><span class="ico-btn" id="btnRunRefresh">⟳</span></div>
       <div class="sbody">
+        <!-- 健康总结条 (mockup health) -->
+        <div class="health ok" id="healthCard">
+          <span class="hd"></span>
+          <div style="min-width:0"><b id="healthTitle">—</b><div class="hs" id="healthSub">—</div></div>
+        </div>
+
         <!-- PROCESS -->
         <div class="proc-card">
           <div class="head"><span class="pdot"></span>mov-agent · ANDROID</div>

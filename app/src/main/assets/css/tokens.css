@@ -1,0 +1,65 @@
+/* ============================================================
+   MOV DESIGN TOKENS V2.0 · Apple 风格
+   纯变量文件 · shell.css 与 board-apps/*.html 共用
+   变量名与 V1 完全一致 (只换值 + 纯增量)
+   ============================================================ */
+:root {
+  /* INK · 文字色阶 (Apple 官方灰阶) */
+  --ink-1:#1D1D1F; --ink-2:#48484A; --ink-3:#6E6E73; --ink-4:#AEAEB2;
+
+  /* SURFACE · 层级 */
+  --line:#E5E5EA; --line-soft:#F2F2F5;
+  --bg:#F2F2F7; --panel:#FFFFFF; --panel-2:#F7F7F9;
+  --code-bg:#1C1C1E; --code-ink:#E5E5EA;
+
+  /* ACCENT · 信使金 (保留, 微调饱和度) */
+  --acc:#B45309; --acc-strong:#8A4B00; --acc-live:#E08600;
+  --acc-tint:#FBEEDB; --acc-tint-2:#FDF7EE;
+
+  /* STATUS · 对齐 iOS 系统色 */
+  --ok:#248A3D; --ok-dot:#30D158;
+  --err:#D70015; --err-dot:#FF3B30;
+
+  /* FONT · Sans 正文 + Mono 数据 */
+  --font-mono:'JetBrains Mono',ui-monospace,'SF Mono','Cascadia Mono',Consolas,monospace;
+  --font-sans:-apple-system,'SF Pro Text','Segoe UI',Roboto,'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+
+  /* SIZE */
+  --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+  --fs-16:16px; --fs-18:18px; --fs-22:22px; --fs-28:28px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px; --s12:48px;
+
+  /* SHAPE · 圆角放大一档 */
+  --r-sm:8px; --r-md:14px; --r-lg:20px; --r-xl:26px;
+
+  /* SHADOW · 更轻 */
+  --sh-1:0 1px 2px rgba(0,0,0,.04);
+  --sh-2:0 4px 14px rgba(0,0,0,.07);
+  --sh-3:0 14px 44px rgba(0,0,0,.14);
+
+  /* MOTION · Apple 弹簧 */
+  --t-fast:120ms ease-out;
+  --t-med:320ms cubic-bezier(.32,.72,0,1);
+  --spring:cubic-bezier(.32,.72,0,1);
+
+  /* GLASS · 毛玻璃 (NEW) */
+  --glass:rgba(249,249,251,.76);
+  --glass-dark:rgba(28,28,30,.62);
+  --blur:blur(22px) saturate(180%);
+
+  /* 底部导航高度 (含安全区) · 内容全出血滚到毛玻璃下方 */
+  --bnav-h:calc(64px + env(safe-area-inset-bottom,0px));
+
+  /* AVATAR · AI 成员固定色板 (NEW · iOS 系统色) */
+  --av-1:#0A84FF; --av-2:#BF5AF2; --av-3:#FF375F;
+  --av-4:#30D158; --av-5:#FF9F0A; --av-6:#64D2FF;
+}
+
+/* 毛玻璃兜底: WebView 76- 或低端机降级为实色 */
+@supports not (backdrop-filter:blur(1px)) {
+  :root {
+    --glass:rgba(249,249,251,.96);
+    --glass-dark:rgba(28,28,30,.92);
+    --blur:none;
+  }
+}

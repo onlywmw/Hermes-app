@@ -2,19 +2,34 @@
    render.js — DOM 渲染: 房间列表 / 消息 / 视图切换 / 阶段
    ============================================================ */
 
-/* ---------- 房间列表渲染 ---------- */
+/* ---------- 房间列表渲染 · Apple grouped ---------- */
 function avstack(r){var s='<span class="avstack">';r.members.forEach(function(m){var a=AV[m]||AV.hermes;s+='<i style="background:'+a[1]+'">'+a[0]+'</i>';});return s+'</span>';}
+function roomCard(r){
+  var bc=PHASE_BADGE[r.phase]||'off';
+  return '<div class="room" data-room="'+r.id+'">'
+    +'<span class="udot'+(r.unread?' show':'')+'"></span>'
+    +'<div class="r1">'+avstack(r)+'<b>'+esc(r.name)+'</b><time>'+esc(r.time)+'</time></div>'
+    +'<div class="r2"><span class="mini-tag '+(r.mode==='council'?'council':'')+'">'+(r.mode==='council'?'council · '+r.members.length+' AI':'单聊 · hermes')+'</span><span class="badge '+bc+'"><span class="dot"></span>'+esc(r.phase)+'</span></div>'
+    +'<div class="r3">'+esc(r.last)+'</div></div>';
+}
 function renderRooms(){
+  var active=ROOMS.filter(function(r){return r.phase!=='已归档';});
+  var archived=ROOMS.filter(function(r){return r.phase==='已归档';});
   var h='';
-  ROOMS.forEach(function(r){
-    var bc=PHASE_BADGE[r.phase]||'off';
-    h+='<div class="room" data-room="'+r.id+'">'
-      +'<span class="udot'+(r.unread?' show':'')+'"></span>'
-      +'<div class="r1">'+avstack(r)+'<b>'+esc(r.name)+'</b><time>'+esc(r.time)+'</time></div>'
-      +'<div class="r2"><span class="mini-tag '+(r.mode==='council'?'council':'')+'">'+(r.mode==='council'?'council · '+r.members.length+' AI':'单聊 · hermes')+'</span><span class="badge '+bc+'"><span class="dot"></span>'+esc(r.phase)+'</span></div>'
-      +'<div class="r3">'+esc(r.last)+'</div></div>';
-  });
+  if(active.length){
+    h+='<div class="glabel">'+t('rooms.active')+'</div><div class="glist">';
+    active.forEach(function(r){h+=roomCard(r);});
+    h+='</div>';
+  }
+  if(archived.length){
+    h+='<div class="glabel">'+t('rooms.archived')+'</div><div class="glist">';
+    archived.forEach(function(r){h+=roomCard(r);});
+    h+='</div>';
+  }
   $('roomList').innerHTML=h;
+  /* 大标题副标题: N 个项目 · M 个团队在讨论 */
+  var councils=active.filter(function(r){return r.mode==='council';}).length;
+  if($('roomsSub'))$('roomsSub').innerHTML='<b>'+active.length+'</b> '+t('rooms.projects')+' · <b>'+councils+'</b> '+t('rooms.councils');
   document.querySelectorAll('#roomList .room').forEach(function(el){
     el.addEventListener('click',function(){enterRoom(el.getAttribute('data-room'));});
   });
