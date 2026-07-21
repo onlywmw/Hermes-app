@@ -363,6 +363,9 @@ button,input,textarea{font-family:inherit;}
 .perm.denied::after{background:var(--err-dot);}
 
 /* ---------- 交互增强: sheet 行 / 长按操作条 ---------- */
+/* 新建房间 sheet 层级高于房间操作 sheet, 防止叠显 */
+#sheetMask{z-index:11;}
+#sheetNew{z-index:12;}
 .sheet-close{font-family:var(--font-sans);font-size:14px;color:var(--ink-3);cursor:pointer;padding:4px 8px;transition:color var(--t-fast);}
 .sheet-close:active{color:var(--ink-1);}
 .sheet-row{font-family:var(--font-sans);font-size:13px;font-weight:600;padding:13px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;transition:color var(--t-fast);color:var(--ink-1);}
