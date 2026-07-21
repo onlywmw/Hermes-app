@@ -18,6 +18,11 @@
         tools:ignore="ProtectedPermissions" xmlns:tools="http://schemas.android.com/tools" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- P0-2: Widget 自定义签名级权限 -->
+    <permission
+        android:name="com.hermes.android.permission.EXECUTE_WIDGET"
+        android:protectionLevel="signature" />
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -51,7 +56,8 @@
         <!-- Hermes Widget -->
         <receiver
             android:name=".widget.HermesWidgetProvider"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.hermes.android.permission.EXECUTE_WIDGET">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.hermes.android.widget.ACTION_EXECUTE" />

@@ -1,5 +1,6 @@
 package com.hermes.android;
 
+import android.content.Context;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -16,8 +17,8 @@ import java.util.Locale;
 /**
  * MOV 存储系统 — 五种存储类型的核心逻辑。
  *
- * 磁盘布局:
- * /sdcard/mov/
+ * 磁盘布局 (Scoped Storage):
+ * context.getExternalFilesDir(null)/mov/
  *   rooms/<id>/
  *     files/work/           产出 (当前版本)
  *     files/work-snapshots/ 产出历史版本
@@ -26,24 +27,67 @@ import java.util.Locale;
  *     files/.meta/index.json 元数据
  *   templates/              模板 (跨房间)
  *   personal/notes/         个人笔记
+ *
+ * P0-1: /sdcard → Scoped Storage 迁移
  */
 public class StorageManager {
 
     private static final String TAG = "StorageManager";
-    private static final String BASE = "/sdcard/mov/";
+    private final File baseDir;
+
+    public StorageManager(Context context) {
+        this.baseDir = new File(context.getExternalFilesDir(null), "mov");
+        this.baseDir.mkdirs();
+        migrateIfNeeded();
+    }
+
+    public File getBaseDir() { return baseDir; }
+
+    public File getRoomsDir() { return new File(baseDir, "rooms"); }
+
+    // ==================== 旧数据迁移 ====================
+
+    private void migrateIfNeeded() {
+        File marker = new File(baseDir, ".migrated");
+        if (marker.exists()) return;
+        File oldBase = new File("/sdcard/mov");
+        if (oldBase.exists() && oldBase.isDirectory()) {
+            try {
+                copyRecursive(oldBase, baseDir);
+                Log.i(TAG, "Migrated /sdcard/mov -> " + baseDir.getAbsolutePath());
+            } catch (Exception e) {
+                Log.w(TAG, "Migration failed: " + e.getMessage());
+            }
+        }
+        try { marker.createNewFile(); } catch (Exception ignored) {}
+    }
+
+    private void copyRecursive(File src, File dst) throws Exception {
+        if (src.isDirectory()) {
+            dst.mkdirs();
+            File[] children = src.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    copyRecursive(child, new File(dst, child.getName()));
+                }
+            }
+        } else {
+            Files.copy(src.toPath(), dst.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
 
     // ==================== 目录初始化 ====================
 
     /** 初始化房间存储目录结构 */
-    public static void initRoomStorage(String roomId) {
-        String room = BASE + "rooms/" + roomId + "/files/";
-        new File(room + "work").mkdirs();
-        new File(room + "work-snapshots").mkdirs();
-        new File(room + "inbox").mkdirs();
-        new File(room + "archive").mkdirs();
-        new File(room + ".meta").mkdirs();
-        // 初始化 index.json
-        File index = new File(room + ".meta/index.json");
+    public void initRoomStorage(String roomId) {
+        File room = new File(baseDir, "rooms/" + roomId + "/files/");
+        new File(room, "work").mkdirs();
+        new File(room, "work-snapshots").mkdirs();
+        new File(room, "inbox").mkdirs();
+        new File(room, "archive").mkdirs();
+        new File(room, ".meta").mkdirs();
+        File index = new File(room, ".meta/index.json");
         if (!index.exists()) {
             try (FileWriter fw = new FileWriter(index)) {
                 fw.write("{\"files\":[]}");
@@ -55,10 +99,9 @@ public class StorageManager {
 
     // ==================== 产出 (work) ====================
 
-    /** 列出产出文件 */
-    public static String listWorkFiles(String roomId) {
+    public String listWorkFiles(String roomId) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/work");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
             JSONArray arr = listDir(dir);
             return new JSONObject().put("ok", true).put("files", arr).toString();
         } catch (Exception e) {
@@ -66,15 +109,13 @@ public class StorageManager {
         }
     }
 
-    /** 保存产出文件 (自动快照旧版本) */
-    public static String saveWorkFile(String roomId, String path, String content, String author) {
+    public String saveWorkFile(String roomId, String path, String content, String author) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/work");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
             File target = new File(dir, path);
             if (!isSafe(dir, target)) return errJson("路径越界");
             target.getParentFile().mkdirs();
 
-            // 快照旧版本
             if (target.exists()) {
                 snapshotWorkFile(roomId, path, target);
             }
@@ -83,7 +124,6 @@ public class StorageManager {
                 fw.write(content);
             }
 
-            // 更新元数据
             updateMeta(roomId, path, "work", author, target.length());
 
             return new JSONObject().put("ok", true)
@@ -93,12 +133,11 @@ public class StorageManager {
         }
     }
 
-    /** 快照旧版本到 work-snapshots/ */
-    private static void snapshotWorkFile(String roomId, String path, File current) {
+    private void snapshotWorkFile(String roomId, String path, File current) {
         try {
             String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
             String snapName = path.replace("/", "_") + "." + ts;
-            File snapDir = new File(BASE + "rooms/" + roomId + "/files/work-snapshots");
+            File snapDir = new File(baseDir, "rooms/" + roomId + "/files/work-snapshots");
             snapDir.mkdirs();
             File snap = new File(snapDir, snapName);
             Files.copy(current.toPath(), snap.toPath());
@@ -107,10 +146,9 @@ public class StorageManager {
         }
     }
 
-    /** 列出版本历史 */
-    public static String listVersions(String roomId, String path) {
+    public String listVersions(String roomId, String path) {
         try {
-            File snapDir = new File(BASE + "rooms/" + roomId + "/files/work-snapshots");
+            File snapDir = new File(baseDir, "rooms/" + roomId + "/files/work-snapshots");
             String prefix = path.replace("/", "_") + ".";
             JSONArray arr = new JSONArray();
             File[] snaps = snapDir.listFiles();
@@ -131,22 +169,19 @@ public class StorageManager {
         }
     }
 
-    /** 恢复版本 */
-    public static String restoreVersion(String roomId, String path, String snapshotName) {
+    public String restoreVersion(String roomId, String path, String snapshotName) {
         try {
-            File snapDir = new File(BASE + "rooms/" + roomId + "/files/work-snapshots");
+            File snapDir = new File(baseDir, "rooms/" + roomId + "/files/work-snapshots");
             File snap = new File(snapDir, snapshotName);
             if (!isSafe(snapDir, snap)) return errJson("路径越界");
             if (!snap.exists()) return errJson("版本不存在");
 
-            File dir = new File(BASE + "rooms/" + roomId + "/files/work");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
             File target = new File(dir, path);
             if (!isSafe(dir, target)) return errJson("路径越界");
 
-            // 先快照当前
             if (target.exists()) snapshotWorkFile(roomId, path, target);
 
-            // 复制旧版本覆盖
             Files.copy(snap.toPath(), target.toPath(),
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING);
 
@@ -159,10 +194,9 @@ public class StorageManager {
 
     // ==================== 资料 (inbox) ====================
 
-    /** 列出资料 */
-    public static String listInboxFiles(String roomId) {
+    public String listInboxFiles(String roomId) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/inbox");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/inbox");
             JSONArray arr = listDir(dir);
             return new JSONObject().put("ok", true).put("files", arr).toString();
         } catch (Exception e) {
@@ -170,19 +204,17 @@ public class StorageManager {
         }
     }
 
-    /** 上传资料 (从 URI 复制) — 由 Activity 调用 */
-    public static File getInboxDir(String roomId) {
-        File dir = new File(BASE + "rooms/" + roomId + "/files/inbox");
+    public File getInboxDir(String roomId) {
+        File dir = new File(baseDir, "rooms/" + roomId + "/files/inbox");
         dir.mkdirs();
         return dir;
     }
 
     // ==================== 归档 (archive) ====================
 
-    /** 列出归档 (按来源分组) */
-    public static String listArchiveFiles(String roomId) {
+    public String listArchiveFiles(String roomId) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/archive");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/archive");
             JSONArray sources = new JSONArray();
             File[] dirs = dir.listFiles(File::isDirectory);
             if (dirs != null) {
@@ -200,12 +232,11 @@ public class StorageManager {
         }
     }
 
-    /** 写入归档 (Cron 产出) */
-    public static String writeArchive(String roomId, String source, String content) {
+    public String writeArchive(String roomId, String source, String content) {
         try {
             String date = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
             String time = new SimpleDateFormat("HHmm", Locale.US).format(new Date());
-            File dir = new File(BASE + "rooms/" + roomId + "/files/archive/" + source);
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/archive/" + source);
             dir.mkdirs();
             String fileName = date + "_" + time + ".md";
             File target = new File(dir, fileName);
@@ -221,10 +252,9 @@ public class StorageManager {
 
     // ==================== 模板 (templates) ====================
 
-    /** 列出模板 */
-    public static String listTemplates() {
+    public String listTemplates() {
         try {
-            File dir = new File(BASE + "templates");
+            File dir = new File(baseDir, "templates");
             dir.mkdirs();
             JSONArray arr = listDir(dir);
             return new JSONObject().put("ok", true).put("files", arr).toString();
@@ -233,10 +263,9 @@ public class StorageManager {
         }
     }
 
-    /** 保存模板 */
-    public static String saveTemplate(String name, String content) {
+    public String saveTemplate(String name, String content) {
         try {
-            File dir = new File(BASE + "templates");
+            File dir = new File(baseDir, "templates");
             dir.mkdirs();
             File target = new File(dir, name);
             if (!isSafe(dir, target)) return errJson("路径越界");
@@ -249,14 +278,13 @@ public class StorageManager {
         }
     }
 
-    /** 使用模板 (复制到房间产出) */
-    public static String useTemplate(String templateName, String roomId, String targetName) {
+    public String useTemplate(String templateName, String roomId, String targetName) {
         try {
-            File src = new File(BASE + "templates/" + templateName);
+            File src = new File(baseDir, "templates/" + templateName);
             if (!src.exists()) return errJson("模板不存在");
             String content = new String(Files.readAllBytes(src.toPath()), StandardCharsets.UTF_8);
 
-            File dir = new File(BASE + "rooms/" + roomId + "/files/work");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
             dir.mkdirs();
             File target = new File(dir, targetName);
             if (!isSafe(dir, target)) return errJson("路径越界");
@@ -272,10 +300,9 @@ public class StorageManager {
 
     // ==================== 个人笔记 ====================
 
-    /** 列出笔记 */
-    public static String listNotes() {
+    public String listNotes() {
         try {
-            File dir = new File(BASE + "personal/notes");
+            File dir = new File(baseDir, "personal/notes");
             dir.mkdirs();
             JSONArray arr = listDir(dir);
             return new JSONObject().put("ok", true).put("files", arr).toString();
@@ -284,10 +311,9 @@ public class StorageManager {
         }
     }
 
-    /** 保存笔记 */
-    public static String saveNote(String name, String content) {
+    public String saveNote(String name, String content) {
         try {
-            File dir = new File(BASE + "personal/notes");
+            File dir = new File(baseDir, "personal/notes");
             dir.mkdirs();
             File target = new File(dir, name);
             if (!isSafe(dir, target)) return errJson("路径越界");
@@ -300,10 +326,9 @@ public class StorageManager {
         }
     }
 
-    /** 读取笔记 */
-    public static String readNote(String name) {
+    public String readNote(String name) {
         try {
-            File dir = new File(BASE + "personal/notes");
+            File dir = new File(baseDir, "personal/notes");
             File target = new File(dir, name);
             if (!isSafe(dir, target)) return errJson("路径越界");
             if (!target.exists()) return errJson("笔记不存在");
@@ -314,10 +339,9 @@ public class StorageManager {
         }
     }
 
-    /** 删除笔记 */
-    public static String deleteNote(String name) {
+    public String deleteNote(String name) {
         try {
-            File dir = new File(BASE + "personal/notes");
+            File dir = new File(baseDir, "personal/notes");
             File target = new File(dir, name);
             if (!isSafe(dir, target)) return errJson("路径越界");
             if (target.exists()) target.delete();
@@ -327,10 +351,11 @@ public class StorageManager {
         }
     }
 
-    /** 删除产出文件 */
-    public static String deleteWorkFile(String roomId, String path) {
+    // ==================== 删除操作 ====================
+
+    public String deleteWorkFile(String roomId, String path) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/work");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
             File target = new File(dir, path);
             if (!isSafe(dir, target)) return errJson("路径越界");
             if (target.exists()) target.delete();
@@ -338,10 +363,9 @@ public class StorageManager {
         } catch (Exception e) { return errJson(e); }
     }
 
-    /** 删除资料文件 */
-    public static String deleteInboxFile(String roomId, String path) {
+    public String deleteInboxFile(String roomId, String path) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/inbox");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/inbox");
             File target = new File(dir, path);
             if (!isSafe(dir, target)) return errJson("路径越界");
             if (target.exists()) target.delete();
@@ -349,10 +373,9 @@ public class StorageManager {
         } catch (Exception e) { return errJson(e); }
     }
 
-    /** 删除归档文件 */
-    public static String deleteArchiveFile(String roomId, String path) {
+    public String deleteArchiveFile(String roomId, String path) {
         try {
-            File dir = new File(BASE + "rooms/" + roomId + "/files/archive");
+            File dir = new File(baseDir, "rooms/" + roomId + "/files/archive");
             File target = new File(dir, path);
             if (!isSafe(dir, target)) return errJson("路径越界");
             if (target.exists()) target.delete();
@@ -362,10 +385,9 @@ public class StorageManager {
 
     // ==================== 通用工具 ====================
 
-    /** 读取房间元数据 index.json */
-    public static String getRoomMeta(String roomId) {
+    public String getRoomMeta(String roomId) {
         try {
-            File metaFile = new File(BASE + "rooms/" + roomId + "/files/.meta/index.json");
+            File metaFile = new File(baseDir, "rooms/" + roomId + "/files/.meta/index.json");
             if (!metaFile.exists()) return "{\"ok\":true,\"files\":[]}";
             String content = new String(Files.readAllBytes(metaFile.toPath()), StandardCharsets.UTF_8);
             return new JSONObject(content).put("ok", true).toString();
@@ -376,11 +398,10 @@ public class StorageManager {
 
     // ==================== 聊天按天存储 ====================
 
-    /** 追加一条消息到当天的聊天文件 (只追加, 不读全量) */
-    public static String appendChatMessage(String roomId, String messageJson) {
+    public String appendChatMessage(String roomId, String messageJson) {
         try {
             String date = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
-            File chatDir = new File(BASE + "rooms/" + roomId + "/chat");
+            File chatDir = new File(baseDir, "rooms/" + roomId + "/chat");
             chatDir.mkdirs();
             File dayFile = new File(chatDir, date + ".jsonl");
             try (FileWriter fw = new FileWriter(dayFile, true)) {
@@ -392,16 +413,19 @@ public class StorageManager {
         }
     }
 
-    /** 加载某天的聊天记录 */
-    public static String loadChatMessages(String roomId, String date) {
+    public String loadChatMessages(String roomId, String date) {
         try {
-            File dayFile = new File(BASE + "rooms/" + roomId + "/chat/" + date + ".jsonl");
+            File dayFile = new File(baseDir, "rooms/" + roomId + "/chat/" + date + ".jsonl");
             if (!dayFile.exists()) return "{\"ok\":true,\"messages\":[]}";
             String content = new String(Files.readAllBytes(dayFile.toPath()), StandardCharsets.UTF_8);
             JSONArray messages = new JSONArray();
             for (String line : content.split("\n")) {
                 if (!line.trim().isEmpty()) {
-                    messages.put(new JSONObject(line.trim()));
+                    try {
+                        messages.put(new JSONObject(line.trim()));
+                    } catch (Exception ignored) {
+                        // 单行解析失败不中断整个加载
+                    }
                 }
             }
             return new JSONObject().put("ok", true).put("messages", messages).toString();
@@ -410,7 +434,9 @@ public class StorageManager {
         }
     }
 
-    private static JSONArray listDir(File dir) throws Exception {
+    // ==================== 内部工具 ====================
+
+    private JSONArray listDir(File dir) throws Exception {
         JSONArray arr = new JSONArray();
         File[] files = dir.listFiles();
         if (files != null) {
@@ -431,10 +457,10 @@ public class StorageManager {
         return arr;
     }
 
-    private static void updateMeta(String roomId, String path, String type,
-                                   String author, long size) {
+    private void updateMeta(String roomId, String path, String type,
+                            String author, long size) {
         try {
-            File metaFile = new File(BASE + "rooms/" + roomId + "/files/.meta/index.json");
+            File metaFile = new File(baseDir, "rooms/" + roomId + "/files/.meta/index.json");
             JSONObject meta;
             if (metaFile.exists()) {
                 meta = new JSONObject(new String(
@@ -443,7 +469,6 @@ public class StorageManager {
                 meta = new JSONObject().put("files", new JSONArray());
             }
             JSONArray files = meta.getJSONArray("files");
-            // 查找并更新或追加
             boolean found = false;
             for (int i = 0; i < files.length(); i++) {
                 JSONObject f = files.getJSONObject(i);
@@ -471,7 +496,7 @@ public class StorageManager {
         }
     }
 
-    private static boolean isSafe(File base, File target) {
+    private boolean isSafe(File base, File target) {
         try {
             return target.getCanonicalPath().startsWith(base.getCanonicalPath());
         } catch (Exception e) {
@@ -479,7 +504,7 @@ public class StorageManager {
         }
     }
 
-    private static String errJson(String msg) {
+    private String errJson(String msg) {
         try {
             return new JSONObject().put("ok", false).put("error", msg).toString();
         } catch (Exception e) {
@@ -487,7 +512,7 @@ public class StorageManager {
         }
     }
 
-    private static String errJson(Exception e) {
+    private String errJson(Exception e) {
         return errJson(e.getMessage() != null ? e.getMessage() : "未知错误");
     }
 }

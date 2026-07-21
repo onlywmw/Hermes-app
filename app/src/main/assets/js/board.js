@@ -33,10 +33,24 @@ function saveBoardApps(){
 function loadBoardApp(id){
   var app=_boardApps.find(function(a){return a.id===id;});
   if(!app)return;
+  /* P0-3: URL 协议校验 — 只允许 http/https 和内置 board-apps */
+  if(app.type==='url'&&!isValidBoardUrl(app.source)){
+    B.toast(t('board.invalidUrl')||'URL 无效');
+    return;
+  }
   $('boardFrame').src=app.source;
   $('boardTriggerIcon').textContent=app.icon;
   $('boardTriggerName').textContent=app.name;
   _boardActive=id;
+}
+/* P0-3: 校验看板 URL */
+function isValidBoardUrl(url){
+  if(!url)return false;
+  if(url.indexOf('board-apps/')===0)return true; /* 内置应用 */
+  try{
+    var u=new URL(url);
+    return u.protocol==='https:'||u.protocol==='http:';
+  }catch(e){return false;}
 }
 
 function showBoardTrigger(){

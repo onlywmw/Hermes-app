@@ -67,6 +67,7 @@ public class HermesCronWorker extends Worker {
             String command = targetJob.getString("command");
             IntentParser parser = new IntentParser();
             CapabilityExecutor executor = new CapabilityExecutor();
+            executor.init(ctx);
 
             ParsedCommand cmd = parser.parse(command);
             String status;

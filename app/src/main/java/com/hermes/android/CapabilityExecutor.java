@@ -20,6 +20,7 @@ import android.speech.tts.TextToSpeech;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.util.Locale;
 
@@ -30,8 +31,20 @@ import java.util.Locale;
 public class CapabilityExecutor {
 
     private TextToSpeech tts;
-    private boolean ttsReady = false;
+    private volatile boolean ttsReady = false;
     private boolean torchOn = false;
+
+    /** P0-1: Scoped Storage 路径，由 init(Context) 注入 */
+    private File roomsBase;
+    private File externalBase;
+
+    /** 必须在使用前调用，注入 Context 获取正确路径 */
+    public void init(Context ctx) {
+        File ext = ctx.getExternalFilesDir(null);
+        this.externalBase = ext;
+        this.roomsBase = new File(ext, "mov/rooms");
+        this.roomsBase.mkdirs();
+    }
 
     /* 运行统计: 进程级命令计数 (RUNTIME 页真数据) */
     private static final java.util.concurrent.atomic.AtomicLong CMD_COUNT =
@@ -232,18 +245,24 @@ public class CapabilityExecutor {
             sb.append("\nJVM 内存: ").append(totalMem).append("MB / ").append(maxMem).append("MB (空闲 ").append(freeMem).append("MB)\n");
 
             // System memory via /proc/meminfo
+            Process memProc = null;
             try {
-                BufferedReader br = new BufferedReader(new InputStreamReader(
-                    Runtime.getRuntime().exec("cat /proc/meminfo").getInputStream()));
-                String line;
-                int count = 0;
-                sb.append("\n系统内存:\n");
-                while ((line = br.readLine()) != null && count < 3) {
-                    sb.append("  ").append(line).append("\n");
-                    count++;
+                memProc = Runtime.getRuntime().exec("cat /proc/meminfo");
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                        memProc.getInputStream()))) {
+                    String line;
+                    int count = 0;
+                    sb.append("\n系统内存:\n");
+                    while ((line = br.readLine()) != null && count < 3) {
+                        sb.append("  ").append(line).append("\n");
+                        count++;
+                    }
                 }
-                br.close();
-            } catch (Exception ignored) {}
+                memProc.waitFor();
+            } catch (Exception ignored) {
+            } finally {
+                if (memProc != null) memProc.destroy();
+            }
 
             return CommandResult.ok(sb.toString().trim());
         } catch (Exception e) {
@@ -553,13 +572,17 @@ public class CapabilityExecutor {
 
     // ==================== SCREEN CAPTURE ====================
     private CommandResult doScreenCapture(Context ctx) {
+        Process proc = null;
         try {
-            String path = "/sdcard/mov_screenshot_" + System.currentTimeMillis() + ".png";
-            Process proc = Runtime.getRuntime().exec(new String[]{"screencap", "-p", path});
+            File outDir = externalBase != null ? externalBase : ctx.getExternalFilesDir(null);
+            String path = new File(outDir, "mov_screenshot_" + System.currentTimeMillis() + ".png").getAbsolutePath();
+            proc = Runtime.getRuntime().exec(new String[]{"screencap", "-p", path});
             proc.waitFor();
             return CommandResult.ok("📸 截屏已保存: " + path);
         } catch (Exception e) {
             return CommandResult.fail("截屏失败: " + e.getMessage() + "\n(需要 ADB 权限或 root)");
+        } finally {
+            if (proc != null) proc.destroy();
         }
     }
 
@@ -603,24 +626,32 @@ public class CapabilityExecutor {
 
     // ==================== INPUT TAP ====================
     private CommandResult doInputTap(int x, int y) {
+        Process proc = null;
         try {
-            Runtime.getRuntime().exec(new String[]{"input", "tap", String.valueOf(x), String.valueOf(y)});
+            proc = Runtime.getRuntime().exec(new String[]{"input", "tap", String.valueOf(x), String.valueOf(y)});
+            proc.waitFor();
             return CommandResult.ok("👆 已点击 (" + x + ", " + y + ")");
         } catch (Exception e) {
             return CommandResult.fail("点击失败: " + e.getMessage());
+        } finally {
+            if (proc != null) proc.destroy();
         }
     }
 
     // ==================== INPUT SWIPE ====================
     private CommandResult doInputSwipe(ParsedCommand cmd) {
+        Process proc = null;
         try {
             int x1 = cmd.getIntArg("x1", 0), y1 = cmd.getIntArg("y1", 0);
             int x2 = cmd.getIntArg("x2", 0), y2 = cmd.getIntArg("y2", 0);
-            Runtime.getRuntime().exec(new String[]{"input", "swipe",
+            proc = Runtime.getRuntime().exec(new String[]{"input", "swipe",
                 String.valueOf(x1), String.valueOf(y1), String.valueOf(x2), String.valueOf(y2), "300"});
+            proc.waitFor();
             return CommandResult.ok("👆 已滑动 (" + x1 + "," + y1 + ") → (" + x2 + "," + y2 + ")");
         } catch (Exception e) {
             return CommandResult.fail("滑动失败: " + e.getMessage());
+        } finally {
+            if (proc != null) proc.destroy();
         }
     }
 
@@ -649,21 +680,25 @@ public class CapabilityExecutor {
 
     // ==================== PROCESS LIST ====================
     private CommandResult doProcessList() {
+        Process proc = null;
         try {
-            Process proc = Runtime.getRuntime().exec("ps -ef");
-            BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-            StringBuilder sb = new StringBuilder("⚙️ 运行中的进程\n\n");
-            String line;
-            int count = 0;
-            while ((line = br.readLine()) != null && count < 25) {
-                sb.append(line).append("\n");
-                count++;
+            proc = Runtime.getRuntime().exec("ps -ef");
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                StringBuilder sb = new StringBuilder("⚙️ 运行中的进程\n\n");
+                String line;
+                int count = 0;
+                while ((line = br.readLine()) != null && count < 25) {
+                    sb.append(line).append("\n");
+                    count++;
+                }
+                if (count >= 25) sb.append("... (仅显示前25条)");
+                proc.waitFor();
+                return CommandResult.ok(sb.toString().trim());
             }
-            br.close();
-            if (count >= 25) sb.append("... (仅显示前25条)");
-            return CommandResult.ok(sb.toString().trim());
         } catch (Exception e) {
             return CommandResult.fail("进程列表获取失败: " + e.getMessage());
+        } finally {
+            if (proc != null) proc.destroy();
         }
     }
 
@@ -710,7 +745,11 @@ public class CapabilityExecutor {
     }
 
     // ==================== ROOM FILE OPS ====================
-    private static final String ROOMS_BASE = "/sdcard/mov/rooms/";
+    /** P0-1: 路径从 init() 注入的 roomsBase 获取 */
+    private File getRoomsBase() {
+        if (roomsBase == null) throw new IllegalStateException("CapabilityExecutor.init() not called");
+        return roomsBase;
+    }
 
     /** 路径逃逸检查: target 必须在 base 内 */
     private boolean isPathSafe(java.io.File base, java.io.File target) {
@@ -727,7 +766,7 @@ public class CapabilityExecutor {
         String content = cmd.getStringArg("content", "");
         if (roomId.isEmpty() || path.isEmpty()) return CommandResult.fail("需要 roomId 和 path");
         try {
-            java.io.File base = new java.io.File(ROOMS_BASE + roomId);
+            java.io.File base = new java.io.File(getRoomsBase(), roomId);
             java.io.File target = new java.io.File(base, path);
             if (!isPathSafe(base, target)) return CommandResult.fail("路径越界");
             target.getParentFile().mkdirs();
@@ -745,7 +784,7 @@ public class CapabilityExecutor {
         String path = cmd.getStringArg("path", "");
         if (roomId.isEmpty() || path.isEmpty()) return CommandResult.fail("需要 roomId 和 path");
         try {
-            java.io.File base = new java.io.File(ROOMS_BASE + roomId);
+            java.io.File base = new java.io.File(getRoomsBase(), roomId);
             java.io.File target = new java.io.File(base, path);
             if (!isPathSafe(base, target)) return CommandResult.fail("路径越界");
             if (!target.exists()) return CommandResult.fail("文件不存在: " + path);
@@ -762,7 +801,7 @@ public class CapabilityExecutor {
         String path = cmd.getStringArg("path", "");
         if (roomId.isEmpty() || path.isEmpty()) return CommandResult.fail("需要 roomId 和 path");
         try {
-            java.io.File base = new java.io.File(ROOMS_BASE + roomId);
+            java.io.File base = new java.io.File(getRoomsBase(), roomId);
             java.io.File target = new java.io.File(base, path);
             if (!isPathSafe(base, target)) return CommandResult.fail("路径越界");
             if (!target.exists()) return CommandResult.fail("文件不存在");
@@ -779,7 +818,7 @@ public class CapabilityExecutor {
         String path = cmd.getStringArg("path", "");
         if (roomId.isEmpty() || path.isEmpty()) return CommandResult.fail("需要 roomId 和 path");
         try {
-            java.io.File base = new java.io.File(ROOMS_BASE + roomId);
+            java.io.File base = new java.io.File(getRoomsBase(), roomId);
             java.io.File target = new java.io.File(base, path);
             if (!isPathSafe(base, target)) return CommandResult.fail("路径越界");
             target.mkdirs();

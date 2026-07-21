@@ -16,16 +16,27 @@ import com.hermes.android.ParsedCommand;
 import com.hermes.android.R;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Hermes home screen widget - quick action buttons.
  * Executes commands directly via CapabilityExecutor (no Termux needed).
+ * P0-2: 签名级权限保护 + 指令白名单
  */
 public class HermesWidgetProvider extends AppWidgetProvider {
 
     public static final String ACTION_EXECUTE = "com.hermes.android.widget.ACTION_EXECUTE";
     public static final String ACTION_REFRESH = "com.hermes.android.widget.ACTION_REFRESH";
     public static final String EXTRA_COMMAND = "command";
+
+    /** P0-2: 只允许小组件预置的快捷指令 */
+    private static final Set<String> ALLOWED_COMMANDS = new HashSet<>(Arrays.asList(
+        "打开手电筒", "关闭手电筒", "电量多少", "当前音量",
+        "WiFi状态", "震动", "亮度调到 128", "设备信息",
+        "截屏", "ip地址", "应用列表", "联系人",
+        "最近短信", "读取剪贴板"
+    ));
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -107,6 +118,12 @@ public class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     private void executeCommand(Context context, String command) {
+        // P0-2: 白名单过滤
+        if (!ALLOWED_COMMANDS.contains(command)) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, "小组件不支持此指令", Toast.LENGTH_SHORT).show());
+            return;
+        }
         // P0-J4: 异步执行, 避免阻塞 BroadcastReceiver 主线程 (10s 限制)
         new Thread(() -> {
             try {
@@ -114,17 +131,18 @@ public class HermesWidgetProvider extends AppWidgetProvider {
                 ParsedCommand cmd = parser.parse(command);
                 if (cmd == null) {
                     new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                        Toast.makeText(context, "❌ 未识别: " + command, Toast.LENGTH_SHORT).show());
+                        Toast.makeText(context, "未识别: " + command, Toast.LENGTH_SHORT).show());
                     return;
                 }
                 CapabilityExecutor executor = new CapabilityExecutor();
+                executor.init(context);
                 CommandResult result = executor.execute(context, cmd);
-                String icon = result.isSuccess() ? "✅" : "❌";
+                String icon = result.isSuccess() ? "OK" : "FAIL";
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
                     Toast.makeText(context, icon + " " + result.getMessage(), Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
-                    Toast.makeText(context, "❌ 执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    Toast.makeText(context, "执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }).start();
     }

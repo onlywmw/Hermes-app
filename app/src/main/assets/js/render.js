@@ -1,6 +1,34 @@
 /* ============================================================
    render.js — DOM 渲染: 房间列表 / 消息 / 视图切换 / 阶段
+   P0-3: XSS 修复 — sanitize + textContent 优先
    ============================================================ */
+
+/* P0-3: HTML 消毒 — 去 script/事件处理器/javascript: 协议 */
+function sanitize(html){
+  if(!html)return '';
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi,'')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi,'')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi,'')
+    .replace(/javascript\s*:/gi,'');
+}
+/* P0-3: 安全气泡 — 只保留 <code> 标签，其余走 textContent */
+function safeBubble(html){
+  var div=document.createElement('div');div.className='bubble';
+  if(!html)return div;
+  var parts=html.split(/(<code>[\s\S]*?<\/code>)/g);
+  parts.forEach(function(part){
+    if(/^<code>[\s\S]*?<\/code>$/i.test(part)){
+      var code=document.createElement('code');
+      code.textContent=part.replace(/^<code>/i,'').replace(/<\/code>$/i,'');
+      div.appendChild(code);
+    }else if(part){
+      div.appendChild(document.createTextNode(part));
+    }
+  });
+  return div;
+}
 
 /* ---------- 房间列表渲染 · Apple grouped ---------- */
 function avstack(r){var s='<span class="avstack">';r.members.forEach(function(m){var a=AV[m]||AV.hermes;s+='<i style="background:'+a[1]+'">'+a[0]+'</i>';});return s+'</span>';}
@@ -81,18 +109,18 @@ function rebuildMsgs(r){
   r.msgs=[];
   (r.msgData||[]).forEach(function(d){
     if(d.t==='tool'){
-      var td=document.createElement('div');td.className='msg wide';td.innerHTML=d.h;
+      var td=document.createElement('div');td.className='msg wide';td.innerHTML=sanitize(d.h);
       var th=td.querySelector('.th');
       if(th){th.addEventListener('click',function(){td.querySelector('.toolcall').classList.toggle('open');});}
       r.msgs.push(td);
     }else if(d.t==='vote'){
-      var vd=document.createElement('div');vd.className='msg wide';vd.innerHTML=d.h;
+      var vd=document.createElement('div');vd.className='msg wide';vd.innerHTML=sanitize(d.h);
       r.msgs.push(vd);
     }else if(d.t==='plan'){
-      var pd=document.createElement('div');pd.className='msg wide';pd.innerHTML=d.h;
+      var pd=document.createElement('div');pd.className='msg wide';pd.innerHTML=sanitize(d.h);
       r.msgs.push(pd);
     }else if(d.t==='deliver'){
-      var dd=document.createElement('div');dd.className='msg wide';dd.innerHTML=d.h;
+      var dd=document.createElement('div');dd.className='msg wide';dd.innerHTML=sanitize(d.h);
       var db=dd.querySelector('.btn');if(db){db.addEventListener('click',function(){B.toast(d.tt||'交付物');});}
       r.msgs.push(dd);
     }else{
@@ -106,18 +134,23 @@ function showTyping(roomId,node){
 function killTyping(node){if(node&&node.parentNode)node.parentNode.removeChild(node);}
 function mkMsg(m){
   var d=document.createElement('div');
-  if(m.t==='sys'){d.className='sysline';d.innerHTML=m.h;d._md=m;return d;}
+  if(m.t==='sys'){d.className='sysline';d.innerHTML=sanitize(m.h);d._md=m;return d;}
   if(m.t==='tool'){
-    d.className='msg wide';d.innerHTML=m.h;
+    d.className='msg wide';d.innerHTML=sanitize(m.h);
     var th=d.querySelector('.th');
     if(th){th.addEventListener('click',function(){d.querySelector('.toolcall').classList.toggle('open');});}
     d._md=m;return d;
   }
   var me=m.me,a=AV[m.who]||AV.hermes;
   d.className='msg '+(me?'user':'agent');
-  var role=m.role?' <span class="role">'+m.role+'</span>':'';
-  var inner=(m.h||'')+(m.att?attHtml(m.att):'')+(m.caret?'<span class="caret"></span>':'');
-  d.innerHTML='<div class="who"><i class="av" style="background:'+a[1]+'">'+a[0]+'</i>'+esc(m.who).toUpperCase()+role+'</div><div class="bubble">'+inner+'</div>';
+  var role=m.role?' <span class="role">'+esc(m.role)+'</span>':'';
+  /* P0-3: who 行用 esc，气泡用 safeBubble */
+  var whoDiv=document.createElement('div');whoDiv.className='who';
+  whoDiv.innerHTML='<i class="av" style="background:'+esc(a[1])+'">'+esc(a[0])+'</i>'+esc(m.who).toUpperCase()+role;
+  d.appendChild(whoDiv);
+  d.appendChild(safeBubble(m.h||''));
+  if(m.att){var attDiv=document.createElement('div');attDiv.innerHTML=sanitize(attHtml(m.att));while(attDiv.firstChild)d.appendChild(attDiv.firstChild);}
+  if(m.caret){var c=document.createElement('span');c.className='caret';d.appendChild(c);}
   d._md=m;
   return d;
 }

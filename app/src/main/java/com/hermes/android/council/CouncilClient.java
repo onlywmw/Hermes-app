@@ -8,11 +8,15 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * P1-5: Council 多角色讨论。
- * 同一 AI 后端, 3 个不同 system prompt 模拟 claude(产品)/gpt-5(技术)/gemini(数据) 角色。
- * 每个角色独立调用, 最后汇总。
+ * P1-3: 并行化 — 3 个角色并发调用，延迟从 4x 降到 ~1.5x。
  */
 public class CouncilClient {
 
@@ -37,34 +41,53 @@ public class CouncilClient {
             return "{\"ok\":false,\"error\":\"AI 未配置, 无法召开 Council。点右上角 ≡ 设置。\"}";
         }
 
+        ExecutorService pool = Executors.newFixedThreadPool(3);
         try {
-            JSONArray messages = new JSONArray();
-            List<AiClient.Message> emptyHistory = new ArrayList<>();
-
+            // P1-3: 3 个角色并行调用
+            List<Future<JSONObject>> futures = new ArrayList<>();
             for (String[] role : ROLES) {
-                String who = role[0];
-                String roleName = role[1];
-                String systemPrompt = role[2];
-
-                // 用临时 system prompt 构造，不写 SharedPreferences，无竞态
-                AiClient client = new AiClient(config, systemPrompt);
-                AiClient.AiResponse resp = client.chat(
-                        "议题: " + topic + "\n请从你的角色角度给出观点。", emptyHistory);
-
-                JSONObject msg = new JSONObject();
-                msg.put("who", who);
-                msg.put("role", roleName);
-                if (resp.success) {
-                    msg.put("content", resp.content);
-                } else {
-                    msg.put("content", "(调用失败: " + resp.content + ")");
-                }
-                messages.put(msg);
+                final String who = role[0];
+                final String roleName = role[1];
+                final String systemPrompt = role[2];
+                futures.add(pool.submit(new Callable<JSONObject>() {
+                    @Override
+                    public JSONObject call() {
+                        try {
+                            AiClient client = new AiClient(config, systemPrompt);
+                            AiClient.AiResponse resp = client.chat(
+                                    "议题: " + topic + "\n请从你的角色角度给出观点。",
+                                    new ArrayList<AiClient.Message>());
+                            JSONObject msg = new JSONObject();
+                            msg.put("who", who);
+                            msg.put("role", roleName);
+                            msg.put("content", resp.success ? resp.content
+                                    : "(调用失败: " + resp.content + ")");
+                            return msg;
+                        } catch (Exception e) {
+                            try {
+                                return new JSONObject()
+                                        .put("who", who)
+                                        .put("role", roleName)
+                                        .put("content", "(异常: " + e.getMessage() + ")");
+                            } catch (Exception ex) {
+                                return null;
+                            }
+                        }
+                    }
+                }));
             }
 
-            // 汇总: 用默认 prompt 让 AI 做收敛
+            // 等待所有角色返回 (最慢的决定总延迟)
+            JSONArray messages = new JSONArray();
+            for (Future<JSONObject> f : futures) {
+                JSONObject msg = f.get(60, TimeUnit.SECONDS);
+                if (msg != null) messages.put(msg);
+            }
+
+            // 汇总: 串行第 4 次调用
             AiClient summarizer = new AiClient(config);
-            StringBuilder councilContext = new StringBuilder("以下是三位专家对「" + topic + "」的讨论:\n\n");
+            StringBuilder councilContext = new StringBuilder(
+                    "以下是三位专家对「" + topic + "」的讨论:\n\n");
             for (int i = 0; i < messages.length(); i++) {
                 JSONObject m = messages.getJSONObject(i);
                 councilContext.append(m.getString("who"))
@@ -73,7 +96,8 @@ public class CouncilClient {
             }
             councilContext.append("请用 3 句话总结共识和分歧, 给出推荐方案。");
 
-            AiClient.AiResponse summaryResp = summarizer.chat(councilContext.toString(), emptyHistory);
+            AiClient.AiResponse summaryResp = summarizer.chat(
+                    councilContext.toString(), new ArrayList<AiClient.Message>());
 
             JSONObject result = new JSONObject();
             result.put("ok", true);
@@ -82,7 +106,10 @@ public class CouncilClient {
             return result.toString();
 
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"Council 调用异常: " + e.getMessage() + "\"}";
+            String msg = e.getMessage() != null ? e.getMessage() : "未知错误";
+            return "{\"ok\":false,\"error\":\"Council 调用异常: " + msg + "\"}";
+        } finally {
+            pool.shutdownNow();
         }
     }
 }

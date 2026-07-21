@@ -20,7 +20,7 @@ AI 协作│轻应用面板  │系统 & 技能
 ```
 MOVActivity (WebView 壳)
   └─ hermes-shell.html (全 UI, 3 个 view + sheets)
-       ├─ MOVBridge (22 个 @JavascriptInterface)
+       ├─ MOVBridge (30+ 个 @JavascriptInterface)
        │   ├─ IntentParser → CapabilityExecutor (34 个能力)
        │   ├─ AiClient (OpenAI 兼容)
        │   ├─ CouncilClient (多角色讨论)
@@ -56,9 +56,9 @@ MOVActivity (WebView 壳)
 
 | 优先级 | 事项 |
 |--------|------|
-| 🔴 | 文件上传修复 (见 docs/DESIGN_FILE_FIXES.md) |
+| 🔴 | 文件上传修复 (见 docs/DESIGN_SECURITY.md) |
 | 🔴 | 文件预览修复 |
 | 🔴 | _filesPath 重置 |
-| 🔵 | 看板 tab 实现 (见 docs/DESIGN_BOARD_V1.md) |
+| 🔵 | 看板 tab 实现 (见 docs/DESIGN_BOARD_V2.md) |
 | 🔵 | 技能 tab 合并到运行 |
 | 🔵 | 多模型管理 |
