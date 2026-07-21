@@ -199,6 +199,33 @@
             android:paddingStart="12dp"
             android:paddingEnd="12dp" />
 
+        <Switch
+            android:id="@+id/switchStats"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="帮助改进 MOV"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="匿名发送使用统计, 不含任何个人或聊天内容"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnStatsPreview"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:layout_marginTop="8dp"
+            android:text="预览即将上报的数据"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:background="@drawable/bg_chip" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

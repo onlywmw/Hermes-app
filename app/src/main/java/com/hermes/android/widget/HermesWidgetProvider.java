@@ -107,19 +107,25 @@ public class HermesWidgetProvider extends AppWidgetProvider {
     }
 
     private void executeCommand(Context context, String command) {
-        try {
-            com.hermes.android.IntentParser parser = new com.hermes.android.IntentParser();
-            ParsedCommand cmd = parser.parse(command);
-            if (cmd == null) {
-                Toast.makeText(context, "❌ 未识别: " + command, Toast.LENGTH_SHORT).show();
-                return;
+        // P0-J4: 异步执行, 避免阻塞 BroadcastReceiver 主线程 (10s 限制)
+        new Thread(() -> {
+            try {
+                com.hermes.android.IntentParser parser = new com.hermes.android.IntentParser();
+                ParsedCommand cmd = parser.parse(command);
+                if (cmd == null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                        Toast.makeText(context, "❌ 未识别: " + command, Toast.LENGTH_SHORT).show());
+                    return;
+                }
+                CapabilityExecutor executor = new CapabilityExecutor();
+                CommandResult result = executor.execute(context, cmd);
+                String icon = result.isSuccess() ? "✅" : "❌";
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    Toast.makeText(context, icon + " " + result.getMessage(), Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    Toast.makeText(context, "❌ 执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
-            CapabilityExecutor executor = new CapabilityExecutor();
-            CommandResult result = executor.execute(context, cmd);
-            String icon = result.isSuccess() ? "✅" : "❌";
-            Toast.makeText(context, icon + " " + result.getMessage(), Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Toast.makeText(context, "❌ 执行失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
+        }).start();
     }
 }

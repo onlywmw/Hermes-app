@@ -69,6 +69,7 @@ public class HermesActivity extends AppCompatActivity {
     private AiProviderConfig aiConfig;
     private CronManager cronManager;
     private SkillStore skillStore;
+    private StatsCollector statsCollector;
     private final List<AiClient.Message> chatHistory = new ArrayList<>();
 
     /** P0-1: 后台线程池 (AI / Council 异步调用) */
@@ -84,6 +85,8 @@ public class HermesActivity extends AppCompatActivity {
 
     /** P1-8: 文件选择器回调 ID */
     private volatile String pendingFileCallbackId;
+    /** Fix 1: 文件选择器目标房间 ID */
+    private volatile String pendingFileRoomId;
 
     /** P1-8: 文件选择器 */
     private ActivityResultLauncher<Intent> filePickerLauncher;
@@ -97,6 +100,17 @@ public class HermesActivity extends AppCompatActivity {
         aiConfig = new AiProviderConfig(this);
         cronManager = new CronManager(this);
         skillStore = new SkillStore(this);
+        statsCollector = new StatsCollector(this);
+        statsCollector.onSessionStart();
+        statsCollector.tryReport();
+
+        // TELEMETRY: 全局未捕获异常 → 记录崩溃
+        final Thread.UncaughtExceptionHandler defaultHandler =
+                Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, ex) -> {
+            try { statsCollector.recordCrash(); } catch (Exception ignored) {}
+            if (defaultHandler != null) defaultHandler.uncaughtException(thread, ex);
+        });
 
         // P2-13: 恢复聊天历史
         restoreChatHistory();
@@ -106,10 +120,16 @@ public class HermesActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(), result -> {
                     if (pendingFileCallbackId == null) return;
                     String cbId = pendingFileCallbackId;
+                    String roomId = pendingFileRoomId;
                     pendingFileCallbackId = null;
+                    pendingFileRoomId = null;
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                         Uri uri = result.getData().getData();
                         if (uri != null) {
+                            // Fix 1: 复制到房间目录
+                            if (roomId != null && !roomId.isEmpty()) {
+                                copyFileToRoom(roomId, uri);
+                            }
                             String info = getFileInfoJson(uri);
                             evalJs("window._hermesCb('" + cbId + "'," + info + ")");
                             return;
@@ -161,6 +181,8 @@ public class HermesActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        // TELEMETRY: 会话结束
+        if (statsCollector != null) statsCollector.onSessionEnd();
         // P0-3: 释放 TTS
         capabilityExecutor.shutdown();
         // P0-1: 关闭线程池
@@ -216,6 +238,32 @@ public class HermesActivity extends AppCompatActivity {
     }
 
     // ==================== P1-8: 文件信息 ====================
+
+    /** Fix 1: 从 URI 复制文件到房间目录 */
+    private void copyFileToRoom(String roomId, Uri uri) {
+        try {
+            String name = "unknown";
+            try (android.database.Cursor c = getContentResolver().query(
+                    uri, null, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    int idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                    if (idx >= 0) name = c.getString(idx);
+                }
+            }
+            java.io.File base = new java.io.File("/sdcard/mov/rooms/" + roomId);
+            base.mkdirs();
+            java.io.File target = new java.io.File(base, name);
+            try (java.io.InputStream is = getContentResolver().openInputStream(uri);
+                 java.io.FileOutputStream os = new java.io.FileOutputStream(target)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = is.read(buf)) != -1) os.write(buf, 0, n);
+            }
+            Log.i(TAG, "copyFileToRoom: " + name + " → " + target.getAbsolutePath());
+        } catch (Exception e) {
+            Log.w(TAG, "copyFileToRoom: " + e.getMessage());
+        }
+    }
 
     private String getFileInfoJson(Uri uri) {
         try {
@@ -336,7 +384,13 @@ public class HermesActivity extends AppCompatActivity {
                         synchronized (chatHistory) {
                             history = new ArrayList<>(chatHistory);
                         }
+                        long aiT0 = System.currentTimeMillis();
                         AiClient.AiResponse resp = client.chat(text, history);
+                        long aiMs = System.currentTimeMillis() - aiT0;
+                        if (statsCollector != null) {
+                            statsCollector.recordAiCall(aiConfig.getProvider(),
+                                    aiConfig.getModel(), aiMs, resp.success);
+                        }
                         if (resp.success) {
                             synchronized (chatHistory) {
                                 chatHistory.add(new AiClient.Message("user", text));
@@ -384,27 +438,15 @@ public class HermesActivity extends AppCompatActivity {
             });
         }
 
-        /** 同步 AI (保留兼容, 设置页测试用) */
+        /** 同步 AI (仅设置页测试用, 不在聊天路径使用) */
         @JavascriptInterface
         public String aiChat(String text) {
             if (!aiConfig.isAiEnabled()) return "AI 已关闭, 点右上角 ≡ 可启用。";
             if (!aiConfig.isConfigured()) return "AI 尚未配置 API Key, 点右上角 ≡ 设置后即可畅聊。";
             try {
                 AiClient client = new AiClient(aiConfig);
-                List<AiClient.Message> history;
-                synchronized (chatHistory) {
-                    history = new ArrayList<>(chatHistory);
-                }
-                AiClient.AiResponse resp = client.chat(text, history);
-                if (resp.success) {
-                    synchronized (chatHistory) {
-                        chatHistory.add(new AiClient.Message("user", text));
-                        chatHistory.add(new AiClient.Message("assistant", resp.content));
-                        while (chatHistory.size() > MAX_HISTORY * 2) chatHistory.remove(0);
-                    }
-                    saveChatHistory();
-                    return resp.content;
-                }
+                AiClient.AiResponse resp = client.chat(text, new ArrayList<>());
+                if (resp.success) return resp.content;
                 return "AI 调用失败: " + resp.content;
             } catch (Exception e) {
                 return "AI 调用异常: " + e.getMessage();
@@ -510,6 +552,114 @@ public class HermesActivity extends AppCompatActivity {
 
         // ==================== 房间文件操作 ====================
 
+        // ==================== 存储系统 (五种类型) ====================
+
+        @JavascriptInterface
+        public String listWorkFiles(String roomId) {
+            return StorageManager.listWorkFiles(roomId);
+        }
+
+        @JavascriptInterface
+        public String saveWorkFile(String roomId, String path, String content, String author) {
+            return StorageManager.saveWorkFile(roomId, path, content, author);
+        }
+
+        @JavascriptInterface
+        public String listVersions(String roomId, String path) {
+            return StorageManager.listVersions(roomId, path);
+        }
+
+        @JavascriptInterface
+        public String restoreVersion(String roomId, String path, String snapshotName) {
+            return StorageManager.restoreVersion(roomId, path, snapshotName);
+        }
+
+        @JavascriptInterface
+        public String listInboxFiles(String roomId) {
+            return StorageManager.listInboxFiles(roomId);
+        }
+
+        @JavascriptInterface
+        public String listArchiveFiles(String roomId) {
+            return StorageManager.listArchiveFiles(roomId);
+        }
+
+        @JavascriptInterface
+        public String writeArchive(String roomId, String source, String content) {
+            return StorageManager.writeArchive(roomId, source, content);
+        }
+
+        @JavascriptInterface
+        public String listTemplates() {
+            return StorageManager.listTemplates();
+        }
+
+        @JavascriptInterface
+        public String saveTemplate(String name, String content) {
+            return StorageManager.saveTemplate(name, content);
+        }
+
+        @JavascriptInterface
+        public String useTemplate(String templateName, String roomId, String targetName) {
+            return StorageManager.useTemplate(templateName, roomId, targetName);
+        }
+
+        @JavascriptInterface
+        public String listNotes() {
+            return StorageManager.listNotes();
+        }
+
+        @JavascriptInterface
+        public String saveNote(String name, String content) {
+            return StorageManager.saveNote(name, content);
+        }
+
+        @JavascriptInterface
+        public String readNote(String name) {
+            return StorageManager.readNote(name);
+        }
+
+        @JavascriptInterface
+        public String deleteNote(String name) {
+            return StorageManager.deleteNote(name);
+        }
+
+        @JavascriptInterface
+        public String initRoomStorage(String roomId) {
+            StorageManager.initRoomStorage(roomId);
+            return "{\"ok\":true}";
+        }
+
+        @JavascriptInterface
+        public String getRoomMeta(String roomId) {
+            return StorageManager.getRoomMeta(roomId);
+        }
+
+        @JavascriptInterface
+        public String deleteWorkFile(String roomId, String path) {
+            return StorageManager.deleteWorkFile(roomId, path);
+        }
+
+        @JavascriptInterface
+        public String deleteInboxFile(String roomId, String path) {
+            return StorageManager.deleteInboxFile(roomId, path);
+        }
+
+        @JavascriptInterface
+        public String deleteArchiveFile(String roomId, String path) {
+            return StorageManager.deleteArchiveFile(roomId, path);
+        }
+
+        @JavascriptInterface
+        public String appendChatMessage(String roomId, String messageJson) {
+            return StorageManager.appendChatMessage(roomId, messageJson);
+        }
+
+        @JavascriptInterface
+        public String loadChatMessages(String roomId, String date) {
+            return StorageManager.loadChatMessages(roomId, date);
+        }
+
         @JavascriptInterface
         public String writeFile(String roomId, String path, String content) {
             ParsedCommand cmd = new ParsedCommand("file.write")
@@ -605,8 +755,9 @@ public class HermesActivity extends AppCompatActivity {
         // ==================== P1-8: 文件选择 ====================
 
         @JavascriptInterface
-        public void pickFile(String callbackId) {
+        public void pickFile(String callbackId, String roomId) {
             pendingFileCallbackId = callbackId;
+            pendingFileRoomId = roomId;
             uiHandler.post(() -> {
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);

@@ -132,7 +132,8 @@ public class CapabilityExecutor {
             "👆 触摸：点击 500,800 / 滑动 500 1500 500 500\n" +
             "🌐 网络：ip地址\n" +
             "⚙️ 进程：进程\n" +
-            "📁 文件：文件列表 / 看看文件 /sdcard/"
+            "📁 文件：文件列表 / 看看文件 /sdcard/\n" +
+            "📝 房间文件：写文件 / 读文件 / 删文件 / 创建目录 (在文件 tab 操作)"
         );
     }
 
@@ -264,13 +265,21 @@ public class CapabilityExecutor {
 
     private CommandResult doBrightnessSet(Context ctx, int value) {
         try {
+            if (!Settings.System.canWrite(ctx)) {
+                // 引导用户跳转系统设置授权
+                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                        android.net.Uri.parse("package:" + ctx.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> ctx.startActivity(intent));
+                return CommandResult.fail("需要「修改系统设置」权限，已打开设置页面，请授权后重试");
+            }
             value = Math.max(0, Math.min(255, value));
             Settings.System.putInt(ctx.getContentResolver(), Settings.System.SCREEN_BRIGHTNESS_MODE,
                 Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
             Settings.System.putInt(ctx.getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, value);
             return CommandResult.ok("🔆 亮度已设置为 " + value + "/255");
         } catch (Exception e) {
-            return CommandResult.fail("亮度设置失败: " + e.getMessage() + "\n请在系统设置中授予「修改系统设置」权限");
+            return CommandResult.fail("亮度设置失败: " + e.getMessage());
         }
     }
 
@@ -407,7 +416,8 @@ public class CapabilityExecutor {
     // ==================== TOAST ====================
     private CommandResult doToast(Context ctx, String message) {
         try {
-            Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show();
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show());
             return CommandResult.ok("💬 Toast: " + message);
         } catch (Exception e) {
             return CommandResult.fail("Toast 失败: " + e.getMessage());
@@ -531,7 +541,8 @@ public class CapabilityExecutor {
         if (number.isEmpty()) return CommandResult.fail("需要电话号码");
         try {
             Intent intent = new Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:" + number));
-            ctx.startActivity(intent);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> ctx.startActivity(intent));
             return CommandResult.ok("📞 正在拨打: " + number);
         } catch (SecurityException e) {
             return CommandResult.fail("拨打电话需要电话权限");
@@ -582,7 +593,8 @@ public class CapabilityExecutor {
         try {
             Intent intent = ctx.getPackageManager().getLaunchIntentForPackage(pkg);
             if (intent == null) return CommandResult.fail("未找到应用: " + pkg);
-            ctx.startActivity(intent);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> ctx.startActivity(intent));
             return CommandResult.ok("📱 已启动: " + pkg);
         } catch (Exception e) {
             return CommandResult.fail("启动失败: " + e.getMessage());

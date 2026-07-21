@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>音乐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:#FAFAFB;color:#09090B;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;}
+h2{font-size:18px;font-weight:700;}
+.player{width:280px;background:#fff;border:1px solid #E4E4E7;border-radius:12px;padding:24px;text-align:center;}
+.track{font-size:14px;font-weight:600;margin-bottom:4px;}
+.artist{font-size:12px;color:#71717A;margin-bottom:16px;}
+.bar{height:4px;background:#F0F0F2;border-radius:2px;margin-bottom:16px;overflow:hidden;}
+.bar i{display:block;height:100%;width:35%;background:#D97706;border-radius:2px;}
+.controls{display:flex;justify-content:center;gap:24px;font-size:20px;color:#3F3F46;}
+.controls span{cursor:pointer;}
+.hint{font-size:11px;color:#A1A1AA;margin-top:12px;}
+</style>
+</head>
+<body>
+<h2>音乐</h2>
+<div class="player">
+  <div class="track">未播放</div>
+  <div class="artist">—</div>
+  <div class="bar"><i></i></div>
+  <div class="controls"><span>⏮</span><span>▶</span><span>⏭</span></div>
+  <div class="hint">将音乐文件放入 /sdcard/music/ 目录</div>
+</div>
+</body>
+</html>

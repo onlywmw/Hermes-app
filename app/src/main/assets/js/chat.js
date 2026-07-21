@@ -23,6 +23,9 @@ function enterRoom(id){
   (r.msgs||[]).forEach(function(n){b.appendChild(n);});
   b.scrollTop=b.scrollHeight;
   bindAllMsgLongPress(id);
+  /* Fix 3: 重置文件浏览路径 + 子 tab 回讨论 */
+  _filesPath='';
+  if(typeof setSubtab==='function')setSubtab('chat');
   pending=[];renderPend();closeTray();
   showView('view-room');setTab('chat');
   renderRooms();persistRooms();

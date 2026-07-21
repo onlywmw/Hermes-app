@@ -46,6 +46,7 @@ $('btnCreate').addEventListener('click',function(){
   /* S6: 初始化房间文件目录 */
   var memberObjs=members.map(function(m){return {who:m,role:m==='hermes'?'agent':m};});
   B.initRoom(id,name,'',memberObjs);
+  B.initRoomStorage(id);
   ev('新建房间 '+name+' ('+newMode+')');
   renderRooms();persistRooms();enterRoom(id);
 });
@@ -178,14 +179,65 @@ function setSubtab(tab){
   $('fileFabAdd').style.display=(tab==='files')?'':'none';
   if(tab==='files'&&curRoomId){
     _filesPath='';
-    renderFileTree(curRoomId);
+    renderStorageView();
   }
 }
 document.querySelectorAll('.room-tab').forEach(function(el){
   el.addEventListener('click',function(){setSubtab(el.getAttribute('data-subtab'));});
 });
 $('fileFabAdd').addEventListener('click',function(){
-  if(curRoomId)fileFabAction(curRoomId);
+  if(!curRoomId)return;
+  fileFabAction(curRoomId);
+});
+bindLongPress($('fileFabAdd'),{
+  text:t('files.new'),
+  exec:function(){openFileNewSheet();}
+});
+
+/* Fix 2: 文件预览关闭 */
+$('previewClose').addEventListener('click',closeFilePreview);
+$('previewMask').addEventListener('click',closeFilePreview);
+
+/* 存储系统: 版本历史 overlay 关闭 */
+$('versionClose').addEventListener('click',closeVersionOverlay);
+$('versionMask').addEventListener('click',closeVersionOverlay);
+
+/* 存储系统: 模板 sheet */
+$('btnTemplateClose').addEventListener('click',closeTemplateSheet);
+$('templateMask').addEventListener('click',closeTemplateSheet);
+$('btnTemplateOk').addEventListener('click',confirmTemplate);
+
+/* 存储系统: 存储类型子 tab 切换 */
+document.querySelectorAll('.storage-tab').forEach(function(el){
+  el.addEventListener('click',function(){setStorageType(el.getAttribute('data-stype'));});
+});
+
+/* Fix 5: 新建文件 sheet */
+function openFileNewSheet(){
+  $('fileNewMask').classList.add('open');
+  $('fileNewSheet').classList.add('open');
+  $('fileNewName').value='';
+  $('fileNewContent').value='';
+  $('fileNewName').focus();
+}
+function closeFileNewSheet(){
+  $('fileNewMask').classList.remove('open');
+  $('fileNewSheet').classList.remove('open');
+}
+$('btnFileNewClose').addEventListener('click',closeFileNewSheet);
+$('fileNewMask').addEventListener('click',closeFileNewSheet);
+$('btnFileNewCreate').addEventListener('click',function(){
+  var name=$('fileNewName').value.trim();
+  if(!name){B.toast(t('files.needName'));return;}
+  var content=$('fileNewContent').value;
+  var res=B.saveWorkFile(curRoomId,name,content,'you');
+  if(res.ok){
+    closeFileNewSheet();
+    B.toast(name+' '+t('files.created'));
+    renderStorageView();
+  }else{
+    B.toast(res.message||'');
+  }
 });
 
 $('btnHelp').addEventListener('click',function(){
@@ -214,16 +266,24 @@ $('btnCronCreate').addEventListener('click',function(){
   ev('创建 Cron: '+text);
 });
 
-/* 技能搜索 */
+/* 技能搜索 (运行页内) */
 $('skillSearch').addEventListener('input',function(){
   var skills=B.listSkills();
   renderSkillList(skills,$('skillSearch').value.trim());
 });
+
+/* ============ 看板事件绑定 ============ */
+$('boardTrigger').addEventListener('click',openBoardPanel);
+$('boardPanelMask').addEventListener('click',closeBoardPanel);
+$('boardPanelClose').addEventListener('click',closeBoardPanel);
+$('btnBoardAddClose').addEventListener('click',closeBoardAddSheet);
+$('boardAddMask').addEventListener('click',closeBoardAddSheet);
+$('btnBoardAddOk').addEventListener('click',confirmBoardAdd);
 
 /* ============ 初始化 ============ */
 initLang();
 applyI18n();
 renderRooms();
 setTab('chat');
-setTimeout(function(){refreshRuntime();renderSkillPage();},600);
+setTimeout(function(){refreshRuntime();},600);
 ev('MOV v3.0 '+t('ready')+(B.present?' · '+t('bridge.on'):' · '+t('bridge.off')));

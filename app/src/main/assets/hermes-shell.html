@@ -38,10 +38,15 @@
         <span class="room-tab" data-subtab="files" data-i18n="room.tabFiles">文件</span>
       </div>
       <div class="sbody" id="chatPane"><div class="chat-body" id="chatBody"></div></div>
-      <!-- 文件视图 -->
+      <!-- 文件视图 (存储系统 v3.0: 产出/资料/归档/模板) -->
       <div class="file-view" id="fileView" style="display:none">
-        <div class="file-pathbar" id="filePathBar"></div>
-        <div class="file-list" id="fileList"></div>
+        <div class="storage-tabs" id="storageTabs">
+          <span class="storage-tab on" data-stype="work" data-i18n="st.work">产出</span>
+          <span class="storage-tab" data-stype="inbox" data-i18n="st.inbox">资料</span>
+          <span class="storage-tab" data-stype="archive" data-i18n="st.archive">归档</span>
+          <span class="storage-tab" data-stype="template" data-i18n="st.template">模板</span>
+        </div>
+        <div class="storage-list" id="storageList"></div>
       </div>
       <div class="chat-foot" id="chatFoot">
         <div class="pend-row" id="pendRow"></div>
@@ -55,20 +60,64 @@
         </div>
       </div>
       <button class="file-fab" id="fileFabAdd" style="display:none">＋</button>
+      <!-- Fix 2: 文件预览 overlay -->
+      <div class="preview-mask" id="previewMask" style="display:none"></div>
+      <div class="preview-overlay" id="previewOverlay" style="display:none">
+        <div class="preview-bar">
+          <span class="preview-name" id="previewName"></span>
+          <span class="sheet-close" id="previewClose">✕</span>
+        </div>
+        <div class="preview-body" id="previewBody"></div>
+      </div>
+      <!-- 版本历史 overlay -->
+      <div class="preview-mask" id="versionMask" style="display:none"></div>
+      <div class="preview-overlay" id="versionOverlay" style="display:none">
+        <div class="preview-bar">
+          <span class="preview-name" id="versionName"></span>
+          <span class="sheet-close" id="versionClose">✕</span>
+        </div>
+        <div class="preview-body" id="versionBody"></div>
+      </div>
+      <!-- 新建模板 sheet -->
+      <div class="sheet-mask" id="templateMask" style="z-index:13"></div>
+      <div class="sheet" id="templateSheet" style="z-index:14">
+        <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="st.newTemplate">新建模板</h5><span class="sheet-close" id="btnTemplateClose">✕</span></div>
+        <input id="templateName" data-i18n-ph="st.templateName" placeholder="模板名 · 如: PRD模板.md" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:8px 0">
+        <textarea id="templateContent" data-i18n-ph="st.templateContent" placeholder="模板内容" style="width:100%;height:120px;margin:0 0 8px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px;font-family:var(--font-mono);font-size:12px;resize:vertical;outline:none;background:var(--panel-2)"></textarea>
+        <button class="btn btn-acc" id="btnTemplateOk" style="width:100%;justify-content:center" data-i18n="st.templateSave">保存模板</button>
+      </div>
+      <!-- Fix 5: 新建文件 sheet -->
+      <div class="sheet-mask" id="fileNewMask" style="z-index:11"></div>
+      <div class="sheet" id="fileNewSheet" style="z-index:12">
+        <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="files.new">新建文件</h5><span class="sheet-close" id="btnFileNewClose">✕</span></div>
+        <input id="fileNewName" data-i18n-ph="files.newName" placeholder="文件名 · 如: notes.md" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:8px 0">
+        <textarea id="fileNewContent" data-i18n-ph="files.newContent" placeholder="文件内容 (选填)" style="width:100%;height:120px;margin:0 0 8px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px;font-family:var(--font-mono);font-size:12px;resize:vertical;outline:none;background:var(--panel-2)"></textarea>
+        <button class="btn btn-acc" id="btnFileNewCreate" style="width:100%;justify-content:center" data-i18n="files.create">创建文件</button>
+      </div>
     </div>
 
-    <!-- 技能 tab (v3: 从运行页提升) -->
-    <div class="view" id="view-skill">
-      <div class="abar">
-        <div style="min-width:0"><h4 data-i18n="skill.title">技能</h4><div class="sub" id="skillSub">—</div></div>
-        <span class="grow"></span>
+    <!-- 看板 tab (v2: 悬浮切换) -->
+    <div class="view" id="view-board">
+      <iframe id="boardFrame" src="" style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#fff;"></iframe>
+      <div class="board-trigger hidden" id="boardTrigger">
+        <span class="bt-icon" id="boardTriggerIcon">音</span>
+        <span id="boardTriggerName">音乐</span>
       </div>
-      <div class="sbody">
-        <div class="auto-input"><input class="field" id="skillSearch" data-i18n-ph="skill.search" placeholder="搜索技能…" aria-label="搜索技能"></div>
-        <div class="loop-banner">
-          <b data-i18n="skill.loop">学习闭环</b> — <span data-i18n="skill.loopDesc">执行任务 → 沉淀技能 → 复用 → 修订</span>
+      <div class="board-panel-mask" id="boardPanelMask"></div>
+      <div class="board-panel" id="boardPanel">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px">
+          <h5 data-i18n="board.title">应用</h5>
+          <span class="sheet-close" id="boardPanelClose">✕</span>
         </div>
-        <div id="skillList"></div>
+        <div class="board-grid" id="boardGrid"></div>
+      </div>
+      <!-- 添加应用 sheet -->
+      <div class="sheet-mask" id="boardAddMask" style="z-index:31"></div>
+      <div class="sheet" id="boardAddSheet" style="z-index:32">
+        <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="board.add">添加应用</h5><span class="sheet-close" id="btnBoardAddClose">✕</span></div>
+        <input id="boardAddName" data-i18n-ph="board.addName" placeholder="应用名称" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:8px 0">
+        <input id="boardAddUrl" data-i18n-ph="board.addUrl" placeholder="应用地址 (URL 或本地路径)" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:0 0 8px">
+        <button class="btn btn-acc" id="btnBoardAddOk" style="width:100%;justify-content:center" data-i18n="board.add">添加应用</button>
       </div>
     </div>
 
@@ -108,6 +157,11 @@
         <!-- PERMISSIONS 单行横滚 -->
         <div class="sub-head" data-i18n="rt.perms">权限 · 点击跳设置</div>
         <div class="perm-scroll" id="permGrid"></div>
+
+        <!-- SKILLS (v4: 从独立 tab 移回运行页) -->
+        <div class="sub-head" id="skillHead">技能</div>
+        <div class="auto-input"><input class="field" id="skillSearch" data-i18n-ph="skill.search" placeholder="搜索技能…" aria-label="搜索技能"></div>
+        <div id="skillList"></div>
       </div>
     </div>
 
@@ -159,7 +213,7 @@
   </div>
   <div class="bnav">
     <button data-tab="chat" class="on"><span class="ic">▤<i class="nd" id="ndChat"></i></span><span data-i18n="nav.chat">会话</span></button>
-    <button data-tab="skill"><span class="ic">◆</span><span data-i18n="nav.skills">技能</span></button>
+    <button data-tab="board"><span class="ic">▦</span><span data-i18n="nav.board">看板</span></button>
     <button data-tab="run"><span class="ic">▣</span><span data-i18n="nav.runtime">运行</span></button>
   </div>
 </div>
@@ -173,6 +227,7 @@
 <script src="js/chat.js"></script>
 <script src="js/skills.js"></script>
 <script src="js/files.js"></script>
+<script src="js/board.js"></script>
 <script src="js/runtime.js"></script>
 <script src="js/app.js"></script>
 </body>

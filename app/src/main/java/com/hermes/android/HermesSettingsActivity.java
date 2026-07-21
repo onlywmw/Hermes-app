@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 public class HermesSettingsActivity extends AppCompatActivity {
 
     private AiProviderConfig config;
+    private StatsCollector stats;
     private Spinner spinnerProvider;
     private Spinner spinnerLanguage;
     private EditText etBaseUrl;
@@ -63,6 +64,7 @@ public class HermesSettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_hermes_settings);
 
         config = new AiProviderConfig(this);
+        stats = new StatsCollector(this);
 
         spinnerProvider = findViewById(R.id.spinnerProvider);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
@@ -108,6 +110,19 @@ public class HermesSettingsActivity extends AppCompatActivity {
         findViewById(R.id.btnClearKey).setOnClickListener(v -> {
             etApiKey.setText("");
             etApiKey.requestFocus();
+        });
+
+        // TELEMETRY: 统计开关 + 预览
+        Switch switchStats = findViewById(R.id.switchStats);
+        switchStats.setChecked(stats.isEnabled());
+        switchStats.setOnCheckedChangeListener((v, checked) -> stats.setEnabled(checked));
+        findViewById(R.id.btnStatsPreview).setOnClickListener(v -> {
+            String json = stats.getPreviewJson();
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("即将上报的数据")
+                    .setMessage(json)
+                    .setPositiveButton("关闭", null)
+                    .show();
         });
 
         btnBack.setOnClickListener(v -> finish());

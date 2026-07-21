@@ -70,7 +70,25 @@ var I18N={
     'room.tabChat':'讨论','room.tabFiles':'文件',
     'files.empty':'空目录','files.loadFail':'无法读取文件列表',
     'files.delete':'删除文件','files.deleted':'文件已删除',
-    'files.uploaded':'已上传','files.view':'查看'
+    'files.uploaded':'已上传','files.view':'查看',
+    'files.new':'新建文件','files.newName':'文件名 · 如: notes.md',
+    'files.newContent':'文件内容 (选填)','files.create':'创建文件',
+    'files.needName':'请输入文件名','files.created':'已创建',
+    'nav.board':'看板','board.title':'应用','board.add':'添加应用',
+    'board.remove':'移除应用','board.removed':'应用已移除',
+    'board.added':'已添加','board.addName':'应用名称','board.addUrl':'应用地址 (URL 或本地路径)',
+    'st.work':'产出','st.inbox':'资料','st.archive':'归档','st.template':'模板',
+    'st.today':'今天','st.versions':'版本','st.fileCount':'个文件',
+    'st.workEmpty':'还没有产出 · AI 生成的文件会出现在这里',
+    'st.inboxEmpty':'还没有资料 · 点 + 上传参考素材',
+    'st.archiveEmpty':'还没有归档 · Cron 产出的报告会出现在这里',
+    'st.templateEmpty':'还没有模板 · 做过一次的东西可以保存为模板',
+    'st.refCount':'个资料','st.archiveCount':'份','st.morePrefix':'还有','st.moreSuffix':'份',
+    'st.current':'当前','st.noVersions':'没有历史版本','st.restore':'恢复','st.restored':'已恢复',
+    'st.use':'使用','st.newTemplate':'新建模板','st.templateName':'模板名 · 如: PRD模板.md',
+    'st.templateContent':'模板内容','st.templateSave':'保存模板',
+    'st.templateNeedName':'请输入模板名','st.templateUsed':'已从模板创建',
+    'st.templateTarget':'目标文件名','st.templateHint':'模板预览开发中'
   },
   en:{
     'nav.chat':'Chat','nav.skills':'Skills','nav.runtime':'Runtime',
@@ -139,7 +157,25 @@ var I18N={
     'room.tabChat':'Chat','room.tabFiles':'Files',
     'files.empty':'Empty directory','files.loadFail':'Cannot load file list',
     'files.delete':'Delete file','files.deleted':'File deleted',
-    'files.uploaded':'Uploaded','files.view':'View'
+    'files.uploaded':'Uploaded','files.view':'View',
+    'files.new':'New File','files.newName':'Filename · e.g. notes.md',
+    'files.newContent':'Content (optional)','files.create':'Create',
+    'files.needName':'Enter filename','files.created':'created',
+    'nav.board':'Board','board.title':'Apps','board.add':'Add App',
+    'board.remove':'Remove app','board.removed':'App removed',
+    'board.added':'Added','board.addName':'App name','board.addUrl':'App URL or local path',
+    'st.work':'Work','st.inbox':'Refs','st.archive':'Archive','st.template':'Templates',
+    'st.today':'Today','st.versions':'Versions','st.fileCount':'files',
+    'st.workEmpty':'No output yet · AI-generated files appear here',
+    'st.inboxEmpty':'No references yet · Tap + to upload',
+    'st.archiveEmpty':'No archives yet · Cron reports appear here',
+    'st.templateEmpty':'No templates yet · Save reusable formats here',
+    'st.refCount':'references','st.archiveCount':'items','st.morePrefix':'','st.moreSuffix':'more',
+    'st.current':'Current','st.noVersions':'No version history','st.restore':'Restore','st.restored':'Restored',
+    'st.use':'Use','st.newTemplate':'New Template','st.templateName':'Name · e.g. PRD-template.md',
+    'st.templateContent':'Template content','st.templateSave':'Save Template',
+    'st.templateNeedName':'Enter template name','st.templateUsed':'Created from template',
+    'st.templateTarget':'Target filename','st.templateHint':'Template preview coming soon'
   }
 };
 function t(key){var d=I18N[LANG]||I18N.zh;return d[key]||I18N.zh[key]||key;}

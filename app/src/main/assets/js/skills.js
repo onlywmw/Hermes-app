@@ -1,11 +1,12 @@
 /* ============================================================
-   skills.js — 技能 tab: 列表 + 搜索 + 学习闭环
+   skills.js — 技能列表 + 搜索 + 长按移除 (运行页内)
    ============================================================ */
 function renderSkillPage(){
   var skills=B.listSkills();
   var totalUses=0;
   skills.forEach(function(s){totalUses+=s.uses;});
-  $('skillSub').textContent=skills.length+' '+t('skill.source')+' · '+totalUses+' '+t('skill.uses');
+  var head=$('skillHead');
+  if(head)head.textContent=t('skill.title')+' · '+skills.length+' · '+totalUses+' '+t('skill.uses');
   renderSkillList(skills,'');
 }
 function renderSkillList(skills,filter){

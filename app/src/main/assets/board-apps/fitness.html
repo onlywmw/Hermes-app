@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>健身</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,'PingFang SC',sans-serif;background:#FAFAFB;color:#09090B;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+h2{font-size:16px;font-weight:600;color:#71717A;letter-spacing:2px;}
+.timer{font-family:ui-monospace,monospace;font-size:64px;font-weight:700;color:#D97706;}
+.btn{padding:12px 32px;border:1px solid #3F3F46;border-radius:8px;background:none;color:#F4F4F5;font-size:14px;cursor:pointer;}
+.btn:active{background:#27272A;}
+.stats{display:flex;gap:32px;font-size:12px;color:#71717A;}
+.stats b{display:block;font-size:20px;color:#F4F4F5;margin-bottom:2px;}
+</style>
+</head>
+<body>
+<h2>训练计时</h2>
+<div class="timer" id="t">00:00</div>
+<button class="btn" id="btn">开始</button>
+<div class="stats">
+  <div><b id="sets">0</b>组数</div>
+  <div><b id="kcal">0</b>千卡</div>
+</div>
+<script>
+var s=0,run=false,iv;
+document.getElementById('btn').addEventListener('click',function(){
+  run=!run;
+  this.textContent=run?'暂停':'开始';
+  if(run){iv=setInterval(function(){s++;var m=Math.floor(s/60);var ss=s%60;
+    document.getElementById('t').textContent=('0'+m).slice(-2)+':'+('0'+ss).slice(-2);
+    document.getElementById('kcal').textContent=Math.round(s*0.15);
+  },1000);}else{clearInterval(iv);}
+});
+</script>
+</body>
+</html>

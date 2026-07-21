@@ -10,6 +10,7 @@ function refreshRuntime(){
   refreshModel();
   renderPermissions();
   renderCronJobs();
+  renderSkillPage();
   ev('运行页数据已刷新');
 }
 
