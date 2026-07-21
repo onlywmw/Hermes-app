@@ -4,18 +4,18 @@ import com.hermes.android.HermesActivity;
 import com.hermes.android.skill.SkillStore;
 
 /**
- * P1-1: Skill Bridge — 技能管理
+ * 技能 Bridge
  */
 public class BridgeSkill extends BaseBridge {
 
-    private final SkillStore skillStore;
+    private final SkillStore store;
 
-    public BridgeSkill(HermesActivity activity, SkillStore skillStore) {
+    public BridgeSkill(HermesActivity activity) {
         super(activity);
-        this.skillStore = skillStore;
+        this.store = activity.getSkillStore();
     }
 
-    public String listSkills() { return skillStore.listSkillsJson(); }
-    public String recordSkillUse(String skillId) { return skillStore.recordUse(skillId); }
-    public String deleteSkill(String skillId) { return skillStore.deleteSkill(skillId); }
+    public String listSkills() { return store.listSkillsJson(); }
+    public String recordSkillUse(String skillId) { return store.recordUse(skillId); }
+    public String deleteSkill(String skillId) { return store.deleteSkill(skillId); }
 }

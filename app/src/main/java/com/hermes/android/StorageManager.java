@@ -434,6 +434,95 @@ public class StorageManager {
         }
     }
 
+    // ==================== 房间文件操作 (BridgeFile 用) ====================
+
+    public String writeFile(String roomId, String path, String content) {
+        try {
+            File base = new File(baseDir, "rooms/" + roomId);
+            File target = new File(base, path);
+            if (!isSafe(base, target)) return errJson("路径越界");
+            target.getParentFile().mkdirs();
+            try (java.io.FileWriter fw = new java.io.FileWriter(target)) {
+                fw.write(content != null ? content : "");
+            }
+            return okJson();
+        } catch (Exception e) {
+            return errJson(e);
+        }
+    }
+
+    public String readFile(String roomId, String path) {
+        try {
+            File base = new File(baseDir, "rooms/" + roomId);
+            File target = new File(base, path);
+            if (!isSafe(base, target)) return errJson("路径越界");
+            if (!target.exists()) return errJson("文件不存在: " + path);
+            byte[] bytes = java.nio.file.Files.readAllBytes(target.toPath());
+            String content = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            if (content.length() > 100000) content = content.substring(0, 100000) + "\n…(截断)";
+            return new JSONObject().put("ok", true).put("content", content).toString();
+        } catch (Exception e) {
+            return errJson(e);
+        }
+    }
+
+    public String deleteFile(String roomId, String path) {
+        try {
+            File base = new File(baseDir, "rooms/" + roomId);
+            File target = new File(base, path);
+            if (!isSafe(base, target)) return errJson("路径越界");
+            if (!target.exists()) return errJson("文件不存在: " + path);
+            if (target.isDirectory()) {
+                deleteRecursive(target);
+            } else {
+                target.delete();
+            }
+            return okJson();
+        } catch (Exception e) {
+            return errJson(e);
+        }
+    }
+
+    public String listRoomFiles(String roomId, String subPath) {
+        try {
+            File base = new File(baseDir, "rooms/" + roomId);
+            File dir = (subPath == null || subPath.isEmpty()) ? base : new File(base, subPath);
+            if (!isSafe(base, dir)) return errJson("路径越界");
+            if (!dir.exists() || !dir.isDirectory()) return "[]";
+            return listDir(dir).toString();
+        } catch (Exception e) {
+            return errJson(e);
+        }
+    }
+
+    public String initRoom(String roomId, String name, String description, String membersJson) {
+        try {
+            File room = new File(baseDir, "rooms/" + roomId);
+            room.mkdirs();
+            JSONObject meta = new JSONObject();
+            meta.put("id", roomId);
+            meta.put("name", name != null ? name : "");
+            meta.put("description", description != null ? description : "");
+            meta.put("members", membersJson != null ? new JSONArray(membersJson) : new JSONArray());
+            meta.put("created", System.currentTimeMillis());
+            try (java.io.FileWriter fw = new java.io.FileWriter(new File(room, "room.json"))) {
+                fw.write(meta.toString(2));
+            }
+            initRoomStorage(roomId);
+            return okJson();
+        } catch (Exception e) {
+            return errJson(e);
+        }
+    }
+
+    private void deleteRecursive(File f) {
+        if (f.isDirectory()) {
+            File[] children = f.listFiles();
+            if (children != null) for (File c : children) deleteRecursive(c);
+        }
+        f.delete();
+    }
+
     // ==================== 内部工具 ====================
 
     private JSONArray listDir(File dir) throws Exception {
@@ -502,6 +591,10 @@ public class StorageManager {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private String okJson() {
+        return "{\"ok\":true}";
     }
 
     private String errJson(String msg) {

@@ -5,7 +5,9 @@ import com.hermes.android.StatsCollector;
 import com.hermes.android.ai.AiClient;
 import com.hermes.android.ai.AiProviderConfig;
 import com.hermes.android.council.CouncilClient;
+import com.hermes.android.model.ModelRegistry;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -13,24 +15,24 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
- * P1-1: AI Bridge — 异步对话 + Council + 配置查询
+ * AI Bridge — 异步对话 + Council + 配置查询
  */
 public class BridgeAi extends BaseBridge {
 
     private final AiProviderConfig aiConfig;
+    private final ModelRegistry modelRegistry;
     private final ExecutorService aiExecutor;
     private final List<AiClient.Message> chatHistory;
     private final StatsCollector statsCollector;
     private static final int MAX_HISTORY = 10;
 
-    public BridgeAi(HermesActivity activity, AiProviderConfig aiConfig,
-                    ExecutorService aiExecutor, List<AiClient.Message> chatHistory,
-                    StatsCollector statsCollector) {
+    public BridgeAi(HermesActivity activity) {
         super(activity);
-        this.aiConfig = aiConfig;
-        this.aiExecutor = aiExecutor;
-        this.chatHistory = chatHistory;
-        this.statsCollector = statsCollector;
+        this.aiConfig = activity.getAiConfig();
+        this.modelRegistry = activity.getModelRegistry();
+        this.aiExecutor = activity.getAiExecutor();
+        this.chatHistory = activity.getChatHistory();
+        this.statsCollector = activity.getStatsCollector();
     }
 
     public void aiChatAsync(String text, String callbackId) {
@@ -79,19 +81,28 @@ public class BridgeAi extends BaseBridge {
                     resultJson = "{\"ok\":false,\"content\":\"AI 调用异常\"}";
                 }
             }
-            evalJs("window._hermesCb(\'" + callbackId + "\'," + resultJson + ")");
+            evalJs("window._hermesCb('" + callbackId + "'," + resultJson + ")");
         });
     }
 
     public void councilAsync(String topic, String callbackId) {
+        councilAsync(topic, "[]", null, callbackId);
+    }
+
+    public void councilAsync(String topic, String modelIdsJson, String context, String callbackId) {
         aiExecutor.execute(() -> {
             try {
-                CouncilClient council = new CouncilClient(aiConfig);
-                String resultJson = council.discuss(topic);
-                evalJs("window._hermesCb(\'" + callbackId + "\'," + resultJson + ")");
+                CouncilClient council = new CouncilClient(modelRegistry);
+                List<String> ids = new ArrayList<>();
+                try {
+                    JSONArray arr = new JSONArray(modelIdsJson);
+                    for (int i = 0; i < arr.length(); i++) ids.add(arr.getString(i));
+                } catch (Exception ignored) {}
+                String resultJson = council.discuss(topic, ids.isEmpty() ? null : ids, context);
+                evalJs("window._hermesCb('" + callbackId + "'," + resultJson + ")");
             } catch (Exception e) {
-                evalJs("window._hermesCb(\'" + callbackId +
-                        "\",{\"ok\":false,\"error\":\"" + e.getMessage() + "\"})");
+                evalJs("window._hermesCb('" + callbackId +
+                        "',{\"ok\":false,\"error\":\"" + e.getMessage() + "\"})");
             }
         });
     }

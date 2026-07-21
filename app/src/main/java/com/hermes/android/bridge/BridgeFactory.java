@@ -5,7 +5,7 @@ import android.webkit.JavascriptInterface;
 import com.hermes.android.HermesActivity;
 
 /**
- * P1-1: Bridge 聚合工厂 — 唯一注入 WebView 的对象。
+ * Bridge 聚合工厂 — 唯一注入 WebView 的对象。
  * 所有 @JavascriptInterface 方法委托给子 Bridge。
  * JS 侧接口签名不变 (window.HermesBridge.xxx)。
  */
@@ -17,15 +17,16 @@ public class BridgeFactory {
     private final BridgeFile file;
     private final BridgeCron cron;
     private final BridgeSkill skill;
+    private final BridgeModel model;
 
     public BridgeFactory(HermesActivity activity) {
         this.activity = activity;
         device = new BridgeDevice(activity);
-        ai = new BridgeAi(activity, activity.getAiConfig(), activity.getAiExecutor(),
-                activity.getChatHistory(), activity.getStatsCollector());
-        file = new BridgeFile(activity, activity.getStorageManager(), activity.getCapabilityExecutor());
-        cron = new BridgeCron(activity, activity.getCronManager());
-        skill = new BridgeSkill(activity, activity.getSkillStore());
+        ai = new BridgeAi(activity);
+        file = new BridgeFile(activity);
+        cron = new BridgeCron(activity);
+        skill = new BridgeSkill(activity);
+        model = new BridgeModel(activity);
     }
 
     // ==================== Device ====================
@@ -40,6 +41,7 @@ public class BridgeFactory {
     // ==================== AI ====================
     @JavascriptInterface public void aiChatAsync(String text, String cbId) { ai.aiChatAsync(text, cbId); }
     @JavascriptInterface public void councilAsync(String topic, String cbId) { ai.councilAsync(topic, cbId); }
+    @JavascriptInterface public void councilAsync(String topic, String modelIdsJson, String context, String cbId) { ai.councilAsync(topic, modelIdsJson, context, cbId); }
     @JavascriptInterface public String aiChat(String text) { return ai.aiChat(text); }
     @JavascriptInterface public String getAiInfo() { return ai.getAiInfo(); }
     @JavascriptInterface public String getLanguage() { return ai.getLanguage(); }
@@ -85,7 +87,15 @@ public class BridgeFactory {
     @JavascriptInterface public String recordSkillUse(String skillId) { return skill.recordSkillUse(skillId); }
     @JavascriptInterface public String deleteSkill(String skillId) { return skill.deleteSkill(skillId); }
 
-    // ==================== 基础 (直接实现) ====================
+    // ==================== Model ====================
+    @JavascriptInterface public String listModels() { return model.listModels(); }
+    @JavascriptInterface public String addModel(String json) { return model.addModel(json); }
+    @JavascriptInterface public String updateModel(String json) { return model.updateModel(json); }
+    @JavascriptInterface public String deleteModel(String id) { return model.deleteModel(id); }
+    @JavascriptInterface public String setDefaultModel(String id) { return model.setDefaultModel(id); }
+    @JavascriptInterface public String testModel(String json) { return model.testModel(json); }
+
+    // ==================== 基础 ====================
     @JavascriptInterface
     public void toast(final String message) {
         activity.runOnUiThread(() ->

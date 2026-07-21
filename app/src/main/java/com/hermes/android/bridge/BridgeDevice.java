@@ -24,7 +24,7 @@ import com.hermes.android.ParsedCommand;
 import org.json.JSONObject;
 
 /**
- * P1-1: 设备能力 Bridge — 指令执行 + 设备信息 + 权限 + 小组件
+ * 设备能力 Bridge — 指令执行 + 设备信息 + 权限 + 小组件
  */
 public class BridgeDevice extends BaseBridge {
 
@@ -56,7 +56,7 @@ public class BridgeDevice extends BaseBridge {
             CommandResult result = activity.getCapabilityExecutor().execute(activity, cmd);
             android.util.Log.i("MOV", "cmd [" + text + "] " + (result.isSuccess() ? "OK" : "FAIL")
                     + " in " + (System.currentTimeMillis() - t0) + "ms");
-            return (result.isSuccess() ? "" : "") + result.getMessage();
+            return result.getMessage();
         } catch (SecurityException e) {
             return "权限不足: " + e.getMessage();
         } catch (Exception e) {

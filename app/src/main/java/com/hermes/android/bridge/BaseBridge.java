@@ -3,7 +3,7 @@ package com.hermes.android.bridge;
 import com.hermes.android.HermesActivity;
 
 /**
- * P1-1: Bridge 基类 — 持有 Activity 引用，子类通过它访问共享资源。
+ * Bridge 基类 — 持有 Activity 引用，子类通过它访问共享资源。
  */
 public abstract class BaseBridge {
     protected final HermesActivity activity;

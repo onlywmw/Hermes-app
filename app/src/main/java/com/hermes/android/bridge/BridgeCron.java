@@ -4,23 +4,19 @@ import com.hermes.android.HermesActivity;
 import com.hermes.android.cron.CronManager;
 
 /**
- * P1-1: Cron Bridge — 定时任务管理
+ * 定时任务 Bridge
  */
 public class BridgeCron extends BaseBridge {
 
-    private final CronManager cronManager;
+    private final CronManager cron;
 
-    public BridgeCron(HermesActivity activity, CronManager cronManager) {
+    public BridgeCron(HermesActivity activity) {
         super(activity);
-        this.cronManager = cronManager;
+        this.cron = activity.getCronManager();
     }
 
-    public String listCronJobs() { return cronManager.listJobsJson(); }
-    public String createCronJob(String name, String cronExpr, String command) {
-        return cronManager.createJob(name, cronExpr, command);
-    }
-    public String toggleCronJob(String jobId, boolean enabled) {
-        return cronManager.toggleJob(jobId, enabled);
-    }
-    public String deleteCronJob(String jobId) { return cronManager.deleteJob(jobId); }
+    public String listCronJobs() { return cron.listJobsJson(); }
+    public String createCronJob(String name, String cronExpr, String command) { return cron.createJob(name, cronExpr, command); }
+    public String toggleCronJob(String jobId, boolean enabled) { return cron.toggleJob(jobId, enabled); }
+    public String deleteCronJob(String jobId) { return cron.deleteJob(jobId); }
 }

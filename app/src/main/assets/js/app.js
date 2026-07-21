@@ -381,8 +381,6 @@ $('rowPerms').addEventListener('click',function(){openRunDetail('perms');});
 $('rowSkills').addEventListener('click',function(){openRunDetail('skills');});
 $('runDetailClose').addEventListener('click',closeRunDetail);
 $('runDetailMask').addEventListener('click',closeRunDetail);
-/* 新增模型 → 打开设置页 */
-$('btnAddModel').addEventListener('click',function(){B.openSettings();});
 
 /* ============ 初始化 ============ */
 initLang();
