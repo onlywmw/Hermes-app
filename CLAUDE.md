@@ -2,7 +2,7 @@
 
 > **定义**: 运行在 Android 平板上的多模型协作工作台。人和 AI 在项目房间里共同工作，产出文件。有看板运行轻应用，能直接操控设备。
 
-**完整项目文档**: [docs/HERMES_MASTER.md](docs/HERMES_MASTER.md)
+**完整项目文档**: [docs/MOV_MASTER.md](docs/MOV_MASTER.md)
 
 ---
 

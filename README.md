@@ -71,12 +71,12 @@ MOVActivity (WebView 壳)
 
 | 文档 | 内容 |
 |------|------|
-| [HERMES_MASTER.md](docs/HERMES_MASTER.md) | 项目全貌 |
+| [MOV_MASTER.md](docs/MOV_MASTER.md) | 项目全貌 |
 | [DESIGN_ROOM_V3.md](docs/DESIGN_ROOM_V3.md) | 房间设计 (文件仓库模型) |
 | [DESIGN_INTERACTION.md](docs/DESIGN_INTERACTION.md) | 交互系统设计 |
-| [DESIGN_BOARD_V1.md](docs/DESIGN_BOARD_V1.md) | 看板设计 (待实施) |
-| [DESIGN_FILE_FIXES.md](docs/DESIGN_FILE_FIXES.md) | 文件系统修复 (待实施) |
-| [PLAN_ROOM_V3.md](docs/PLAN_ROOM_V3.md) | 房间 v3 实施计划 |
+| [DESIGN_BOARD_V2.md](docs/DESIGN_BOARD_V2.md) | 看板设计 |
+| [DESIGN_SECURITY.md](docs/DESIGN_SECURITY.md) | 安全修复 |
+| [DESIGN_MULTI_MODEL.md](docs/DESIGN_MULTI_MODEL.md) | 多模型协作引擎 |
 
 ## 许可
 
