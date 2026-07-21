@@ -301,6 +301,15 @@ button,input,textarea{font-family:inherit;}
 .model-row .radio{margin-left:auto;width:17px;height:17px;border-radius:50%;border:1.6px solid var(--line);flex:none;transition:all var(--t-fast);position:relative;}
 .model-row.sel .radio{border-color:var(--acc-live);}
 .model-row.sel .radio::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--acc-live);}
+/* 多模型: 头像 + 状态行 + 空态 + 添加入口 */
+.model-row .av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-mono);font-size:12px;font-weight:700;color:#fff;flex:none;font-style:normal;}
+.model-row .ms{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-4);margin-top:2px;}
+.model-row .ms .st{width:7px;height:7px;border-radius:50%;flex:none;}
+.model-row .ms .st.on{background:#34C759;}
+.model-row .ms .st.off{background:var(--line);}
+.model-none{margin:0 16px 8px;padding:18px;text-align:center;font-size:12px;color:var(--ink-4);}
+.model-add{border:1.5px dashed var(--line);background:transparent;box-shadow:none;justify-content:center;}
+.model-add .md{color:var(--acc-live);font-weight:600;}
 .loop-banner{margin:0 16px 8px;padding:10px 14px;border:1px dashed #F2DFC2;background:var(--acc-tint-2);border-radius:var(--r-lg);font-size:11px;line-height:1.5;color:var(--acc-strong);}
 .loop-banner b{font-family:var(--font-mono);}
 .loop-chain{display:flex;align-items:center;gap:4px;margin-top:6px;font-family:var(--font-mono);font-size:9px;flex-wrap:wrap;}

@@ -104,7 +104,24 @@ var I18N={
     'st.use':'使用','st.newTemplate':'新建模板','st.templateName':'模板名 · 如: PRD模板.md',
     'st.templateContent':'模板内容','st.templateSave':'保存模板',
     'st.templateNeedName':'请输入模板名','st.templateUsed':'已从模板创建',
-    'st.templateTarget':'目标文件名','st.templateHint':'模板预览开发中'
+    'st.templateTarget':'目标文件名','st.templateHint':'模板预览开发中',
+    /* 多模型 (DESIGN_MULTI_MODEL) */
+    'model.none':'还没有模型 · 点下方添加',
+    'model.add':'＋ 添加模型',
+    'model.default':'默认',
+    'model.disabled':'已停用',
+    'model.noKey':'未配置 Key',
+    'model.roleGeneral':'通用',
+    'model.setDefault':'已设为默认:',
+    'model.setFail':'设置默认失败',
+    'model.testOk':'连接正常',
+    'model.testFail':'连接失败',
+    'model.testing':'测试中…',
+    'model.deleted':'模型已删除',
+    'model.cannotDeleteLast':'至少保留一个模型',
+    'model.selectTitle':'选择参与的 AI',
+    'model.selectHint':'至少选 2 个模型',
+    'model.selected':'已选'
   },
   en:{
     'nav.chat':'Chat','nav.skills':'Skills','nav.runtime':'Runtime',
@@ -207,7 +224,24 @@ var I18N={
     'st.use':'Use','st.newTemplate':'New Template','st.templateName':'Name · e.g. PRD-template.md',
     'st.templateContent':'Template content','st.templateSave':'Save Template',
     'st.templateNeedName':'Enter template name','st.templateUsed':'Created from template',
-    'st.templateTarget':'Target filename','st.templateHint':'Template preview coming soon'
+    'st.templateTarget':'Target filename','st.templateHint':'Template preview coming soon',
+    /* Multi-model (DESIGN_MULTI_MODEL) */
+    'model.none':'No models yet · tap below to add',
+    'model.add':'+ Add Model',
+    'model.default':'DEFAULT',
+    'model.disabled':'Disabled',
+    'model.noKey':'No API Key',
+    'model.roleGeneral':'General',
+    'model.setDefault':'Default set:',
+    'model.setFail':'Failed to set default',
+    'model.testOk':'Connected',
+    'model.testFail':'Connection failed',
+    'model.testing':'Testing…',
+    'model.deleted':'Model deleted',
+    'model.cannotDeleteLast':'At least one model required',
+    'model.selectTitle':'Select AI participants',
+    'model.selectHint':'Pick at least 2 models',
+    'model.selected':'selected'
   }
 };
 function t(key){var d=I18N[LANG]||I18N.zh;return d[key]||I18N.zh[key]||key;}

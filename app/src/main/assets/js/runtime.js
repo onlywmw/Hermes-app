@@ -81,33 +81,59 @@ function refreshChannels(){
   $('chNotify').className='st '+(perms.NOTIFY?'on':'off');
 }
 
-/* ---------- MODEL ---------- */
+/* ---------- MODEL (多模型注册表) ---------- */
+/* 状态点: on=已配置可用 / off=未配置 / disabled=已停用 */
+function modelStatusDot(m){
+  if(!m.enabled)return '<span class="st off"></span>';
+  var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
+  return '<span class="st '+(ready?'on':'off')+'"></span>';
+}
+function modelStatusText(m){
+  if(!m.enabled)return t('model.disabled');
+  var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
+  return ready?(m.model||m.provider):t('model.noKey');
+}
 function refreshModel(){
-  var info=B.aiInfo();
-  var rows=[
-    {key:'native',pv:t('rt.nativeEngine'),md:t('rt.nativeDesc'),on:true,
-     action:function(){B.toast(t('rt.nativeEngine')+': torch/battery/brightness/volume/wifi/vibrate/tts/clipboard/notify/location/sms/contacts/call/screen/app/input/network/process/file');}},
-    {key:'ai',pv:info.displayName||t('rt.aiGateway'),
-     md:(info.enabled&&info.configured)?(info.model+' · '+t('rt.model')):(info.enabled?t('ai.off'):t('ai.nokey')),
-     on:info.enabled&&info.configured,
-     action:function(){B.openSettings();}}
-  ];
+  var models=B.listModels();
   var mh='';
-  rows.forEach(function(r){
-    if(r.key==='native'){
-      /* 原生引擎: 永远在线, 不是可选项 → 在线徽章, 无 radio */
-      mh+='<div class="model-row" data-model="'+r.key+'"><div><div class="pv">'+esc(r.pv)+'</div><div class="md">'+esc(r.md)+'</div></div><span class="badge ok"><span class="dot"></span>'+t('rt.online')+'</span></div>';
-    }else{
-      /* AI 模型: radio 单选 */
-      mh+='<div class="model-row'+(r.on?' sel':'')+'" data-model="'+r.key+'"><div><div class="pv">'+esc(r.pv)+'</div><div class="md">'+esc(r.md)+'</div></div><span class="radio"></span></div>';
-    }
+  /* 原生引擎: 永远在线, 置顶 */
+  mh+='<div class="model-row" data-model="__native"><div><div class="pv">'+esc(t('rt.nativeEngine'))+'</div><div class="md">'+esc(t('rt.nativeDesc'))+'</div></div><span class="badge ok"><span class="dot"></span>'+t('rt.online')+'</span></div>';
+  /* 已注册模型 */
+  models.forEach(function(m){
+    var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
+    var sel=m.isDefault?' sel':'';
+    mh+='<div class="model-row'+sel+'" data-model="'+esc(m.id)+'">'
+      +'<i class="av" style="background:'+esc(m.color||'#D97706')+'">'+esc((m.name||'?').charAt(0))+'</i>'
+      +'<div><div class="pv">'+esc(m.role||t('model.roleGeneral'))+(m.isDefault?' · '+t('model.default'):'')+'</div>'
+      +'<div class="md">'+esc(m.name)+'</div>'
+      +'<div class="ms">'+modelStatusDot(m)+'<span>'+esc(modelStatusText(m))+'</span></div></div>'
+      +(m.isDefault?'<span class="badge ok"><span class="dot"></span>'+t('model.default')+'</span>':'<span class="radio"></span>')
+      +'</div>';
   });
+  if(models.length===0){
+    mh+='<div class="model-none">'+esc(t('model.none'))+'</div>';
+  }
+  /* 添加模型入口 */
+  mh+='<div class="model-row model-add" data-model="__add"><div><div class="md">'+t('model.add')+'</div></div></div>';
   $('modelList').innerHTML=mh;
   document.querySelectorAll('#modelList .model-row').forEach(function(el){
     el.addEventListener('click',function(){
       var key=el.getAttribute('data-model');
-      var row=rows.find(function(r){return r.key===key;});
-      if(row&&row.action)row.action();
+      if(key==='__native'){
+        B.toast(t('rt.nativeEngine')+': torch/battery/brightness/volume/wifi/vibrate/tts/clipboard/notify/location/sms/contacts/call/screen/app/input/network/process/file');
+      }else if(key==='__add'){
+        B.openSettings();
+      }else{
+        /* 点击非默认模型 → 设为默认 */
+        var m=models.find(function(x){return x.id===key;});
+        if(m&&!m.isDefault){
+          var res=B.setDefaultModel(key);
+          if(res.ok){B.toast(t('model.setDefault')+' '+m.name);refreshModel();}
+          else{B.toast(res.error||t('model.setFail'));}
+        }else if(m){
+          B.openSettings();
+        }
+      }
     });
   });
 }

@@ -65,7 +65,14 @@ var B=(function(){
     runtimeStats:function(){try{return b?JSON.parse(b.getRuntimeStats()):{};}catch(e){return {};}},
     permState:function(){try{return b?JSON.parse(b.getPermissionState()):{};}catch(e){return {};}},
     widgetInfo:function(){try{return b?JSON.parse(b.getWidgetInfo()):{count:0};}catch(e){return {count:0};}},
-    openAppSettings:function(){try{if(b)b.openAppSettings();}catch(e){}}
+    openAppSettings:function(){try{if(b)b.openAppSettings();}catch(e){}},
+    /* 多模型管理 (DESIGN_MULTI_MODEL 第1层) */
+    listModels:function(){try{return b?JSON.parse(b.listModels()):[];}catch(e){return [];}},
+    addModel:function(json){try{return b?JSON.parse(b.addModel(typeof json==='string'?json:JSON.stringify(json))):{ok:false};}catch(e){return {ok:false};}},
+    updateModel:function(json){try{return b?JSON.parse(b.updateModel(typeof json==='string'?json:JSON.stringify(json))):{ok:false};}catch(e){return {ok:false};}},
+    deleteModel:function(id){try{return b?JSON.parse(b.deleteModel(id)):{ok:false};}catch(e){return {ok:false};}},
+    testModel:function(json,cb){if(!b){cb({ok:false,error:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.testModel(typeof json==='string'?json:JSON.stringify(json),id);},
+    setDefaultModel:function(id){try{return b?JSON.parse(b.setDefaultModel(id)):{ok:false};}catch(e){return {ok:false};}}
   };
 })();
 
