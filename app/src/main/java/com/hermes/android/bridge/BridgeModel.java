@@ -3,8 +3,10 @@ package com.hermes.android.bridge;
 import com.hermes.android.HermesActivity;
 import com.hermes.android.ai.AiClient;
 import com.hermes.android.model.ModelConfig;
+import com.hermes.android.model.ModelPresets;
 import com.hermes.android.model.ModelRegistry;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -20,6 +22,28 @@ public class BridgeModel extends BaseBridge {
     }
 
     public String listModels() { return registry.listJson(); }
+
+    /** 厂商预设列表 (不含任何敏感信息), JSON 数组字符串 */
+    public String getProviderPresets() {
+        try {
+            JSONArray arr = new JSONArray();
+            for (ModelPresets.Preset p : ModelPresets.all()) {
+                JSONObject j = new JSONObject();
+                j.put("key", p.key);
+                j.put("displayName", p.displayName);
+                j.put("baseUrl", p.baseUrl);
+                j.put("defaultModel", p.defaultModel);
+                j.put("models", new JSONArray());
+                for (String m : p.models) j.getJSONArray("models").put(m);
+                j.put("keyConsoleUrl", p.keyConsoleUrl);
+                j.put("note", p.note);
+                arr.put(j);
+            }
+            return arr.toString();
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
 
     public String addModel(String json) {
         try {

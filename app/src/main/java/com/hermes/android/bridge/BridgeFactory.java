@@ -89,6 +89,7 @@ public class BridgeFactory {
 
     // ==================== Model ====================
     @JavascriptInterface public String listModels() { return model.listModels(); }
+    @JavascriptInterface public String getProviderPresets() { return model.getProviderPresets(); }
     @JavascriptInterface public String addModel(String json) { return model.addModel(json); }
     @JavascriptInterface public String updateModel(String json) { return model.updateModel(json); }
     @JavascriptInterface public String deleteModel(String id) { return model.deleteModel(id); }

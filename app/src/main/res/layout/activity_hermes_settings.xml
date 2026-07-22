@@ -134,6 +134,15 @@
                 android:paddingEnd="12dp" />
 
             <TextView
+                android:id="@+id/tvProviderNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/accent_light"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
@@ -179,6 +188,16 @@
                 android:inputType="textPassword"
                 android:singleLine="true" />
 
+            <Button
+                android:id="@+id/btnGetApiKey"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="8dp"
+                android:text="获取 API Key"
+                android:textColor="@color/accent_light"
+                android:textSize="13sp"
+                android:background="@drawable/bg_chip" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -187,18 +206,19 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
 
-            <EditText
+            <AutoCompleteTextView
                 android:id="@+id/etModel"
                 android:layout_width="match_parent"
                 android:layout_height="44dp"
                 android:layout_marginTop="4dp"
                 android:background="@drawable/bg_chip"
-                android:hint="deepseek-v4-flash"
+                android:hint="选择厂商后自动填充，可手输"
                 android:textColorHint="@color/text_hint"
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
+                android:completionHint="推荐模型"
                 android:singleLine="true" />
 
             <TextView

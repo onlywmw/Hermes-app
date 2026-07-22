@@ -1,6 +1,6 @@
 # CONTRACT: 多模型系统
 
-版本: v1.0
+版本: v1.1 (新增 ModelPresets 厂商预设表 + TC-M08)
 日期: 2026-07-22
 status: design-ready
 交付对象: 后端 + 前端程序员
@@ -87,6 +87,54 @@ Then:
   3. 第三个收到 C 的回复 (8s 后)
   4. 最后收到汇总
 ```
+
+### TC-M08：添加模型只填 Key
+
+```
+Given: 设置页"添加模型"表单, ModelPresets 含 13 个厂商预设
+When: 用户在厂商 Spinner 中选择 "智谱 GLM"
+Then:
+  1. etBaseUrl 自动填充 "https://open.bigmodel.cn/api/paas/v4" (无 /v1 后缀)
+  2. etModel 自动填充默认模型 "glm-4.7-flash" (用户可改, 推荐模型下拉可选 glm-5.2)
+  3. 厂商备注 "注意无 /v1 后缀；glm-4.7-flash 免费" 显示在表单中
+When: 用户点击"获取 API Key"按钮
+Then:
+  4. 浏览器打开 "https://bigmodel.cn/usercenter/proj-mgmt/apikeys"
+When: 用户选择 "Ollama"
+Then:
+  5. "获取 API Key"按钮隐藏或置灰, 提示"本地模型无需 Key"
+When: 用户只填 apiKey 后保存 (baseUrl/model 留空)
+Then:
+  6. 后端 getEffectiveBaseUrl/getEffectiveModel 走 ModelPresets 默认值, 调用成功
+```
+
+---
+
+## 厂商预设表 (ModelPresets)
+
+13 家 OpenAI 兼容厂商的单一数据源: `model/ModelPresets.java`。ModelConfig 的空值默认、设置页的自动填充、JS 侧的厂商列表 (`getProviderPresets()`) 都从它取，禁止各自硬编码。
+
+| key | 显示名 | baseUrl | 默认模型 | 获取 Key 页面 | 备注 |
+|---|---|---|---|---|---|
+| deepseek | DeepSeek | https://api.deepseek.com/v1 | deepseek-v4-flash | platform.deepseek.com/api_keys | 需先充值 |
+| moonshot | Kimi | https://api.moonshot.cn/v1 | kimi-k2.6 | platform.moonshot.cn/console/api-keys | |
+| zhipu | 智谱 GLM | https://open.bigmodel.cn/api/paas/v4 | glm-4.7-flash | bigmodel.cn/usercenter/proj-mgmt/apikeys | 无 /v1 后缀; flash 免费 |
+| qwen | 通义千问 | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen3.7-plus | bailian.console.aliyun.com | 需先开通百炼 |
+| doubao | 豆包 | https://ark.cn-beijing.volces.com/api/v3 | doubao-seed-2-0-mini-260428 | console.volcengine.com/ark | 需实名+开通模型服务 |
+| spark | 讯飞星火 | https://spark-api-open.xf-yun.com/v1 | generalv3.5 | console.xfyun.cn/services/bm35 | 填 APIPassword; lite 免费 |
+| minimax | MiniMax | https://api.minimaxi.com/v1 | MiniMax-M2.5 | platform.minimaxi.com | 模型 ID 大小写敏感 |
+| baichuan | 百川智能 | https://api.baichuan-ai.com/v1 | Baichuan4-Turbo | platform.baichuan-ai.com/console/apikey | 需实名 |
+| stepfun | 阶跃星辰 | https://api.stepfun.com/v1 | step-3.5-flash | platform.stepfun.com/interface-key | |
+| hunyuan | 腾讯混元 | https://tokenhub.tencentmaas.com/v1 | hy3 | console.cloud.tencent.com/tokenhub | 新平台 TokenHub |
+| yi | 零一万物 | https://api.lingyiwanwu.com/v1 | yi-lightning | platform.lingyiwanwu.com/apikeys | 维护停滞 |
+| openai | OpenAI | https://api.openai.com/v1 | gpt-4o-mini | platform.openai.com/api-keys | |
+| ollama | Ollama | http://192.168.1.100:11434/v1 | llama3 | （无） | 本地模型无需 Key |
+
+约定:
+- 每个预设的 `models` 数组第一个 = `defaultModel`，第二个 = 旗舰模型。
+- 未知 provider key 的 baseUrl/model 兜底走 deepseek 默认，displayName 原样返回 key。
+- `ollama.keyConsoleUrl = ""`，UI 需特殊处理（隐藏/置灰"获取 API Key"按钮）。
+- 存量 provider key (deepseek/openai/qwen/ollama) 的默认行为不变。
 
 ---
 

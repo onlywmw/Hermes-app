@@ -38,14 +38,31 @@ function persistRooms(){
   }catch(e){}
 }
 var AV={ 'claude':['CL','#52525B'],'gpt-5':['G5','#27272A'],'gemini':['GM','#71717A'],'mov':['MO','#D97706'],'YOU':['ME','#09090B'] };
+/* 厂商色板: 13 个 provider key → 头像区分色 (后端未给 color 时的兜底); 未知 provider 回退金色 */
+var PROVIDER_COLORS={
+  'deepseek':'#4D6BFE','moonshot':'#1F1F23','zhipu':'#3A5BF0','qwen':'#615CED',
+  'doubao':'#3370FF','spark':'#00A1E0','minimax':'#E8442E','baichuan':'#FF7A00',
+  'stepfun':'#6E56CF','hunyuan':'#00B578','yi':'#4B5563','openai':'#10A37F','ollama':'#52525B'
+};
+function providerColor(key){return PROVIDER_COLORS[key]||'#D97706';}
+/* 厂商显示名: 以后端桥 getProviderPresets 为准 (与 ModelPresets.displayName 一致), 查不到用 key 本身 */
+var _presetsCache=null;
+function providerDisplayName(key){
+  try{
+    if(!_presetsCache)_presetsCache=B.providerPresets();
+    var p=(_presetsCache||[]).find(function(x){return x.key===key;});
+    return p?p.displayName:key;
+  }catch(e){return key;}
+}
 /* 多模型: 把注册表模型的颜色合并进 AV 表 */
 function refreshModelAvatars(){
   try{
     var models=B.listModels();
     models.forEach(function(m){
-      AV[m.id]=[(m.name||'?').slice(0,2).toUpperCase(),m.color||'#D97706'];
+      var col=m.color||providerColor(m.provider);
+      AV[m.id]=[(m.name||'?').slice(0,2).toUpperCase(),col];
       /* 兼容: 用模型名也能匹配 */
-      AV[m.name]=[(m.name||'?').slice(0,2).toUpperCase(),m.color||'#D97706'];
+      AV[m.name]=[(m.name||'?').slice(0,2).toUpperCase(),col];
     });
   }catch(e){}
 }

@@ -10,7 +10,7 @@ public class ModelConfig {
 
     public String id;           // "deepseek_v4"
     public String name;         // "DeepSeek V4"
-    public String provider;     // "deepseek" | "openai" | "qwen" | "ollama"
+    public String provider;     // ModelPresets 的 key: "deepseek" | "moonshot" | "zhipu" | "qwen" | "doubao" | "spark" | "minimax" | "baichuan" | "stepfun" | "hunyuan" | "yi" | "openai" | "ollama"
     public String baseUrl;      // 空走默认
     public String apiKey;       // 加密存储
     public String model;        // "deepseek-v4-flash"
@@ -75,39 +75,21 @@ public class ModelConfig {
         return apiKey != null && !apiKey.trim().isEmpty();
     }
 
-    /** 有效 baseUrl (空走 provider 默认) */
+    /** 有效 baseUrl (空走 ModelPresets 中 provider 的默认) */
     public String getEffectiveBaseUrl() {
         if (baseUrl != null && !baseUrl.trim().isEmpty()) return baseUrl.trim();
-        switch (provider) {
-            case "openai":   return "https://api.openai.com/v1";
-            case "deepseek": return "https://api.deepseek.com/v1";
-            case "qwen":     return "https://dashscope.aliyuncs.com/compatible-mode/v1";
-            case "ollama":   return "http://192.168.1.100:11434/v1";
-            default:         return "https://api.deepseek.com/v1";
-        }
+        return ModelPresets.defaultBaseUrl(provider);
     }
 
-    /** 有效 model (空走 provider 默认) */
+    /** 有效 model (空走 ModelPresets 中 provider 的默认) */
     public String getEffectiveModel() {
         if (model != null && !model.trim().isEmpty()) return model.trim();
-        switch (provider) {
-            case "openai":   return "gpt-4o-mini";
-            case "deepseek": return "deepseek-v4-flash";
-            case "qwen":     return "qwen-plus";
-            case "ollama":   return "llama3";
-            default:         return "deepseek-v4-flash";
-        }
+        return ModelPresets.defaultModel(provider);
     }
 
-    /** provider 显示名 */
+    /** provider 显示名 (走 ModelPresets, 未知 key 原样返回) */
     public String getProviderDisplayName() {
-        switch (provider) {
-            case "openai":   return "OpenAI";
-            case "deepseek": return "DeepSeek";
-            case "qwen":     return "通义千问";
-            case "ollama":   return "Ollama";
-            default:         return provider;
-        }
+        return ModelPresets.displayName(provider);
     }
 
     private static String maskKey(String key) {

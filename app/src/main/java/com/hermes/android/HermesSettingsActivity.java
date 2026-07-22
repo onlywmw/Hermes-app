@@ -1,9 +1,13 @@
 package com.hermes.android;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -15,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.hermes.android.ai.AiProviderConfig;
 import com.hermes.android.model.ModelConfig;
+import com.hermes.android.model.ModelPresets;
 import com.hermes.android.model.ModelRegistry;
 
 import java.util.List;
@@ -22,11 +27,10 @@ import java.util.List;
 /**
  * 设置页: 多模型管理 + 语言 + 统计。
  * 模型列表 → 点击编辑 → 保存/测试/删除。
+ * 厂商数据来自 ModelPresets，选中厂商自动填充 baseUrl / 默认模型。
  */
 public class HermesSettingsActivity extends AppCompatActivity {
 
-    private static final String[] PROVIDER_NAMES = {"DeepSeek", "OpenAI", "通义千问", "Ollama"};
-    private static final String[] PROVIDER_VALUES = {"deepseek", "openai", "qwen", "ollama"};
     private static final String[] ROLE_NAMES = {"通用", "产品", "技术", "数据", "自定义"};
     private static final String[] LANG_NAMES = {"中文", "English"};
     private static final String[] LANG_VALUES = {"zh", "en"};
@@ -36,9 +40,20 @@ public class HermesSettingsActivity extends AppCompatActivity {
 
     private LinearLayout modelListContainer;
     private LinearLayout editForm;
-    private TextView tvEditTitle;
-    private EditText etName, etBaseUrl, etApiKey, etModel;
+    private TextView tvEditTitle, tvProviderNote;
+    private EditText etName, etBaseUrl, etApiKey;
+    private AutoCompleteTextView etModel;
     private Spinner spinnerProvider, spinnerRole, spinnerLanguage;
+    private Button btnGetApiKey;
+
+    /** 全部厂商预设，Spinner 下标与其一一对应 */
+    private ModelPresets.Preset[] presets;
+    /**
+     * 已同步的厂商下标。setSelection 的回调是异步派发的，
+     * 用位置比对代替布尔标记：回调位置与已同步位置一致时忽略，
+     * 避免程序化选中（如打开编辑表单）覆盖用户已填内容。
+     */
+    private int syncedProviderPos = -1;
 
     /** 当前编辑的模型 ID, null = 新建 */
     private String editingId = null;
@@ -54,17 +69,35 @@ public class HermesSettingsActivity extends AppCompatActivity {
         modelListContainer = findViewById(R.id.modelListContainer);
         editForm = findViewById(R.id.editForm);
         tvEditTitle = findViewById(R.id.tvEditTitle);
+        tvProviderNote = findViewById(R.id.tvProviderNote);
         etName = findViewById(R.id.etName);
         etBaseUrl = findViewById(R.id.etBaseUrl);
         etApiKey = findViewById(R.id.etApiKey);
         etModel = findViewById(R.id.etModel);
+        btnGetApiKey = findViewById(R.id.btnGetApiKey);
         spinnerProvider = findViewById(R.id.spinnerProvider);
         spinnerRole = findViewById(R.id.spinnerRole);
         spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
-        // Spinners
+        // 厂商 Spinner: 数据源为 ModelPresets
+        presets = ModelPresets.all();
+        String[] providerNames = new String[presets.length];
+        for (int i = 0; i < presets.length; i++) providerNames[i] = presets[i].displayName;
         spinnerProvider.setAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, PROVIDER_NAMES));
+                android.R.layout.simple_spinner_dropdown_item, providerNames));
+        spinnerProvider.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                if (pos == syncedProviderPos) return;
+                syncedProviderPos = pos;
+                applyPreset(pos);
+            }
+            public void onNothingSelected(AdapterView<?> p) {}
+        });
+
+        // 模型名: 点击弹出推荐模型候选
+        etModel.setThreshold(0);
+        etModel.setOnClickListener(v -> etModel.showDropDown());
+
         spinnerRole.setAdapter(new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_dropdown_item, ROLE_NAMES));
         spinnerLanguage.setAdapter(new ArrayAdapter<>(this,
@@ -75,11 +108,26 @@ public class HermesSettingsActivity extends AppCompatActivity {
         for (int i = 0; i < LANG_VALUES.length; i++) {
             if (LANG_VALUES[i].equals(lang)) { spinnerLanguage.setSelection(i, false); break; }
         }
-        spinnerLanguage.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
+        spinnerLanguage.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
                 aiConfig.setLanguage(LANG_VALUES[pos]);
             }
-            public void onNothingSelected(android.widget.AdapterView<?> p) {}
+            public void onNothingSelected(AdapterView<?> p) {}
+        });
+
+        // 获取 API Key: 打开当前厂商的 Key 控制台页面
+        btnGetApiKey.setOnClickListener(v -> {
+            ModelPresets.Preset preset = currentPreset();
+            if (preset == null) return;
+            if (preset.keyConsoleUrl == null || preset.keyConsoleUrl.isEmpty()) {
+                Toast.makeText(this, "本地模型无需 Key", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(preset.keyConsoleUrl)));
+            } catch (Exception e) {
+                Toast.makeText(this, "无法打开页面: " + preset.keyConsoleUrl, Toast.LENGTH_SHORT).show();
+            }
         });
 
         // 添加模型
@@ -94,6 +142,60 @@ public class HermesSettingsActivity extends AppCompatActivity {
 
         refreshStatus();
         renderModelList();
+    }
+
+    /* ── 厂商预设联动 ── */
+
+    private ModelPresets.Preset currentPreset() {
+        int pos = spinnerProvider.getSelectedItemPosition();
+        if (presets == null || pos < 0 || pos >= presets.length) return null;
+        return presets[pos];
+    }
+
+    /** 选中厂商后: 自动填充 baseUrl / 默认模型 / 备注 / 推荐模型候选 / Key 按钮状态 */
+    private void applyPreset(int pos) {
+        if (presets == null || pos < 0 || pos >= presets.length) return;
+        ModelPresets.Preset preset = presets[pos];
+
+        etBaseUrl.setText(preset.baseUrl);
+        etModel.setText(preset.defaultModel);
+        etModel.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_dropdown_item_1line, preset.models));
+
+        if (preset.note != null && !preset.note.isEmpty()) {
+            tvProviderNote.setText(preset.note);
+            tvProviderNote.setVisibility(View.VISIBLE);
+        } else {
+            tvProviderNote.setVisibility(View.GONE);
+        }
+
+        boolean hasConsole = preset.keyConsoleUrl != null && !preset.keyConsoleUrl.isEmpty();
+        btnGetApiKey.setEnabled(hasConsole);
+        btnGetApiKey.setAlpha(hasConsole ? 1f : 0.4f);
+    }
+
+    /** 程序化选中厂商（不触发自动填充），并同步备注 / Key 按钮等 UI 状态 */
+    private void selectProvider(String providerKey) {
+        int index = 0;
+        for (int i = 0; i < presets.length; i++) {
+            if (presets[i].key.equals(providerKey)) { index = i; break; }
+        }
+        syncedProviderPos = index;
+        spinnerProvider.setSelection(index, false);
+
+        // 只更新辅助 UI，不覆盖 baseUrl / model 输入框
+        ModelPresets.Preset preset = presets[index];
+        etModel.setAdapter(new ArrayAdapter<>(this,
+                android.R.layout.simple_dropdown_item_1line, preset.models));
+        if (preset.note != null && !preset.note.isEmpty()) {
+            tvProviderNote.setText(preset.note);
+            tvProviderNote.setVisibility(View.VISIBLE);
+        } else {
+            tvProviderNote.setVisibility(View.GONE);
+        }
+        boolean hasConsole = preset.keyConsoleUrl != null && !preset.keyConsoleUrl.isEmpty();
+        btnGetApiKey.setEnabled(hasConsole);
+        btnGetApiKey.setAlpha(hasConsole ? 1f : 0.4f);
     }
 
     /* ── 模型列表渲染 ── */
@@ -214,9 +316,8 @@ public class HermesSettingsActivity extends AppCompatActivity {
             etBaseUrl.setText(m.baseUrl);
             etApiKey.setText(m.apiKey);
             etModel.setText(m.model);
-            for (int i = 0; i < PROVIDER_VALUES.length; i++) {
-                if (PROVIDER_VALUES[i].equals(m.provider)) { spinnerProvider.setSelection(i, false); break; }
-            }
+            // 编辑已有模型: 只定位厂商，不做自动填充
+            selectProvider(m.provider);
             for (int i = 0; i < ROLE_NAMES.length; i++) {
                 if (ROLE_NAMES[i].equals(m.role)) { spinnerRole.setSelection(i, false); break; }
             }
@@ -226,7 +327,9 @@ public class HermesSettingsActivity extends AppCompatActivity {
             etBaseUrl.setText("");
             etApiKey.setText("");
             etModel.setText("");
-            spinnerProvider.setSelection(0, false);
+            selectProvider(presets[0].key);
+            // 新建表单默认选中第一个厂商，并触发一次自动填充
+            applyPreset(0);
             spinnerRole.setSelection(0, false);
         }
         editForm.setVisibility(View.VISIBLE);
@@ -242,8 +345,11 @@ public class HermesSettingsActivity extends AppCompatActivity {
         ModelConfig m = editingId != null ? registry.get(editingId) : new ModelConfig();
         if (m == null) return;
 
+        ModelPresets.Preset preset = currentPreset();
+        if (preset == null) return;
+
         m.name = etName.getText().toString().trim();
-        m.provider = PROVIDER_VALUES[spinnerProvider.getSelectedItemPosition()];
+        m.provider = preset.key;
         m.baseUrl = etBaseUrl.getText().toString().trim();
         m.apiKey = etApiKey.getText().toString().trim();
         m.model = etModel.getText().toString().trim();
@@ -264,8 +370,11 @@ public class HermesSettingsActivity extends AppCompatActivity {
     }
 
     private void testModel() {
+        ModelPresets.Preset preset = currentPreset();
+        if (preset == null) return;
+
         ModelConfig m = new ModelConfig();
-        m.provider = PROVIDER_VALUES[spinnerProvider.getSelectedItemPosition()];
+        m.provider = preset.key;
         m.baseUrl = etBaseUrl.getText().toString().trim();
         m.apiKey = etApiKey.getText().toString().trim();
         m.model = etModel.getText().toString().trim();

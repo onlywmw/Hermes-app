@@ -68,6 +68,8 @@ var B=(function(){
     openAppSettings:function(){try{if(b)b.openAppSettings();}catch(e){}},
     /* 多模型管理 (DESIGN_MULTI_MODEL 第1层) */
     listModels:function(){try{return b?JSON.parse(b.listModels()):[];}catch(e){return [];}},
+    /* 厂商预设 (ModelPresets · "添加模型只填 API Key"): key/displayName/baseUrl/defaultModel/models/keyConsoleUrl/note */
+    providerPresets:function(){try{return b&&b.getProviderPresets?JSON.parse(b.getProviderPresets()):[];}catch(e){return [];}},
     addModel:function(json){try{return b?JSON.parse(b.addModel(typeof json==='string'?json:JSON.stringify(json))):{ok:false};}catch(e){return {ok:false};}},
     updateModel:function(json){try{return b?JSON.parse(b.updateModel(typeof json==='string'?json:JSON.stringify(json))):{ok:false};}catch(e){return {ok:false};}},
     deleteModel:function(id){try{return b?JSON.parse(b.deleteModel(id)):{ok:false};}catch(e){return {ok:false};}},

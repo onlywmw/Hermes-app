@@ -145,9 +145,10 @@ function modelStatusDot(m){
 function modelStatusText(m){
   if(!m.enabled)return t('model.disabled');
   var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
-  return ready?(m.model||m.provider):t('model.noKey');
+  return ready?(m.model||providerDisplayName(m.provider)):t('model.noKey');
 }
 function refreshModel(){
+  refreshModelAvatars(); /* 设置页改动后同步聊天头像色 */
   var models=B.listModels();
   var mh='';
   /* 原生引擎: 永远在线, 置顶 */
@@ -157,7 +158,7 @@ function refreshModel(){
     var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
     var sel=m.isDefault?' sel':'';
     mh+='<div class="model-row'+sel+'" data-model="'+esc(m.id)+'">'
-      +'<i class="av" style="background:'+esc(m.color||'#D97706')+'">'+esc((m.name||'?').charAt(0))+'</i>'
+      +'<i class="av" style="background:'+esc(m.color||providerColor(m.provider))+'">'+esc((m.name||'?').charAt(0))+'</i>'
       +'<div><div class="pv">'+esc(m.role||t('model.roleGeneral'))+(m.isDefault?' · '+t('model.default'):'')+'</div>'
       +'<div class="md">'+esc(m.name)+'</div>'
       +'<div class="ms">'+modelStatusDot(m)+'<span>'+esc(modelStatusText(m))+'</span></div></div>'
