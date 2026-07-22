@@ -177,11 +177,12 @@ function refreshModel(){
   $('modelList').innerHTML=mh;
   document.querySelectorAll('#modelList .model-row').forEach(function(el){
     el.addEventListener('click',function(){
+      if(lpSuppressClick())return; /* 长按后 300ms 内抑制 click, 防双触发 */
       var key=el.getAttribute('data-model');
       if(key==='__native'){
         B.toast(t('rt.nativeEngine')+': torch/battery/brightness/volume/wifi/vibrate/tts/clipboard/notify/location/sms/contacts/call/screen/app/input/network/process/file');
       }else if(key==='__add'){
-        B.openSettings();
+        openModelSheet(null); /* TC-M09: 运行页快捷添加, 不再跳原生页 */
       }else{
         /* 点击非默认模型 → 设为默认 */
         var m=models.find(function(x){return x.id===key;});
@@ -194,8 +195,203 @@ function refreshModel(){
         }
       }
     });
+    /* TC-M10: 模型行长按 → 管理菜单 (空 text = 直达 sheet, 不弹确认条) */
+    var lpKey=el.getAttribute('data-model');
+    if(lpKey!=='__native'&&lpKey!=='__add'&&typeof bindLongPress==='function'){
+      (function(k){
+        bindLongPress(el,{text:'',exec:function(){
+          var cur=B.listModels().find(function(x){return x.id===k;});
+          if(cur)openModelOps(cur);
+        }});
+      })(lpKey);
+    }
   });
 }
+
+/* ---------- MODEL SHEET (TC-M09: 运行页快捷添加/编辑) ---------- */
+var _msEditId=null,_msProvider='deepseek',_msPresets=[],_msOld=null;
+
+function _msPreset(k){
+  for(var i=0;i<_msPresets.length;i++)if(_msPresets[i].key===k)return _msPresets[i];
+  return null;
+}
+/* 打开添加/编辑 sheet; editId=null 为添加 */
+function openModelSheet(editId){
+  _msPresets=B.providerPresets();
+  if(!_msPresets||!_msPresets.length){B.openSettings();return;} /* 旧版原生无预设桥 → 回退原生页 */
+  _msEditId=editId||null;
+  _msOld=null;
+  if(editId){
+    _msOld=B.listModels().find(function(x){return x.id===editId;})||null;
+    if(!_msOld)return;
+  }
+  _msProvider=_msOld?_msOld.provider:'deepseek';
+  $('modelSheetTitle').textContent=t(_msEditId?'model.editTitle':'model.addTitle');
+  renderProviderList();
+  $('modelKey').value='';
+  var hint=$('modelKeyHint');
+  if(_msOld&&_msOld.apiKey){ /* listModels 脱敏值仅用于展示, 不回传 */
+    hint.style.display='';
+    hint.textContent=t('model.keepKeyHint').replace('{key}',_msOld.apiKey);
+  }else{
+    hint.style.display='none';
+  }
+  if(_msOld){
+    $('modelBaseUrl').value=_msOld.baseUrl||'';
+    $('modelName').value=_msOld.model||'';
+    $('modelDisplay').value=_msOld.name||'';
+    $('modelRole').value=_msOld.role||'通用';
+    setModelAdvOpen(true);
+  }else{
+    applyPresetDefaults(true);
+    $('modelRole').value='通用';
+    setModelAdvOpen(false);
+  }
+  updateModelKeyUI();
+  updateModelSaveBtn();
+  openSheetExclusive('modelMask','modelSheet');
+}
+function renderProviderList(){
+  var h='';
+  _msPresets.forEach(function(p){
+    h+='<div class="mpick'+(p.key===_msProvider?' sel':'')+'" data-pv="'+esc(p.key)+'">'
+      +'<i class="av" style="background:'+esc(_pvColor(p.key))+'">'+esc((p.displayName||'?').charAt(0))+'</i>'
+      +'<div class="mpick-info"><b>'+esc(p.displayName)+'</b><span>'+esc(p.note||p.defaultModel||'')+'</span></div>'
+      +'<span class="mcheck">'+(p.key===_msProvider?'✓':'')+'</span></div>';
+  });
+  $('providerList').innerHTML=h;
+  document.querySelectorAll('#providerList .mpick').forEach(function(el){
+    el.addEventListener('click',function(){
+      _msProvider=el.getAttribute('data-pv');
+      renderProviderList();
+      applyPresetDefaults(!_msOld); /* 添加模式连显示名一起填; 编辑模式保留显示名 */
+      updateModelKeyUI();
+      updateModelSaveBtn();
+    });
+  });
+}
+/* 按预设回填 baseUrl/模型名; withName=true 时显示名也填 */
+function applyPresetDefaults(withName){
+  var p=_msPreset(_msProvider);
+  $('modelBaseUrl').value=p?p.baseUrl:'';
+  $('modelName').value=p?p.defaultModel:'';
+  if(withName)$('modelDisplay').value=p?p.displayName:'';
+}
+function setModelAdvOpen(open){
+  $('modelAdv').style.display=open?'':'none';
+  $('btnModelAdv').textContent=t('model.advanced')+(open?' ▴':' ▾');
+}
+/* ollama 隐藏 Key 框; 其余厂商显示 Key 框, 有控制台地址才显示"获取 Key" */
+function updateModelKeyUI(){
+  var p=_msPreset(_msProvider);
+  var isLocal=_msProvider==='ollama';
+  $('modelKeyBlock').style.display=isLocal?'none':'';
+  $('modelNoKey').style.display=isLocal?'':'none';
+  $('btnGetKey').style.display=(p&&p.keyConsoleUrl)?'':'none';
+}
+/* 非 ollama 且为新增 且 Key 空 → 保存置灰; 编辑模式留空=保持原 Key 可保存 */
+function updateModelSaveBtn(){
+  var needKey=_msProvider!=='ollama'&&!_msEditId;
+  $('btnModelSave').disabled=needKey&&!$('modelKey').value.trim();
+}
+/* 收集表单为 ModelConfig 同形 JSON */
+function collectModelPayload(){
+  var p=_msPreset(_msProvider);
+  var o={
+    provider:_msProvider,
+    apiKey:$('modelKey').value.trim(),
+    baseUrl:$('modelBaseUrl').value.trim(),
+    model:$('modelName').value.trim(),
+    name:$('modelDisplay').value.trim()||(p?p.displayName:_msProvider),
+    role:$('modelRole').value,
+    color:_pvColor(_msProvider),
+    enabled:true,
+    isDefault:false
+  };
+  if(_msOld){ /* 编辑: 保留 id 与不可见字段; apiKey 留空 → 后端保留原 Key */
+    o.id=_msOld.id;
+    o.enabled=_msOld.enabled!==false;
+    o.isDefault=!!_msOld.isDefault;
+    o.systemPrompt=_msOld.systemPrompt||'';
+  }
+  return o;
+}
+
+/* ---------- MODEL OPS (TC-M10: 长按管理) ---------- */
+var _opsModel=null;
+function openModelOps(m){
+  _opsModel=m;
+  $('modelOpsName').textContent=m.name+' · '+_pvName(m.provider);
+  $('modelOpsMenu').style.display='';
+  $('modelOpsConfirm').style.display='none';
+  $('mopsDefault').style.display=m.isDefault?'none':'';
+  openSheetExclusive('modelOpsMask','modelOpsSheet');
+}
+
+/* ---------- TC-M09/M10 事件绑定 ---------- */
+/* closeAllSheets 定义在 app-room.js (后加载) — 必须包函数延迟求值, 不能直接引用 */
+$('modelMask').addEventListener('click',function(){closeAllSheets();});
+$('modelOpsMask').addEventListener('click',function(){closeAllSheets();});
+$('btnModelClose').addEventListener('click',function(){closeAllSheets();});
+$('btnModelOpsClose').addEventListener('click',function(){closeAllSheets();});
+$('btnModelAdv').addEventListener('click',function(){setModelAdvOpen($('modelAdv').style.display==='none');});
+$('btnGetKey').addEventListener('click',function(){
+  var p=_msPreset(_msProvider);
+  if(p&&p.keyConsoleUrl)B.openUrl(p.keyConsoleUrl);
+});
+$('modelKey').addEventListener('input',updateModelSaveBtn);
+$('btnModelTest').addEventListener('click',function(){
+  var o=collectModelPayload();
+  if(_msProvider!=='ollama'&&!o.apiKey){B.toast(t('model.testNeedKey'));return;}
+  B.toast(t('model.testing'));
+  var btn=$('btnModelTest');
+  btn.disabled=true;
+  B.testModel(o,function(res){
+    btn.disabled=false;
+    if(res.ok){B.toast(t('model.testOk')+(res.latencyMs?' · '+res.latencyMs+'ms':''));}
+    else{B.toast(t('model.testFail')+(res.error?': '+res.error:''));}
+  });
+});
+$('btnModelSave').addEventListener('click',function(){
+  if(this.disabled)return;
+  var o=collectModelPayload();
+  var res=_msEditId?B.updateModel(o):B.addModel(o);
+  if(res.ok){
+    B.toast(t('model.saved'));
+    closeAllSheets();
+    refreshModel();
+  }else{
+    B.toast(res.error||t('model.setFail'));
+  }
+});
+$('mopsDefault').addEventListener('click',function(){
+  if(!_opsModel)return;
+  var res=B.setDefaultModel(_opsModel.id);
+  if(res.ok){B.toast(t('model.setDefault')+' '+_opsModel.name);}
+  else{B.toast(res.error||t('model.setFail'));}
+  closeAllSheets();refreshModel();
+});
+$('mopsEdit').addEventListener('click',function(){
+  if(!_opsModel)return;
+  openModelSheet(_opsModel.id); /* openSheetExclusive 内部会先关 ops sheet */
+});
+$('mopsDelete').addEventListener('click',function(){
+  if(!_opsModel)return;
+  $('modelOpsMenu').style.display='none';
+  $('modelOpsConfirm').style.display='';
+  $('modelOpsConfirmText').textContent=t('model.deleteConfirm').replace('{name}',_opsModel.name);
+});
+$('mopsConfirmCancel').addEventListener('click',function(){
+  $('modelOpsConfirm').style.display='none';
+  $('modelOpsMenu').style.display='';
+});
+$('mopsConfirmOk').addEventListener('click',function(){
+  if(!_opsModel)return;
+  var res=B.deleteModel(_opsModel.id);
+  if(res.ok){B.toast(t('model.deleted'));}
+  else{B.toast(res.error||t('model.cannotDeleteLast'));}
+  closeAllSheets();refreshModel();
+});
 
 /* ============ CRON (v3: 移入运行页) ============ */
 function renderCronJobs(){

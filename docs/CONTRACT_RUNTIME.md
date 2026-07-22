@@ -31,7 +31,8 @@ Then:
   1. 模型区显示 3 行: NATIVE ENGINE + DeepSeek + Claude
   2. DeepSeek 标记"默认", 在线状态 🟢
   3. 点击 DeepSeek 行: 设默认 → toast
-  4. 点击 "新增模型" 行: 跳设置页
+  4. 点击 "＋ 添加模型" 行: 弹出快捷添加 sheet (选厂商 + 填 Key, 见 CONTRACT_MODEL TC-M09);
+     仅 ≡ 个人信息行与默认模型行仍跳原生设置页
 ```
 
 ### TC-RT03：模型全部未配置 → 显示引导

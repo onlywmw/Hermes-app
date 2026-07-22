@@ -65,6 +65,8 @@ var B=(function(){
     permState:function(){try{return b?JSON.parse(b.getPermissionState()):{};}catch(e){return {};}},
     widgetInfo:function(){try{return b?JSON.parse(b.getWidgetInfo()):{count:0};}catch(e){return {count:0};}},
     openAppSettings:function(){try{if(b)b.openAppSettings();}catch(e){}},
+    /* TC-M09: 系统浏览器打开 URL (如"获取 API Key"控制台页); 原生侧 http/https 白名单 */
+    openUrl:function(u){try{if(b&&b.openUrl)b.openUrl(u);}catch(e){}},
     /* 多模型管理 (DESIGN_MULTI_MODEL 第1层) */
     listModels:function(){try{return b?JSON.parse(b.listModels()):[];}catch(e){return [];}},
     /* 厂商预设 (ModelPresets · "添加模型只填 API Key"): key/displayName/baseUrl/defaultModel/models/keyConsoleUrl/note */

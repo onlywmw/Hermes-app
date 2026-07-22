@@ -1,6 +1,6 @@
 # CONTRACT: 多模型系统
 
-版本: v1.1 (新增 ModelPresets 厂商预设表 + TC-M08)
+版本: v1.2 (新增运行页快捷添加/长按管理 TC-M09/M10)
 日期: 2026-07-22
 status: design-ready
 交付对象: 后端 + 前端程序员
@@ -106,6 +106,46 @@ Then:
 When: 用户只填 apiKey 后保存 (baseUrl/model 留空)
 Then:
   6. 后端 getEffectiveBaseUrl/getEffectiveModel 走 ModelPresets 默认值, 调用成功
+```
+
+### TC-M09：运行页快捷添加模型 (选厂商 + 填 Key 即接入)
+
+```
+Given: 运行页模型区, "＋ 添加模型" 行
+When: 点击该行
+Then:
+  1. 弹出底部 sheet (不跳原生设置页), 含 13 厂商单选列表 (彩色头像+显示名+备注), 默认选中 DeepSeek
+  2. 切换厂商 → 高级区 baseUrl/模型名按 ModelPresets 自动填充 (可改)
+  3. "获取 API Key →" 点击 → BridgeDevice.openUrl 打开该厂商 keyConsoleUrl (仅 http/https)
+  4. 选 Ollama → Key 框隐藏, 提示"本地模型无需 Key"
+  5. 非 Ollama 且 Key 为空 → 保存按钮置灰; 输入 Key → 可保存
+  6. "测试连接" → B.testModel(json, cb) 异步回调 (aiExecutor 线程), toast 显示 连接正常·latencyMs / 连接失败·error
+  7. 保存 → B.addModel → toast + 关 sheet + 模型出现在列表
+When: 长按任一已注册模型行 → 管理菜单选"编辑"
+Then:
+  8. 同一 sheet 以编辑模式打开, 标题"编辑模型", 字段预填; Key 框留空并提示 "已保存 sk-1****abcd · 留空则保持不变"
+  9. Key 留空保存 → BridgeModel.updateModel 保留原 Key (listModels 已脱敏, 前端无法回填, 后端特判空 Key=不覆盖)
+```
+
+### TC-M10：模型行长按管理菜单
+
+```
+Given: 运行页至少 1 个已注册模型
+When: 长按模型行 (非 __native/__add)
+Then:
+  1. 直接弹管理 sheet (空 text 长按, 不弹确认条), 含: 设为默认 / 编辑 / 删除
+  2. 已是默认的模型 → "设为默认"项隐藏
+  3. 长按后 300ms 内 click 被 lpSuppressClick 抑制, 不触发"设默认/跳设置"
+When: 管理菜单选"设为默认"
+Then:
+  4. B.setDefaultModel → toast + 关 sheet + 列表刷新
+When: 管理菜单选"删除"
+Then:
+  5. sheet 内二次确认, 文案带模型名 "删除模型 {name}？此操作不可撤销。"
+  6. 确认 → B.deleteModel → toast + 列表消失该行
+When: 仅剩 1 个模型时删除
+Then:
+  7. 后端拒绝, toast "至少保留一个模型", 模型仍在
 ```
 
 ---

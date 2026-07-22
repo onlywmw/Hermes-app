@@ -253,8 +253,8 @@ button,input,textarea{font-family:inherit;}
 .sheet::before{content:'';display:block;width:var(--sp-8);height:4px;border-radius:2px;background:var(--line);margin:2px auto var(--sp-3);}
 .sheet h5{font-family:var(--font-sans);font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em;margin-bottom:var(--sp-1);color:var(--ink-1);}
 .sheet .sh-sub{font-family:var(--font-sans);font-size:var(--fs-sm);color:var(--ink-3);margin-bottom:var(--sp-3);}
-.sheet input{width:100%;height:var(--h-md);border:1px solid var(--line);border-radius:var(--r-md);padding:0 var(--sp-3);font-family:var(--font-sans);font-size:var(--fs-base);outline:none;background:var(--panel-2);color:var(--ink-1);transition:all var(--t-fast);}
-.sheet input:focus{border-color:var(--acc-live);box-shadow:0 0 0 3px rgba(245,158,11,.14);}
+.sheet input,.sheet select{width:100%;height:var(--h-md);border:1px solid var(--line);border-radius:var(--r-md);padding:0 var(--sp-3);font-family:var(--font-sans);font-size:var(--fs-base);outline:none;background:var(--panel-2);color:var(--ink-1);transition:all var(--t-fast);}
+.sheet input:focus,.sheet select:focus{border-color:var(--acc-live);box-shadow:0 0 0 3px rgba(245,158,11,.14);}
 .mode-opts{display:flex;flex-direction:column;gap:var(--sp-3);margin:var(--sp-3) 0;}
 .mopt{border:1px solid var(--line);border-radius:var(--r-md);padding:var(--sp-3);cursor:pointer;transition:all var(--t-fast);background:var(--panel-2);}
 .mopt:active{transform:scale(.98);}

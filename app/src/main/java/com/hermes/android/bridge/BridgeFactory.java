@@ -37,6 +37,7 @@ public class BridgeFactory {
     @JavascriptInterface public String getPermissionState() { return device.getPermissionState(); }
     @JavascriptInterface public String getWidgetInfo() { return device.getWidgetInfo(); }
     @JavascriptInterface public void openAppSettings() { device.openAppSettings(); }
+    @JavascriptInterface public void openUrl(String url) { device.openUrl(url); }
 
     // ==================== AI ====================
     @JavascriptInterface public void aiChatAsync(String text, String cbId) { ai.aiChatAsync(text, cbId); }
@@ -92,7 +93,13 @@ public class BridgeFactory {
     @JavascriptInterface public String updateModel(String json) { return model.updateModel(json); }
     @JavascriptInterface public String deleteModel(String id) { return model.deleteModel(id); }
     @JavascriptInterface public String setDefaultModel(String id) { return model.setDefaultModel(id); }
-    @JavascriptInterface public String testModel(String json) { return model.testModel(json); }
+    /* TC-M09: 异步两参版 (bridge.js 回调式调用); 替换原一参同步版 — 同名 @JavascriptInterface 不可重载 */
+    @JavascriptInterface public void testModel(String json, String cbId) {
+        activity.getAiExecutor().execute(() -> {
+            String r = model.testModel(json);
+            activity.evalJsPublic("window._hermesCb('" + cbId + "'," + r + ")");
+        });
+    }
     @JavascriptInterface public String getEncStatus() { return model.getEncStatus(); }
 
     // ==================== 基础 ====================

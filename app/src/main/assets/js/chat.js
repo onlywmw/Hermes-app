@@ -345,6 +345,14 @@ function triggerLongPress(){
   /* P1.5: 记录长按时间戳, click handler 300ms 内抑制, 防长按/click 双触发 */
   window._lpFired=Date.now();
   _lpNode.classList.add('longpress-hl');
+  /* 空 text = 非危险操作 (如房间卡片长按): 不弹 msgActions 确认条直接执行,
+     避免无字空白条残留"上膛"劫持后续点击; 高亮反馈保留 */
+  if(!_lpAction.text){
+    var node=_lpNode;
+    setTimeout(function(){node.classList.remove('longpress-hl');},350);
+    _lpAction.exec();
+    return;
+  }
   showMsgActions(_lpAction.text,function(){
     _lpNode.classList.remove('longpress-hl');
     hideMsgActions();
@@ -368,6 +376,11 @@ function hideMsgActions(){
 $('msgActions').addEventListener('click',function(){
   if(this._onConfirm)this._onConfirm();
 });
+/* 兜底: 点确认条以外任意处自动解除"上膛"状态 (捕获阶段, 防内层 stopPropagation) */
+document.addEventListener('touchstart',function(e){
+  var el=$('msgActions');
+  if(el.classList.contains('show')&&!el.contains(e.target))hideMsgActions();
+},true);
 
 /* ---------- 消息长按删除 ---------- */
 /* P1.5: 不再闭包捕获 idx — 删除一条后剩余节点 idx 过期会删错消息;

@@ -172,4 +172,19 @@ public class BridgeDevice extends BaseBridge {
             }
         });
     }
+
+    /** TC-M09: 系统浏览器打开 URL (如"获取 API Key"控制台页) — 仅 http/https, 其余 scheme 拒绝 */
+    public void openUrl(String url) {
+        activity.runOnUiThread(() -> {
+            try {
+                if (url == null || !(url.startsWith("https://") || url.startsWith("http://"))) {
+                    Toast.makeText(activity, "链接无效", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception e) {
+                Toast.makeText(activity, "无法打开链接", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 }

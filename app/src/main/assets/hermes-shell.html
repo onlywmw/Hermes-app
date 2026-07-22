@@ -216,6 +216,61 @@
       </div>
     </div>
 
+    <!-- 添加/编辑模型 sheet (TC-M09: 选厂商 + 填 Key 即接入) -->
+    <div class="sheet-mask" id="modelMask"></div>
+    <div class="sheet" id="modelSheet" style="max-height:86%;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h5 id="modelSheetTitle" data-i18n="model.addTitle">添加模型</h5><span class="sheet-close" id="btnModelClose">✕</span></div>
+      <div class="sh-label" data-i18n="model.providerLabel">选择厂商</div>
+      <div id="providerList" style="max-height:210px;overflow-y:auto"></div>
+      <div id="modelKeyBlock">
+        <div class="sh-label" data-i18n="model.keyLabel">API Key</div>
+        <input id="modelKey" type="password" data-i18n-ph="model.keyPlaceholder" placeholder="粘贴 API Key" autocomplete="off">
+        <div id="modelKeyHint" class="mpick-hint" style="display:none"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:2px"><span id="btnGetKey" style="color:var(--acc-strong);cursor:pointer;font-size:var(--fs-sm);padding:4px 0" data-i18n="model.getKey">获取 API Key →</span></div>
+      </div>
+      <div id="modelNoKey" class="mpick-hint" style="display:none" data-i18n="model.noKeyNeeded">本地模型无需 Key</div>
+      <div id="btnModelAdv" style="cursor:pointer;font-size:var(--fs-sm);font-weight:600;color:var(--ink-3);margin-top:var(--sp-2);padding:var(--sp-1) 0"></div>
+      <div id="modelAdv" style="display:none">
+        <div class="sh-label" data-i18n="model.baseUrlLabel">Base URL</div>
+        <input id="modelBaseUrl" autocomplete="off">
+        <div class="sh-label" data-i18n="model.modelLabel">模型名</div>
+        <input id="modelName" autocomplete="off">
+        <div class="sh-label" data-i18n="model.nameLabel">显示名</div>
+        <input id="modelDisplay" autocomplete="off">
+        <div class="sh-label" data-i18n="model.roleLabel">角色</div>
+        <select id="modelRole">
+          <option value="通用" data-i18n="model.roleGeneral">通用</option>
+          <option value="产品" data-i18n="model.roleProduct">产品</option>
+          <option value="技术" data-i18n="model.roleTech">技术</option>
+          <option value="数据" data-i18n="model.roleData">数据</option>
+          <option value="自定义" data-i18n="model.roleCustom">自定义</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:var(--sp-3)">
+        <button class="btn btn-ghost" id="btnModelTest" style="flex:1;justify-content:center" data-i18n="model.testConn">测试连接</button>
+        <button class="btn btn-acc" id="btnModelSave" style="flex:1;justify-content:center" data-i18n="model.save">保存</button>
+      </div>
+    </div>
+
+    <!-- 模型管理 sheet (TC-M10: 长按 → 设默认/编辑/删除) -->
+    <div class="sheet-mask" id="modelOpsMask"></div>
+    <div class="sheet" id="modelOpsSheet">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="model.opsTitle">模型管理</h5><span class="sheet-close" id="btnModelOpsClose">✕</span></div>
+      <div class="sh-sub" id="modelOpsName">—</div>
+      <div id="modelOpsMenu">
+        <div class="sheet-row" id="mopsDefault" data-i18n="model.setAsDefault">设为默认</div>
+        <div class="sheet-row" id="mopsEdit" data-i18n="model.edit">编辑</div>
+        <div class="sheet-row danger" id="mopsDelete" data-i18n="model.delete">删除</div>
+      </div>
+      <div id="modelOpsConfirm" style="display:none">
+        <p id="modelOpsConfirmText" style="font-size:12px;color:var(--ink-2);line-height:1.6;margin-bottom:12px"></p>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" id="mopsConfirmCancel" style="flex:1;justify-content:center" data-i18n="ops.cancel">取消</button>
+          <button class="btn btn-acc" id="mopsConfirmOk" style="flex:1;justify-content:center" data-i18n="ops.confirm">确认</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 消息/技能长按操作条 -->
     <div class="msg-actions" id="msgActions">
       <span id="msgActionText"></span>

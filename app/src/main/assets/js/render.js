@@ -71,7 +71,7 @@ function renderRooms(){
 }
 
 /* ---------- 视图切换 ---------- */
-function showView(id){document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('act',v.id===id);});}
+function showView(id){if(window.hideMsgActions)hideMsgActions();document.querySelectorAll('.view').forEach(function(v){v.classList.toggle('act',v.id===id);});}
 function setTab(t){
   curTab=t;
   document.querySelectorAll('.bnav button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-tab')===t);});

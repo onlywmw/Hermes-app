@@ -58,10 +58,15 @@ public class BridgeModel extends BaseBridge {
     public String updateModel(String json) {
         try {
             ModelConfig mc = ModelConfig.fromJson(new JSONObject(json));
+            /* WebView 编辑路径: listModels 已脱敏, apiKey 留空 = 保留原 Key (防编辑即丢 Key) */
+            if (mc.apiKey == null || mc.apiKey.isEmpty()) {
+                ModelConfig old = registry.get(mc.id);
+                if (old != null) mc.apiKey = old.apiKey;
+            }
             boolean ok = registry.update(mc);
             return "{\"ok\":" + ok + "}";
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return "{\"ok\":false,\"error\":\"" + sanitize(e.getMessage()) + "\"}";
         }
     }
 
@@ -90,10 +95,17 @@ public class BridgeModel extends BaseBridge {
             if (resp.success) {
                 return "{\"ok\":true,\"latencyMs\":" + ms + "}";
             } else {
-                return "{\"ok\":false,\"error\":\"" + resp.content.replace("\"", "'") + "\"}";
+                return "{\"ok\":false,\"error\":\"" + sanitize(resp.content) + "\"}";
             }
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return "{\"ok\":false,\"error\":\"" + sanitize(e.getMessage()) + "\"}";
         }
+    }
+
+    /** 结果会原样拼进 evalJs 的 JS 字符串 — 去掉引号/反斜杠/换行防语法注入 */
+    private static String sanitize(String s) {
+        if (s == null) return "";
+        return s.replace("\\", " ").replace("\"", " ").replace("'", " ")
+                .replace("\n", " ").replace("\r", " ").trim();
     }
 }
