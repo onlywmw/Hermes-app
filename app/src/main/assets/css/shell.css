@@ -246,9 +246,9 @@ button,input,textarea{font-family:inherit;}
 /* ============================================================
    Sheet · 实色面板
    ============================================================ */
-.sheet-mask{position:absolute;inset:0;background:rgba(2,6,23,.6);opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;z-index:9;}
+.sheet-mask{position:absolute;inset:0;background:rgba(2,6,23,.6);opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;z-index:29;}
 .sheet-mask.open{opacity:1;visibility:visible;transition:opacity .28s ease;}
-.sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--panel);border-top:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:var(--sp-3) var(--sp-4) calc(var(--sp-5) + env(safe-area-inset-bottom,0px));transform:translateY(102%);visibility:hidden;transition:transform .38s var(--spring),visibility 0s .38s;z-index:10;box-shadow:var(--sh-3);}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--panel);border-top:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:var(--sp-3) var(--sp-4) calc(var(--sp-5) + env(safe-area-inset-bottom,0px));transform:translateY(102%);visibility:hidden;transition:transform .38s var(--spring),visibility 0s .38s;z-index:30;box-shadow:var(--sh-3);}
 .sheet.open{transform:none;visibility:visible;transition:transform .38s var(--spring);}
 .sheet::before{content:'';display:block;width:var(--sp-8);height:4px;border-radius:2px;background:var(--line);margin:2px auto var(--sp-3);}
 .sheet h5{font-family:var(--font-sans);font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em;margin-bottom:var(--sp-1);color:var(--ink-1);}
