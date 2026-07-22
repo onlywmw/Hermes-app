@@ -1,329 +1,393 @@
-# DESIGN: 交互链路全图
+# DESIGN: 全交互链路
 
-版本: v1.0
+版本: v2.0
 日期: 2026-07-22
 
-> 每条链路从用户动作开始，到系统反应结束。包含：涉及的文件、DOM 元素、JS 函数、Java 桥方法、为什么这样设计。
+每条 = 用户动作 → DOM → JS函数 → 数据变化 → 为什么这样设计
 
 ---
 
-## 链路 0：启动
+## A. 启动
 
-```
-用户: 点 APP 图标
-  → HermesActivity.onCreate()
-    → setContentView(R.layout.activity_hermes)   ← 只含一个 WebView
-    → WebView.loadUrl("file:///android_asset/hermes-shell.html")
-      → HTML 解析 → <link rel="stylesheet" href="css/shell.css">
-      → <script src="js/i18n.js">     ← 翻译字典
-      → <script src="js/store.js">    ← ROOMS 数据 + AV 颜色表 + $/ev/esc 工具
-      → <script src="js/bridge.js">   ← B 对象 (HermesBridge 封装)
-      → <script src="js/render.js">   ← 渲染函数
-      → <script src="js/council.js">  ← Council 演示 (弃用)
-      → <script src="js/chat.js">     ← 消息路由
-      → <script src="js/skills.js">   ← 技能列表
-      → <script src="js/files.js">    ← 文件树
-      → <script src="js/board.js">    ← 看板
-      → <script src="js/runtime.js">  ← 运行页
-      → <script src="js/app-chat.js"> ← 聊天事件绑定
-      → <script src="js/app-room.js"> ← 新建房间 + 房间操作
-      → <script src="js/app-files.js">← 文件事件绑定
-      → <script src="js/app-board.js">← 看板事件绑定
-      → <script src="js/app-run.js">  ← 运行页事件绑定
-      → <script src="js/app.js">      ← 初始化: initLang → renderRooms → setTab('chat')
-    → addJavascriptInterface(new HermesBridge(), "HermesBridge")
-    → requestPermissions()  ← 6 个危险权限
-
-首屏: 房间列表 (view-rooms act), 底部导航三栏
-```
-
-**为什么这样设计**:
-- 单 HTML 入口 + 多个 JS 文件按依赖顺序加载——没有打包工具，依赖关系通过加载顺序保证
-- `app.js` 最后加载，因为初始化需要所有函数和事件绑定就绪
-- `app-room.js` 在 `app.js` 之前加载，因为 `app-room.js` 定义了 `openSheetExclusive` 等全局工具函数，`app.js` 的 init 不依赖它但其他文件需要它
+| # | 用户动作 | DOM/系统 | JS 函数 | 结果 | 设计理由 |
+|---|---------|---------|---------|------|---------|
+| A1 | 点 APP 图标 | Android Launch | HermesActivity.onCreate | WebView 加载 hermes-shell.html | — |
+| A2 | HTML 解析 | `<link>` `<script>` 标签 | 浏览器引擎 | CSS 渲染, JS 按序执行 | 无打包工具, 加载顺序 = 依赖顺序 |
+| A3 | JS 初始化 | — | app.js: initLang → renderRooms → setTab('chat') | 首屏: 房间列表 | — |
+| A4 | JS 初始化 | — | app.js: refreshModelAvatars | AV 表合并注册表模型颜色 | 新模型需要头像色 |
+| A5 | JS 初始化 | — | app.js: setTimeout(refreshRuntime, 600) | 运行页预加载数据 | 延迟避免阻塞首屏 |
+| A6 | JS 初始化 | — | app.js: encStatus 检查 | 加密不可用时 toast 警告 | 安全提醒 |
+| A7 | 权限请求 | 系统弹窗 | HermesActivity.requestPermissions | 6 个危险权限逐一弹窗 | — |
 
 ---
 
-## 链路 1：底部导航切换
+## B. 底部导航
 
-```
-用户: 点底部"会话"/"看板"/"运行"
-  → DOM: <button data-tab="chat|board|run">
-  → JS: render.js line 569
-    document.querySelectorAll('.bnav button').forEach(function(b){
-      b.addEventListener('click',function(){
-        setTab(b.getAttribute('data-tab'));
-      });
-    });
-  → setTab(t):
-    - 更新按钮高亮 (.on)
-    - showView('view-'+t)  ← 对应 view 加 .act, 其他去 .act
-    - if t==='run' → refreshRuntime()
-    - if t==='board' → initBoardIfNeeded()
-
-视图的 CSS 控制:
-  .view { opacity:0; visibility:hidden; transform:translateX(14px) }
-  .view.act { opacity:1; visibility:visible; transform:none }
-  ← 只显示一个 view, 其他透明 + 不可交互
-```
-
-**为什么这样设计**:
-- 三个 view 全部预渲染在 HTML 中，切换只是 CSS class 变化——不销毁不重建，状态保留
-- 底部导航 `position:absolute;bottom:0;z-index:15` 浮在所有 view 上方
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| B1 | 点"会话" | `button[data-tab="chat"]` | render.js: setTab('chat') | 显示房间列表或聊天详情 | view 用 CSS .act 切换, 不销毁 |
+| B2 | 点"看板" | `button[data-tab="board"]` | render.js: setTab('board') → board.js: initBoardIfNeeded | 显示看板, 触发条浮现 | 首次打开才 init |
+| B3 | 点"运行" | `button[data-tab="run"]` | render.js: setTab('run') → runtime.js: refreshRuntime | 显示运行页, 数据刷新 | 每次切 tab 刷数据 |
+| B4 | 有未读消息 | `#ndChat` 红点 | render.js: renderRooms | 会话 tab 显示金色圆点 | 视觉提示 |
 
 ---
 
-## 链路 2：新建房间
+## C. 房间列表 (view-rooms)
 
-```
-用户: 点房间列表右下角 FAB "+"
-  → DOM: <button class="fab" id="fabNew">+
-        <div class="dialog-mask" id="newRoomMask">          ← 默认 display:none
-          <div class="dialog" id="newRoomDialog">            ← mask 的子元素
-            <input id="newRoomName">
-            <button id="btnCreate">
-  → JS: app-room.js
-    $('fabNew').addEventListener('click',function(){
-      $('newRoomMask').classList.add('open');    ← display:none → display:flex
-      $('newRoomName').value='';
-      $('newRoomName').focus();
-    });
-
-  CSS:
-    .dialog-mask { display:none }
-    .dialog-mask.open { display:flex; align-items:center; justify-content:center }
-    ← mask 全屏半透明黑底 + 居中 flex, dialog 白色圆角卡片在中间
-
-用户: 填名字 (或不填) → 点"创建"
-  → JS: app-room.js
-    $('btnCreate').addEventListener('click',function(){
-      var name = ... || '新项目';
-      var id = 'r'+Date.now();
-      ROOMS.splice(1,0,{...});          ← 房间对象插入列表第 2 位
-      closeNewRoomDialog();              ← 去掉 mask .open → display:none
-      B.initRoomStorage(id);            ← Java: 创建 /sdcard/mov/rooms/<id>/ 目录
-      renderRooms();                     ← 刷新房间列表 DOM
-      persistRooms();                    ← 写 localStorage
-      enterRoom(id);                     ← 进入新房间
-    });
-
-用户: 点 mask 空白处 / 点 ✕
-  → JS: app-room.js
-    $('newRoomMask').addEventListener('click', closeNewRoomDialog);
-    $('newRoomDialog').addEventListener('click', function(e){ e.stopPropagation(); });
-    ← 点 dialog 内部不关闭, 点 mask (dialog 外部) 关闭
-    $('btnSheetClose').addEventListener('click', function(e){
-      e.stopPropagation();
-      closeNewRoomDialog();
-    });
-    ← ✕ 按钮阻止冒泡, 防止触发 mask 的 click
-```
-
-**为什么这样设计**:
-- **居中弹窗而非底部 sheet**: 新建房间只有一个输入框，不需要占据整个屏幕。居中弹窗不和其他底部 sheet 争 z-index
-- **mask 包住 dialog (父子关系)**: mask 设 `display:none` 时，dialog 一定隐藏。之前平级是 bug
-- **dialog 内部 stopPropagation**: 点输入框/按钮时不会误关弹窗
-- **房间插入第 2 位**: `ROOMS.splice(1,0,...)` — desk 永远在第 0 位，新建房间紧接其后
+| # | 用户动作 | DOM | JS 函数 | 数据变化 | 设计理由 |
+|---|---------|-----|---------|---------|---------|
+| C1 | 看房间列表 | `#roomList` | render.js: renderRooms | 遍历 ROOMS 数组 → innerHTML | 每次操作后重渲染 |
+| C2 | 点房间卡片 | `.room[data-room]` | render.js → chat.js: enterRoom(id) | curRoomId=id, 切换 view-room, 加载聊天+文件 | — |
+| C3 | 长按房间卡片(非desk) | `.room[data-room]` | chat.js: bindLongPress → app-room.js: openRoomOpsSheet | 底部弹出房间操作 sheet | 500ms+移动<10px |
+| C4 | 长按 desk 房间 | `.room[data-room="desk"]` | 同上 | sheet 只显示"清空聊天记录" | 系统房间不可重命名/归档/删除 |
+| C5 | 点 FAB "+" | `#fabNew` | app-room.js | 居中弹窗: newRoomMask.open | position:absolute, 悬浮右下角 |
+| C6 | 看卡片头像堆叠 | `.room .avstack` | render.js: avstack(r) | 每个成员: 缩写字母+颜色圆点 | 一眼识别参与者和类型 |
+| C7 | 看模式标签 | `.mini-tag` | render.js: renderRooms | "council · 3 AI" / "单聊 · MOV" | — |
+| C8 | 看阶段徽章 | `.badge` | render.js: phaseBadge(p) | 颜色+文字 | PHASE_BADGE 映射 |
+| C9 | 看最后消息 | `.room .r3` | render.js: r.last | 摘要文字 | — |
+| C10 | 看未读点 | `.udot.show` | render.js: r.unread | 进入后消失 | — |
 
 ---
 
-## 链路 3：房间操作
+## D. 新建房间弹窗 (居中, 父子结构)
 
-```
-用户: 在房间列表长按房间卡片 / 在房间详情点 ⋮
-  → JS: app-room.js
-    openRoomOpsSheet(roomId)
-      → $('roomOpsMask').classList.add('open')    ← 底部 sheet 滑入
-      → $('sheetRoomOps').classList.add('open')
-      → 显示 4 个操作行: 重命名 / 归档 / 清空 / 删除
-      → desk 房间: 只显示清空
-
-用户: 点重命名 → sheet 切为输入态 → 填名字 → 确认
-  → room.name = newName → renderRooms() + persistRooms()
-
-用户: 点归档
-  → room.phase = '已归档' → setPhase() → toast → closeRoomOpsSheet()
-
-用户: 点清空 → 确认态 → 确认
-  → clearRoomHistory(roomId)
-    → room.msgs = [] → room.msgData = [] → persistRooms() → toast
-
-用户: 点删除 → 确认态 → 确认
-  → ROOMS.splice(idx, 1) → genCounter++ → 回列表 → persistRooms() → toast
-
-关闭:
-  $('roomOpsMask').addEventListener('click', closeRoomOpsSheet)
-  $('btnRoomOpsClose').addEventListener('click', closeRoomOpsSheet)
-```
-
-**为什么这样设计**:
-- **底部 sheet 而非居中弹窗**: 房间操作有 4 个选项，需要较大面积。底部 sheet 符合拇指操作区
-- **Sheet 内状态切换** (菜单→确认/输入): 不改 DOM 结构，只切换三个 div 的 display。避免重复创建/销毁
-- **desk 锁定**: 系统房间不可重命名/归档/删除
+| # | 用户动作 | DOM | JS 函数 | 数据变化 | 设计理由 |
+|---|---------|-----|---------|---------|---------|
+| D1 | FAB → 弹窗出现 | `#newRoomMask` `#newRoomDialog` | app-room.js: classList.add('open') | mask: display:none→flex | mask 包 dialog, 统一显隐 |
+| D2 | 弹窗居中 | CSS: .dialog-mask.open | flex align+justify center | 屏幕中央白色卡片 | 单输入框不需要全屏 |
+| D3 | 输入项目名 | `#newRoomName` | — | — | — |
+| D4 | 不填→点"创建" | `#btnCreate` | app-room.js | name='新项目', 创建房间 | 默认名兜底 |
+| D5 | 填了→点"创建" | `#btnCreate` | app-room.js | ROOMS.splice(1,0,{...}) | 插在第2位(desk永远第1) |
+| D6 | 创建后 | — | app-room.js: closeNewRoomDialog → initRoomStorage → renderRooms → persistRooms → enterRoom | 弹窗关→文件目录建→列表刷新→进房间 | 一气呵成 |
+| D7 | 点 ✕ | `#btnSheetClose` | app-room.js: e.stopPropagation → closeNewRoomDialog | 弹窗关闭 | 阻止冒泡防触发mask |
+| D8 | 点 mask 空白处 | `#newRoomMask` | app-room.js: closeNewRoomDialog | 弹窗关闭 | — |
+| D9 | 点 dialog 内部 | `#newRoomDialog` | app-room.js: e.stopPropagation | 不关闭 | 防止误关 |
 
 ---
 
-## 链路 4：聊天消息发送 & 路由
+## E. 房间操作 Sheet (底部滑入)
 
-```
-用户: 在输入框打字 → 点 ↑ 或回车
-  → JS: app-chat.js
-    sendMsg()
-      → push(id, mkMsg(...))     ← 消息进 DOM + msgData
-      → room.last = ...          ← 更新房间摘要
-      → persistRooms()           ← 写 localStorage
-      → routeMessage(id, text)
-
-routeMessage 分支:
-
-  ┌─ B.parse(text) 命中设备指令 → runDeviceCommand(id, text)
-  │    → B.cmd(text)  ← IntentParser → CapabilityExecutor
-  │    → toolNode('device', text, dur, ...)  ← 工具卡片
-  │    → push 结果消息
-  │
-  ├─ 未命中 + AI 已配置 → runAiChat(id, text)
-  │    → B.aiAsync(text, callback)
-  │    → Java: aiExecutor.execute → AiClient.chat()
-  │    → 回调: evalJs → push AI 回复
-  │
-  └─ 未命中 + AI 未配置 → push 提示消息
-```
-
-**为什么这样设计**:
-- **指令优先路由**: 本地指令 <1ms 响应，不浪费 AI token
-- **AI 异步**: `aiExecutor` 后台线程 → 网络 IO 不阻塞 WebView UI
-- **消息即时渲染**: `push()` 先渲染到聊天区，再异步持久化。用户感觉即时
+| # | 用户动作 | DOM | JS 函数 | 数据变化 | 设计理由 |
+|---|---------|-----|---------|---------|---------|
+| E1 | 长按房间/点⋮ → sheet出现 | `#roomOpsMask` `#sheetRoomOps` | app-room.js: openRoomOpsSheet | mask+sheet 加 .open | 底部滑入, 四行操作 |
+| E2 | 点"重命名" | `#opsRename` | app-room.js | 菜单态→输入态, 预填当前名 | sheet 内状态切换 |
+| E3 | 输入新名字→确认 | `#opsRenameInput` → `#opsRenameOk` | app-room.js | room.name=newName, render+persist | — |
+| E4 | 重命名→取消 | `#opsRenameCancel` | app-room.js | 退回菜单态 | — |
+| E5 | 点"归档" | `#opsArchive` | app-room.js | room.phase='已归档', toast, 关闭 | 无二次确认 |
+| E6 | 点"清空聊天记录" | `#opsClear` | app-room.js: showOpsConfirm | 菜单态→确认态 | 二次确认防误操作 |
+| E7 | 确认清空 | `#opsConfirmOk` | app-room.js: clearRoomHistory | msgs=[], msgData=[], persist, toast | seeded保持true,重进不灌seed |
+| E8 | 取消清空 | `#opsConfirmCancel` | app-room.js | 退回菜单态 | — |
+| E9 | 点"删除房间" | `#opsDelete` | app-room.js: showOpsConfirm | 菜单态→确认态(红色) | 二次确认 |
+| E10 | 确认删除 | `#opsConfirmOk` | app-room.js | ROOMS.splice, genCounter++, 回列表, toast | — |
+| E11 | 点 ✕ | `#btnRoomOpsClose` | app-room.js: closeRoomOpsSheet | mask+sheet 去 .open | — |
+| E12 | 点遮罩 | `#roomOpsMask` | app-room.js: closeRoomOpsSheet | 同上 | — |
 
 ---
 
-## 链路 5：文件系统
+## F. 房间详情 — 讨论 tab
 
-```
-用户: 在房间详情点"文件"子 tab
-  → JS: app-files.js setSubtab('files')
-    → $('chatPane').style.display='none'
-    → $('fileView').style.display=''
-    → _filesPath='' → renderFileTree(curRoomId) 或 renderStorageView()
+### F1. 顶栏 & 子tab
 
-文件浏览:
-  → B.listRoomFiles(roomId, subPath)
-    → Java: StorageManager.listWorkFiles → 读目录
-  → 点击目录 → _filesPath 追加 → 重新 render
-  → 点击文件 → B.readFile → showFilePreview → overlay 预览
-  → 长按文件 → bindLongPress → 删除
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| F1.1 | 点 ← 返回 | `#btnBack` | app.js | curRoomId=null, setTab('chat'), showView('view-rooms') | — |
+| F1.2 | 系统返回键 | Android Back | HermesActivity: OnBackPressedCallback | 同上 | 物理返回 = 点← |
+| F1.3 | 看房间标题 | `#roomTitle` | chat.js: enterRoom | r.name | — |
+| F1.4 | 看副标题 | `#roomSub` | chat.js: enterRoom | 成员列表+协作模式 | — |
+| F1.5 | 看阶段徽章 | `#roomPhaseBadge` | chat.js: phaseBadge | 颜色+文字 | — |
+| F1.6 | 点 ⋮ | `#btnRoomMore` | app-room.js: openRoomOpsSheet | 弹出房间操作 sheet | — |
+| F1.7 | 点"讨论"子tab | `.room-tab[data-subtab="chat"]` | app-files.js: setSubtab('chat') | chatPane显示, fileView隐藏 | display切换 |
+| F1.8 | 点"文件"子tab | `.room-tab[data-subtab="files"]` | app-files.js: setSubtab('files') | fileView显示, chatPane隐藏 | — |
 
-版本查看:
-  → B.listVersions(roomId, path)
-  → overlay 展示版本列表
-  → 点某个版本 → B.readFile(snapshotPath) → overlay 预览
-  → 点"应用此版本" → B.restoreVersion → 当前文件被覆盖
-```
+### F2. 消息发送
 
-**为什么这样设计**:
-- **文件 tab 和聊天 tab 是 display 切换**: 不是销毁，用户切回讨论 tab 时状态保留
-- **面包屑导航**: 每段可点击跳回任意层级——比".."按钮更直观
-- **index.json 仍在文件系统**: SQLite 方案设计了但未实施
+| # | 用户动作 | DOM | JS 函数 | 数据变化 | 设计理由 |
+|---|---------|-----|---------|---------|---------|
+| F2.1 | 输入文字→点 ↑ | `#msgInput` → `#btnSend` | app-chat.js: sendMsg → chat.js: routeMessage | push→persist, 输入框清空 | — |
+| F2.2 | 输入文字→回车 | `#msgInput` keydown | app-chat.js: sendMsg | 同上 | — |
+| F2.3 | 空内容+无附件→点发送 | `#btnSend` | sendMsg: 提前 return | 不发送 | 防空消息 |
+| F2.4 | 命令文字→发送 | `#msgInput` | chat.js: routeMessage → B.parse 命中 | runDeviceCommand → 工具卡片 | 指令优先 |
+| F2.5 | 非命令+AI已配→发送 | `#msgInput` | routeMessage → runAiChat | B.aiAsync → typing→AI回复 | 异步不阻塞UI |
+| F2.6 | 非命令+AI未配→发送 | `#msgInput` | routeMessage → push提示 | 提示配置Key | — |
 
----
+### F3. 设备指令 (26个)
 
-## 链路 6：看板
+每个指令: 输入文字 → IntentParser.parse 命中 → CapabilityExecutor.execute → toolNode 工具卡片
 
-```
-用户: 切到看板 tab
-  → JS: board.js initBoardIfNeeded()
-    → localStorage 加载应用列表
-    → 默认选中第一个应用 → loadBoardApp → iframe src 赋值
-    → showBoardTrigger() → 3 秒后自动 hide
+| # | 输入 | capability | 备注 |
+|---|------|-----------|------|
+| F3.1 | 打开手电筒 | torch.on | — |
+| F3.2 | 关闭手电筒 | torch.off | — |
+| F3.3 | 电量多少 | battery.status | — |
+| F3.4 | 音量调到 10 | volume.set | — |
+| F3.5 | 当前音量 | volume.get | — |
+| F3.6 | 震动 500 | vibrate | — |
+| F3.7 | 亮度调到 128 | brightness.set | 需 WRITE_SETTINGS |
+| F3.8 | 当前亮度 | brightness.get | — |
+| F3.9 | WiFi状态 | wifi.status | — |
+| F3.10 | 打开wifi | wifi.toggle | Android10+无效 |
+| F3.11 | 关闭wifi | wifi.toggle | Android10+无效 |
+| F3.12 | 设备信息 | system.info | 含 /proc/meminfo |
+| F3.13 | ip地址 | network.info | — |
+| F3.14 | 截屏 | screen.capture | 需ADB/root |
+| F3.15 | 应用列表 | app.list | — |
+| F3.16 | 最近短信 | sms.recent | 需READ_SMS |
+| F3.17 | 联系人 | contacts.list | 需READ_CONTACTS |
+| F3.18 | 朗读 你好 | tts.speak | — |
+| F3.19 | 读取剪贴板 | clipboard.get | — |
+| F3.20 | 复制到剪贴板 xxx | clipboard.set | — |
+| F3.21 | toast 你好 | toast | — |
+| F3.22 | 发通知 xxx | notification.post | 需POST_NOTIFICATIONS |
+| F3.23 | 定位 | location.get | 需GPS/网络定位 |
+| F3.24 | 文件列表 | file.ls | — |
+| F3.25 | 点击 500 800 | input.tap | Runtime.exec |
+| F3.26 | 滑动 500 1500 500 500 | input.swipe | Runtime.exec |
+| F3.27 | 帮助 | help | 能力列表 |
 
-触发条:
-  DOM: .board-trigger (半透明胶囊, position:absolute, bottom)
-  → 点击 → openBoardPanel() → 应用选择面板从底部滑入
-  → 触摸屏幕底部 80px → showBoardTrigger() 唤醒
+### F4. 消息长按删除
 
-应用选择面板:
-  DOM: .board-panel (底部滑入, height:55%)
-  → 3 列网格渲染所有应用
-  → 点应用 → loadBoardApp → closeBoardPanel
-  → 长按非内置应用 → 删除
-  → 点 + → openBoardAddSheet → 填名字+URL → 加入列表
-```
-
-**为什么这样设计**:
-- **全屏 iframe + 浮动触发条**: 应用内容优先，chrome 最小化
-- **内置应用保护**: `builtin:true` 不可删除
-- **localStorage 存储**: 应用列表轻量 (<20条)，不需要 Java 层
-
----
-
-## 链路 7：运行页
-
-```
-用户: 切到运行 tab
-  → JS: refreshRuntime()
-    → refreshProcess()     ← B.runtimeStats() → pid/uptime/mem/cmds
-    → refreshChannels()    ← 4 通道状态
-    → refreshModel()       ← AI 模型列表
-    → renderCronJobs()     ← Cron 任务列表
-    → renderPermissions()  ← 权限标签
-    → renderSkills()       ← 技能卡片
-```
-
-**为什么这样设计**:
-- **所有数据实时查询**: 不进缓存，每次切 tab 刷新
-- **Cron 任务在运行页**: 定时任务是"运行中"的概念，属于这个 tab
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| F4.1 | 长按消息气泡 500ms | `.msg .bubble` | chat.js: bindLongPress → triggerLongPress | 气泡金色边框, 底部黑条浮出 |
+| F4.2 | 点"删除这条消息" | `#msgActions` | chat.js: deleteMessage | msgs+msgData 同步 splice, persist, toast |
+| F4.3 | 点黑条外部 | — | chat.js: hideMsgActions | 黑条消失, 高亮取消 |
+| F4.4 | 长按<500ms | — | cancelLongPress | 无反应 |
+| F4.5 | 按住+滑动>10px | — | cancelLongPress | 取消, 不弹出 |
 
 ---
 
-## 链路 8：Cron 创建
+## G. 房间详情 — 文件 tab
 
-```
-用户: 在运行页输入框填"每天 8:30 汇总邮件" → 点创建
-  → JS: app-run.js
-    → 解析自然语言: 正则匹配时间 → 生成 cron 表达式
-    → B.createCron(name, cron, text)
-      → Java: CronManager.createJob → SharedPreferences + WorkManager
-    → renderCronJobs() → 刷新列表
-```
+### G1. 存储类型切换
 
-**为什么这样设计**:
-- **自然语言输入**: 普通用户不需要懂 cron 表达式
-- **WorkManager**: Android 官方任务调度，系统管理生命周期
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| G1.1 | 点"产出" | `.storage-tab[data-stype="work"]` | app-files.js: setStorageType('work') | 显示 work 目录 |
+| G1.2 | 点"资料" | `.storage-tab[data-stype="inbox"]` | setStorageType('inbox') | 显示 inbox 目录 |
+| G1.3 | 点"归档" | `.storage-tab[data-stype="archive"]` | setStorageType('archive') | 按来源分组显示 |
+| G1.4 | 点"模板" | `.storage-tab[data-stype="template"]` | setStorageType('template') | 跨房间模板列表 |
+
+### G2. 文件浏览
+
+| # | 用户动作 | DOM | JS 函数 | 数据变化 | 设计理由 |
+|---|---------|-----|---------|---------|---------|
+| G2.1 | 看文件列表 | `#storageList` | files.js: renderFileTree / renderStorageView | B.listRoomFiles → 渲染 | index.json 目前仍用文件系统 |
+| G2.2 | 点目录 | `.file-row[data-dir="1"]` | files.js | _filesPath追加, 重渲染 | — |
+| G2.3 | 点面包屑段 | `.file-crumb[data-path]` | files.js | _filesPath=该路径, 重渲染 | 快速跳转 |
+| G2.4 | 点".." | `.file-row[data-up="1"]` | files.js | _filesPath回上级 | 传统导航 |
+| G2.5 | 看空目录 | — | files.js | "空目录"文案 | — |
+
+### G3. 文件预览
+
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| G3.1 | 点文件 | `.file-row[data-dir="0"]` | files.js: showFilePreview | overlay 弹出, 显示内容 | mask包overlay,父子结构 |
+| G3.2 | 点 ✕ | `#previewClose` | app-files.js: closeFilePreview | overlay 关闭 | — |
+| G3.3 | 点遮罩 | `#previewMask` | app-files.js: closeFilePreview | overlay 关闭 | — |
+
+### G4. 文件操作
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| G4.1 | 长按文件 | `.file-row` | chat.js: bindLongPress → files.js: 删除 | 浮出"删除文件"→删除+toast |
+| G4.2 | 点 FAB "+" | `#fileFabAdd` | app-files.js: openFileNewSheet | 弹出新建文件 sheet |
+
+### G5. 新建文件 Sheet
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| G5.1 | 填名字→创建 | `#fileNewName` → `#btnFileNewCreate` | app-files.js | B.saveWorkFile → toast → 关闭 sheet |
+| G5.2 | 空名字→创建 | 同上 | app-files.js | toast "请输入文件名" |
+| G5.3 | 点 ✕ | `#btnFileNewClose` | app-files.js: closeFileNewSheet | 关闭 |
+| G5.4 | 点遮罩 | `#fileNewMask` | app-files.js: closeFileNewSheet | 关闭 |
+
+### G6. 版本管理
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| G6.1 | 点版本入口 | 产出文件→版本按钮 | files.js: showVersionOverlay | overlay 列出版本历史 |
+| G6.2 | 点某版本 | `#versionOverlay` 内行 | files.js | 预览该版本内容 |
+| G6.3 | 点"应用此版本" | overlay 内按钮 | files.js | B.restoreVersion → toast |
+| G6.4 | 点 ✕ | `#versionClose` | app-files.js: closeVersionOverlay | 关闭 |
+| G6.5 | 点遮罩 | `#versionMask` | app-files.js: closeVersionOverlay | 关闭 |
+
+### G7. 模板 Sheet
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| G7.1 | 点"新建模板" | — | files.js: openTemplateSheet | 弹出模板 sheet |
+| G7.2 | 填名字+内容→保存 | `#templateName` `#templateContent` → `#btnTemplateOk` | app-files.js: confirmTemplate | B.saveTemplate → toast |
+| G7.3 | 点模板→使用 | 模板卡片→使用按钮 | files.js | B.useTemplate → 文件复制到房间 |
+| G7.4 | 点 ✕ | `#btnTemplateClose` | app-files.js: closeTemplateSheet | 关闭 |
+| G7.5 | 点遮罩 | `#templateMask` | app-files.js: closeTemplateSheet | 关闭 |
 
 ---
 
-## 链路 9：长按基础设施
+## H. 附件系统
 
-```
-用户: 长按任意可删除元素 (消息/技能/文件/房间/看板应用)
-  → JS: chat.js bindLongPress(node, action)
-    → touchstart/mousedown → 500ms 定时器
-    → touchmove >10px → 取消
-    → 500ms 到 → triggerLongPress()
-      → node 加 .longpress-hl (金色边框高亮)
-      → showMsgActions(text, callback) → 底部黑条浮出
-      → 点击黑条 → callback 执行 (删除)
-      → 点击外部 → hideMsgActions
-```
-
-**为什么这样设计**:
-- **500ms + 10px 位移取消**: 区分长按和滑动，防止误触发
-- **touchstart + mousedown 双事件**: 兼容触屏和鼠标 (开发调试用)
-- **操作条而非 confirm 弹窗**: 不用浏览器原生弹窗，视觉一致
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| H1 | 点 "+" 附件按钮 | `#plusBtn` | app-chat.js | trayOpen 切换, 托盘展开/收起, 按钮旋转45° | 视觉反馈 |
+| H2 | 点"选择文件" | `.tray-item` | app-chat.js | closeTray → B.pickFile → 系统文件选择器 | — |
+| H3 | 选文件→确认 | 系统文件选择器 | app-chat.js 回调 | pending.push(info), renderPend | 文件信息出现在待发区 |
+| H4 | 点待发文件 ✕ | `#pendRow .x` | chat.js: renderPend 内绑定 | pending.splice(i,1), renderPend | 移除 |
+| H5 | 纯附件发送 | `#btnSend` | chat.js: sendMsg | push附件卡片, 不触发路由 | — |
+| H6 | 附件+文字发送 | `#btnSend` | chat.js: sendMsg | push附件卡片+文字, 触发路由 | — |
 
 ---
 
-## 文件-函数-元素对应表
+## I. 看板
 
-| 用户动作 | DOM 元素 | JS 文件 | 关键函数 | Java 桥 |
-|---------|---------|---------|---------|---------|
-| 切 tab | .bnav button[data-tab] | render.js | setTab | — |
-| 新建房间 | #fabNew → #newRoomMask | app-room.js | open→create→closeNewRoomDialog | initRoomStorage |
-| 进房间 | .room[data-room] | render.js→chat.js | enterRoom | setRoomOpen |
-| 发消息 | #msgInput + #btnSend | app-chat.js→chat.js | sendMsg→routeMessage | execCommand/aiChatAsync |
-| 房间操作 | .room 长按 / #btnRoomMore | app-room.js | openRoomOpsSheet | — |
-| 文件浏览 | .room-tab[data-subtab=files] | app-files.js→files.js | setSubtab→renderFileTree | listRoomFiles |
-| 文件预览 | .file-row | files.js | showFilePreview | readFile |
-| 看板切换 | #boardTrigger→#boardPanel | board.js | openBoardPanel→loadBoardApp | — |
-| 长按删除 | 消息/技能/文件气泡 | chat.js | bindLongPress→deleteXxx | deleteFile/deleteSkill |
-| 运行刷新 | #btnRunRefresh | app-run.js→runtime.js | refreshRuntime | getRuntimeStats |
-| Cron创建 | #cronInput→#btnCronCreate | app-run.js | parseAndCreate | createCronJob |
+### I1. 触发条
+
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| I1.1 | 切到看板 | `#view-board` | board.js: initBoardIfNeeded→showBoardTrigger | 触发条浮现, 3s后自动hide | 首次才init |
+| I1.2 | 等 3 秒 | — | setTimeout | 触发条 classList.add('hidden') | 内容优先,不遮挡 |
+| I1.3 | 触摸底部 80px | document touchstart | board.js | 触发条 classList.remove('hidden') | 唤醒 |
+| I1.4 | 点触发条 | `#boardTrigger` | board.js: openBoardPanel | 面板滑入 | — |
+
+### I2. 应用选择面板
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| I2.1 | 面板出现 | `#boardPanel` | openSheetExclusive | 底部滑入, 3列网格 |
+| I2.2 | 点应用 | `.board-app-card[data-app]` | board.js | loadBoardApp→iframe.src切换→面板关闭 |
+| I2.3 | 当前应用 | `.board-app-card.active` | — | 金色边框 |
+| I2.4 | 长按非内置应用 | `.board-app-card[data-app]` | bindLongPress | 浮出"移除应用"→删除+toast |
+| I2.5 | 长按内置应用 | 同上 | builtin=true→不绑定 | 不浮出操作条 |
+| I2.6 | 点 "+" | `#boardPanelAdd` | board.js: openBoardAddSheet | 弹出添加应用 sheet |
+| I2.7 | 点 ✕ | `#boardPanelClose` | board.js: closeBoardPanel | 面板关闭 |
+| I2.8 | 点遮罩 | `#boardPanelMask` | board.js: closeBoardPanel | 面板关闭 |
+
+### I3. 添加应用 Sheet
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| I3.1 | 填名字+URL→添加 | `#boardAddName` `#boardAddUrl` → `#btnBoardAddOk` | board.js: confirmBoardAdd | _boardApps.push→save→render→toast |
+| I3.2 | 空名字→添加 | 同上 | board.js | toast "请输入名称" |
+| I3.3 | 点 ✕ | `#btnBoardAddClose` | board.js: closeBoardAddSheet | 关闭 |
+| I3.4 | 点遮罩 | `#boardAddMask` | board.js: closeBoardAddSheet | 关闭 |
+
+### I4. 应用内容
+
+| # | 用户动作 | DOM | 结果 | 设计理由 |
+|---|---------|-----|------|---------|
+| I4.1 | 看自带音乐应用 | `#boardFrame` (iframe) | 加载 board-apps/music.html | 本地 HTML, 无需网络 |
+| I4.2 | 看自带阅读应用 | 同上 | board-apps/reader.html | — |
+| I4.3 | 看自带健身应用 | 同上 | board-apps/fitness.html | — |
+| I4.4 | 看自带笔记应用 | 同上 | board-apps/notes.html | — |
+| I4.5 | 看用户添加URL | 同上 | iframe 加载远程 URL | — |
+
+---
+
+## J. 运行页
+
+### J1. 进程卡片
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| J1.1 | 看设备状态 | `#healthCard` | runtime.js: refreshProcess | pid/uptime/mem/cmds/lastCmd |
+| J1.2 | 看个人信息 | `.personal-row` | runtime.js: renderPersonalRow | 用户名+设置入口 |
+| J1.3 | 点 ≡ 设置 | `#btnPersonalSettings` | app-run.js | B.openSettings()→跳设置页 |
+| J1.4 | 点 ⟳ 刷新 | `#btnRunRefresh` | app-run.js: refreshRuntime | 全数据刷新 |
+
+### J2. 折叠行 (通道/权限/技能)
+
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| J2.1 | 看通道摘要 | `#rowChannels` | runtime.js | "全部正常"或具体异常 | 默认折叠 |
+| J2.2 | 点通道行 | `#rowChannels` | app-run.js: openRunDetail('channels') | overlay 展开 4 通道详情 | — |
+| J2.3 | 看权限摘要 | `#rowPerms` | runtime.js | "4/7 已授权" | 全部授权则隐藏 |
+| J2.4 | 点权限行 | `#rowPerms` | app-run.js: openRunDetail('perms') | overlay 展开权限标签 | 点标签跳系统设置 |
+| J2.5 | 看技能摘要 | `#rowSkills` | runtime.js | "3 个" | — |
+| J2.6 | 点技能行 | `#rowSkills` | app-run.js: openRunDetail('skills') | overlay 展开技能列表+搜索 | — |
+| J2.7 | 技能卡片: 点击 | `.skill` | skills.js | B.recordSkill→toast "技能已触发" | — |
+| J2.8 | 技能卡片: 长按 | `.skill` | chat.js: bindLongPress→skills.js | 浮出"移除技能"→删除+toast | — |
+| J2.9 | 技能搜索 | `#skillSearch` input | skills.js: renderSkillList | 实时过滤 | — |
+| J2.10 | 点 overlay ✕ | `#runDetailClose` | app-run.js: closeRunDetail | 关闭 | — |
+| J2.11 | 点 overlay 遮罩 | `#runDetailMask` | app-run.js: closeRunDetail | 关闭 | — |
+
+### J3. 模型区
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| J3.1 | 看模型列表 | `#modelList` | runtime.js: refreshModel | 遍历 B.listModels 渲染 |
+| J3.2 | 点模型行(已配置) | `.model-row` | runtime.js | B.setDefaultModel→toast→刷新 |
+| J3.3 | 点"新增模型"行 | `.model-add` | runtime.js | 跳设置页 |
+| J3.4 | 开发者折叠 | 状态条三角 | app-run.js | 展开/折叠 pid/mem/cmds 详情 |
+
+### J4. Cron
+
+| # | 用户动作 | DOM | JS 函数 | 结果 | 设计理由 |
+|---|---------|-----|---------|------|---------|
+| J4.1 | 输入自然语言→创建 | `#cronInput` → `#btnCronCreate` | app-run.js | 正则提取时间→生成cron→B.createCron→toast→刷新 | 用户不需要懂cron |
+| J4.2 | 空输入→创建 | 同上 | app-run.js | toast 提示 | — |
+| J4.3 | 点开关 | `.job .switch` | runtime.js: renderCronJobs 内绑定 | B.toggleCron→200ms后刷新 | — |
+| J4.4 | 点"删除" | `.del-cron` | runtime.js | confirm→B.deleteCron→toast→刷新 | — |
+
+### J5. 权限
+
+| # | 用户动作 | DOM | JS 函数 | 结果 |
+|---|---------|-----|---------|------|
+| J5.1 | 看权限标签 | `.perm` / `.perm.denied` | runtime.js: renderPermissions | 绿/红底色 |
+| J5.2 | 点权限标签 | `.perm` | runtime.js | B.openAppSettings→跳系统设置 |
+
+---
+
+## K. AI 设置页 (Java Activity)
+
+| # | 用户动作 | Java | 结果 |
+|---|---------|------|------|
+| K1 | 选 Provider | Spinner | URL/Model 自动填入预设 |
+| K2 | 填 API Key | EditText | 保存到 EncryptedSharedPreferences |
+| K3 | 点 Key 右侧 ✕ | `#btnClearKey` | 输入框清空 |
+| K4 | 点"保存" | `#btnSave` | 所有字段写入 SharedPreferences, toast |
+| K5 | 点"测试连接" | `#btnTest` | 后台线程发"请只回复:OK"→toast ✅/❌ |
+| K6 | 切换 AI 开关 | Switch | setAiEnabled |
+| K7 | 点"返回" | `#btnBack` | finish()→回 MOV 主界面 |
+
+---
+
+## L. 桌面小组件
+
+| # | 用户动作 | DOM | Java | 结果 |
+|---|---------|-----|------|------|
+| L1 | 点快捷指令 | widget item | HermesWidgetProvider: executeCommand | IntentParser→CapabilityExecutor→toast ✅/❌ |
+| L2 | 点刷新 | refresh button | notifyAppWidgetViewDataChanged | 列表刷新, toast |
+| L3 | 点打开应用 | open button | startActivity | 启动 HermesActivity |
+
+---
+
+## M. 全局 & 异常
+
+| # | 场景 | JS | 结果 |
+|---|------|-----|------|
+| M1 | JS 抛异常 | window.onerror (bridge.js) | logcat + 聊天区红色提示 |
+| M2 | 加密降级 | app.js encStatus 检查 | toast 警告 |
+| M3 | 桥未连接 | bridge.js: 所有 B.xxx 方法 try/catch | 返回默认值, 不崩溃 |
+| M4 | 文件路径遍历 | Java: StorageManager.isSafe | 拒绝, 返回错误 JSON |
+| M5 | Cron动作白名单外 | HermesCronWorker | BLOCKED + 日志 |
+| M6 | 桥参数非法 | BridgeValidator | 返回错误 JSON |
+
+---
+
+## 文件-函数-元素速查表
+
+| 文件 | 负责的交互 |
+|------|-----------|
+| `app.js` | 启动初始化, btnBack, 加密检查 |
+| `app-room.js` | 新建房间弹窗, 房间操作 sheet, openSheetExclusive/closeAllSheets, btnSettings |
+| `app-chat.js` | 消息发送, 附件按钮 |
+| `app-files.js` | 子tab切换, 文件预览关闭, 版本overlay关闭, 模板sheet, 新建文件sheet, 存储类型切换 |
+| `app-board.js` | 看板触发条, 面板开关, 添加应用sheet |
+| `app-run.js` | 运行页刷新, Cron创建, 折叠行展开, 个人信息设置, 开发者折叠 |
+| `chat.js` | 消息路由, 长按基础设施, 消息删除, 清空历史, enterRoom |
+| `render.js` | 房间列表渲染, 视图切换, 消息渲染, 工具卡片, 文件卡片 |
+| `files.js` | 文件树, 版本历史, 文件预览, 模板列表 |
+| `board.js` | 应用加载, 面板渲染, 应用添加/删除, 触发条自隐 |
+| `runtime.js` | 进程/通道/模型/Cron/权限/技能 渲染 |
+| `skills.js` | 技能搜索, 技能触发, 长按删除 |
+| `bridge.js` | HermesBridge 50+ 方法封装 |
+| `store.js` | ROOMS 数据, AV 颜色表, persistRooms, 多模型头像 |
+| `i18n.js` | 翻译字典, t() 函数 |
