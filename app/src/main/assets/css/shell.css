@@ -46,12 +46,6 @@ button,input,textarea{font-family:inherit;}
 .bighead .bh-sub b{color:var(--acc-strong);font-weight:700;}
 .bighead .ico-btn{margin-top:var(--sp-1);}
 
-<<<<<<< Updated upstream
-/* ---------- 房间分组 (Apple grouped list) ---------- */
-.glabel{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink-4);text-transform:uppercase;padding:14px 20px 6px;font-weight:600;}
-.glist{margin:0 16px 6px;background:var(--panel);border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--sh-1);}
-.glist .room{border-radius:0;box-shadow:none;margin:0;}
-=======
 /* ---------- 健康总结条 · 固定高度 48px ---------- */
 .health{margin:var(--sp-3) var(--sp-4) var(--sp-2);border-radius:var(--r-md);padding:0 var(--sp-4);min-height:var(--h-lg);display:flex;align-items:center;gap:var(--sp-3);transition:background .3s ease;}
 .health.ok{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);}
@@ -68,7 +62,6 @@ button,input,textarea{font-family:inherit;}
 .glabel{font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:.16em;color:var(--ink-4);text-transform:uppercase;padding:var(--sp-4) var(--sp-5) var(--sp-2);font-weight:700;}
 .glist{margin:0 var(--sp-4) var(--sp-2);background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden;}
 .glist .room{border-radius:0;margin:0;border:none;}
->>>>>>> Stashed changes
 .glist .room+.room{border-top:1px solid var(--line-soft);}
 
 /* ---------- 底部 Tab ---------- */
@@ -109,11 +102,6 @@ button,input,textarea{font-family:inherit;}
 .badge.err .dot{background:var(--err-dot);}
 .badge.aw{background:var(--code-bg);color:var(--acc-strong);border:1px solid var(--acc-line);}
 .badge.aw .dot{background:var(--acc-live);animation:nodepulse 1.2s infinite;}
-<<<<<<< Updated upstream
-/* 工具调用: 金边 + 深色详情 (Mono 数据层) */
-.toolcall{border-radius:var(--r-md);overflow:hidden;width:100%;background:var(--panel);box-shadow:var(--sh-1);border-left:3px solid var(--acc-live);}
-.toolcall .th{display:flex;align-items:center;gap:var(--s2);padding:8px 11px;cursor:pointer;font-family:var(--font-mono);font-size:10.5px;transition:background var(--t-fast);}
-=======
 /* mini-tag · 与 badge 同高同字号，仅配色不同 */
 .mini-tag{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:600;height:var(--sp-6);padding:0 var(--sp-2);border-radius:var(--r-sm);display:inline-flex;align-items:center;background:rgba(148,163,184,.08);color:var(--ink-3);border:1px solid var(--line-soft);}
 .mini-tag.gold{background:var(--acc-tint-2);color:var(--acc-strong);border:1px solid var(--acc-line);}
@@ -132,7 +120,6 @@ button,input,textarea{font-family:inherit;}
 /* ---------- 工具调用 · 金色左规 ---------- */
 .toolcall{border-radius:var(--r-md);overflow:hidden;width:100%;background:var(--panel);border:1px solid var(--line-soft);border-left:3px solid var(--acc-live);}
 .toolcall .th{display:flex;align-items:center;gap:var(--sp-2);height:var(--sp-10);padding:0 var(--sp-3);cursor:pointer;font-family:var(--font-mono);font-size:var(--fs-sm);transition:background var(--t-fast);}
->>>>>>> Stashed changes
 .toolcall .th:active{background:var(--acc-tint-2);}
 .toolcall .th b{color:var(--acc-strong);font-weight:600;}
 .toolcall .th .dur{margin-left:auto;color:var(--ink-4);font-size:var(--fs-xs);}
@@ -263,25 +250,6 @@ button,input,textarea{font-family:inherit;}
 .sheet-mask.open{opacity:1;visibility:visible;transition:opacity .28s ease;}
 .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:var(--sp-3) var(--sp-4) calc(var(--sp-5) + env(safe-area-inset-bottom,0px));transform:translateY(102%);transition:transform .38s var(--spring);z-index:10;box-shadow:var(--sh-3);}
 .sheet.open{transform:none;}
-<<<<<<< Updated upstream
-.sheet::before{content:'';display:block;width:36px;height:4.5px;border-radius:3px;background:rgba(120,120,128,.3);margin:2px auto 12px;}
-.sheet h5{font-family:var(--font-sans);font-size:16px;font-weight:750;letter-spacing:-.01em;margin-bottom:4px;}
-.sheet .sh-sub{font-family:var(--font-sans);font-size:11.5px;color:var(--ink-3);margin-bottom:12px;}
-.sheet input{width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-sans);font-size:13px;outline:none;background:var(--panel);transition:all var(--t-fast);}
-.sheet input:focus{border-color:var(--acc-live);box-shadow:0 0 0 3.5px rgba(224,134,0,.14);}
-.sh-label{font-family:var(--font-sans);font-size:11px;font-weight:600;color:var(--ink-2);margin:10px 0 4px;}
-.sh-hint{font-family:var(--font-mono);font-size:9.5px;color:var(--ink-4);text-align:center;margin-bottom:10px;}
-/* 底部按钮条: sticky 防键盘遮挡 (E1) */
-.step-foot{position:sticky;bottom:0;background:var(--panel);padding:6px 0 0;margin:0 -4px;display:flex;gap:8px;border-top:1px solid var(--line-soft);}
-/* ---------- 自动化 / 运行时 ---------- */
-.auto-input{margin:12px 16px;display:flex;gap:8px;}
-.auto-input .field{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:9px 14px;font-family:var(--font-sans);font-size:12px;color:var(--ink-1);transition:all var(--t-fast);min-width:0;box-shadow:var(--sh-1);}
-.auto-input .field:focus{outline:none;border-color:var(--acc-live);box-shadow:0 0 0 3.5px rgba(224,134,0,.14);}
-.auto-input .go{border:none;background:var(--acc-live);color:#fff;border-radius:99px;padding:0 16px;font-family:var(--font-sans);font-size:12px;font-weight:600;cursor:pointer;transition:all var(--t-fast);}
-.auto-input .go:active{transform:scale(.96);background:var(--acc);}
-/* 分组头: Mono 大写间距 (数据层) */
-.sub-head{margin:16px 20px 7px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink-4);text-transform:uppercase;font-weight:600;display:flex;align-items:center;gap:9px;}
-=======
 .sheet::before{content:'';display:block;width:var(--sp-8);height:4px;border-radius:2px;background:var(--line);margin:2px auto var(--sp-3);}
 .sheet h5{font-family:var(--font-sans);font-size:var(--fs-lg);font-weight:750;letter-spacing:-.01em;margin-bottom:var(--sp-1);color:var(--ink-1);}
 .sheet .sh-sub{font-family:var(--font-sans);font-size:var(--fs-sm);color:var(--ink-3);margin-bottom:var(--sp-3);}
@@ -311,7 +279,6 @@ button,input,textarea{font-family:inherit;}
 .auto-input .go{border:none;background:var(--acc-live);color:#1c1204;border-radius:var(--r-lg);height:var(--h-md);padding:0 var(--sp-4);font-family:var(--font-sans);font-size:var(--fs-base);font-weight:700;cursor:pointer;transition:all var(--t-fast);}
 .auto-input .go:active{transform:scale(.96);background:var(--acc-strong);}
 .sub-head{margin:var(--sp-4) var(--sp-5) var(--sp-2);font-family:var(--font-mono);font-size:var(--fs-xs);letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:var(--sp-3);}
->>>>>>> Stashed changes
 .sub-head::after{content:'';flex:1;height:1px;background:var(--line-soft);}
 /* 任务卡 · 统一内边距 */
 .job{margin:0 var(--sp-4) var(--sp-2);background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden;transition:all var(--t-fast);}
@@ -372,12 +339,6 @@ button,input,textarea{font-family:inherit;}
 .rd-st{font-family:var(--font-mono);font-size:var(--fs-sm);font-weight:700;flex:none;}
 .rd-st.ok{color:var(--ok);}
 .rd-st.bad{color:var(--err);}
-<<<<<<< Updated upstream
-.rd-hint{font-family:var(--font-mono);font-size:9.5px;color:var(--ink-4);text-align:center;margin-top:12px;}
-.rd-empty{padding:24px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--ink-4);}
-/* 模型行07: 选中 = 2px 金环 + 浅金底 + radio */
-.model-row{margin:0 16px 7px;background:var(--panel);border-radius:var(--r-md);padding:11px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all var(--t-fast);border:1.5px solid transparent;box-shadow:var(--sh-1);}
-=======
 .rd-hint{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--ink-4);text-align:center;margin-top:var(--sp-3);}
 .rd-empty{padding:var(--sp-6);text-align:center;font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--ink-4);}
 .chan-grid{margin:0 var(--sp-4) var(--sp-3);display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-2);}
@@ -389,7 +350,6 @@ button,input,textarea{font-family:inherit;}
 .chan .st.off{background:var(--line);}
 /* 模型行 · 行高固定 56px */
 .model-row{margin:0 var(--sp-4) var(--sp-2);background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-md);min-height:var(--row-h);padding:var(--sp-3) var(--sp-4);display:flex;align-items:center;gap:var(--sp-3);cursor:pointer;transition:all var(--t-fast);}
->>>>>>> Stashed changes
 .model-row:active{transform:scale(.99);}
 .model-row.sel{border-color:var(--acc-live);background:var(--acc-tint-2);}
 .model-row .pv{font-family:var(--font-mono);font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;color:var(--ink-4);}
@@ -405,9 +365,6 @@ button,input,textarea{font-family:inherit;}
 .model-none{margin:0 var(--sp-4) var(--sp-2);padding:var(--sp-4);text-align:center;font-size:var(--fs-base);color:var(--ink-4);}
 .model-add{border:1.5px dashed var(--line);background:transparent;justify-content:center;}
 .model-add .md{color:var(--acc-live);font-weight:600;}
-<<<<<<< Updated upstream
-.skill{margin:0 16px 8px;background:var(--panel);border-radius:var(--r-lg);padding:12px 14px;cursor:pointer;transition:all var(--t-fast);box-shadow:var(--sh-1);}
-=======
 /* 多模型勾选 · 行高固定 48px */
 .mpick{display:flex;align-items:center;gap:var(--sp-3);min-height:var(--h-lg);padding:var(--sp-3);margin-bottom:var(--sp-2);background:var(--panel-2);border:1px solid var(--line-soft);border-radius:var(--r-md);cursor:pointer;transition:all var(--t-fast);}
 .mpick:active{transform:scale(.99);}
@@ -426,7 +383,6 @@ button,input,textarea{font-family:inherit;}
 .loop-chain em{font-style:normal;color:var(--acc-live);}
 /* 技能卡 · 统一内边距 */
 .skill{margin:0 var(--sp-4) var(--sp-2);background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-lg);padding:var(--sp-3) var(--sp-4);cursor:pointer;transition:all var(--t-fast);}
->>>>>>> Stashed changes
 .skill:active{transform:scale(.99);}
 .skill .r1{display:flex;align-items:center;gap:var(--sp-2);}
 .skill .r1 b{font-family:var(--font-mono);font-size:var(--fs-base);font-weight:700;letter-spacing:0;color:var(--ink-1);}
@@ -434,13 +390,6 @@ button,input,textarea{font-family:inherit;}
 .skill p{font-family:var(--font-sans);font-size:var(--fs-sm);color:var(--ink-3);line-height:1.55;margin-top:var(--sp-2);}
 .skill .r3{display:flex;gap:var(--sp-3);margin-top:var(--sp-2);font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--ink-4);}
 .skill .r3 b{color:var(--acc-strong);font-weight:600;}
-<<<<<<< Updated upstream
-/* ---------- 交互增强: sheet 行 / 长按操作条 ---------- */
-/* ---------- 房间内子 tab · iOS segmented ---------- */
-.room-tabs{flex:none;display:flex;margin:10px 16px 2px;background:rgba(120,120,128,.12);border-radius:10px;padding:2.5px;gap:2px;}
-.room-tab{flex:1;text-align:center;font-family:var(--font-sans);font-size:12px;font-weight:600;color:var(--ink-3);padding:5.5px 0;border-radius:8px;cursor:pointer;transition:all var(--t-fast);}
-.room-tab.on{background:var(--panel);color:var(--ink-1);box-shadow:0 1px 3px rgba(0,0,0,.09);}
-=======
 .perm-grid{margin:0 var(--sp-4) var(--sp-4);display:grid;grid-template-columns:repeat(7,1fr);gap:var(--sp-2);}
 .perm-scroll{margin:2px var(--sp-4) var(--sp-1);display:flex;gap:var(--sp-2);overflow-x:auto;padding-bottom:var(--sp-1);scrollbar-width:none;}
 .perm-scroll::-webkit-scrollbar{display:none;}
@@ -472,7 +421,6 @@ button,input,textarea{font-family:inherit;}
 .room-tabs{flex:none;display:flex;margin:var(--sp-3) var(--sp-4) var(--sp-1);height:var(--h-md);background:rgba(148,163,184,.08);border:1px solid var(--line-soft);border-radius:var(--r-md);padding:3px;gap:3px;}
 .room-tab{flex:1;text-align:center;font-family:var(--font-sans);font-size:var(--fs-base);font-weight:600;color:var(--ink-4);border-radius:var(--r-sm);cursor:pointer;transition:all var(--t-fast);display:flex;align-items:center;justify-content:center;}
 .room-tab.on{background:var(--panel);color:var(--ink-1);border:1px solid var(--line-soft);}
->>>>>>> Stashed changes
 
 /* ============================================================
    文件视图
@@ -545,9 +493,5 @@ button,input,textarea{font-family:inherit;}
 /* ---------- 居中弹窗 ---------- */
 .dialog-mask{display:none;position:absolute;inset:0;background:rgba(2,6,23,.6);z-index:99;}
 .dialog-mask.open{display:flex;align-items:center;justify-content:center;opacity:1;visibility:visible;transition:opacity .2s ease;}
-<<<<<<< Updated upstream
-.dialog{background:var(--panel);border-radius:16px;padding:20px;width:calc(100% - 48px);max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.2);transform:scale(.92);transition:transform .25s var(--spring, cubic-bezier(.22,1,.36,1));}
-=======
 .dialog{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--sp-5);width:calc(100% - var(--sp-12));max-width:360px;box-shadow:var(--sh-3);transform:scale(.92);transition:transform .25s var(--spring);}
->>>>>>> Stashed changes
 .dialog-mask.open .dialog{transform:scale(1);}

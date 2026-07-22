@@ -158,11 +158,7 @@ function refreshModel(){
     var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
     var sel=m.isDefault?' sel':'';
     mh+='<div class="model-row'+sel+'" data-model="'+esc(m.id)+'">'
-<<<<<<< Updated upstream
       +'<i class="av" style="background:'+esc(m.color||providerColor(m.provider))+'">'+esc((m.name||'?').charAt(0))+'</i>'
-=======
-      +'<i class="av" style="background:'+esc(m.color||'#f59e0b')+'">'+esc((m.name||'?').charAt(0))+'</i>'
->>>>>>> Stashed changes
       +'<div><div class="pv">'+esc(m.role||t('model.roleGeneral'))+(m.isDefault?' · '+t('model.default'):'')+'</div>'
       +'<div class="md">'+esc(m.name)+'</div>'
       +'<div class="ms">'+modelStatusDot(m)+'<span>'+esc(modelStatusText(m))+'</span></div></div>'
