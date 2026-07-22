@@ -7,15 +7,14 @@
 ## 是什么
 
 ```
-会话  │  看板  │  运行
-──────┼────────┼──────
-AI 协作│轻应用  │系统 & 模型
-项目房间│面板   │设备 & Cron
+会话  │  运行
+──────┼────────
+AI 协作│系统 & 模型
+项目房间│设备 & Cron
 ```
 
 - **会话**：项目房间。讨论区 + 文件仓库。多个 AI 模型参与讨论，产出代码和文档。
-- **看板**：轻应用桌面。音乐、阅读、健身、笔记，可自行添加。
-- **运行**：设备状态、AI 模型监控、Cron 定时任务、通道状态。
+- **运行**：设备状态、AI 模型监控、Cron 定时任务、技能管理。
 
 ---
 
@@ -43,12 +42,12 @@ adb logcat -s MOV:D
 ## 架构
 
 ```
-HermesActivity (WebView 壳, ~900行)
-  └─ hermes-shell.html (单 HTML 入口, ~260行)
-       ├─ 11 个 JS 模块 (~2400行): chat / render / files / board / runtime / skills / council / store / bridge / i18n / app
+HermesActivity (WebView 壳)
+  └─ hermes-shell.html (单 HTML 入口)
+       ├─ 14 个 JS 模块: chat / render / files / runtime / skills / council / store / bridge / i18n / app / app-chat / app-files / app-room / app-run
        │
-       ├─ HermesBridge (30+ @JavascriptInterface)
-       │   ├─ IntentParser → CapabilityExecutor (34 个设备 & 文件能力)
+       ├─ HermesBridge (60+ @JavascriptInterface, BridgeFactory 聚合 6 个子 Bridge)
+       │   ├─ IntentParser → CapabilityExecutor (30+ 个设备 & 文件能力)
        │   ├─ AiClient (OpenAI 兼容: DeepSeek / Qwen / OpenAI / Ollama)
        │   ├─ ModelRegistry (多模型注册 & 加密存储)
        │   ├─ CouncilClient (多模型并行讨论 → 汇总 → 结构化输出)
@@ -75,17 +74,14 @@ HermesActivity (WebView 壳, ~900行)
 
 | 文档 | 内容 |
 |------|------|
-| [MOV_MASTER.md](docs/MOV_MASTER.md) | 项目全貌 |
-| [DESIGN_MULTI_MODEL.md](docs/DESIGN_MULTI_MODEL.md) | 多模型协作引擎 |
-| [DESIGN_STORAGE.md](docs/DESIGN_STORAGE.md) | 存储系统 |
-| [DESIGN_INTERACTION.md](docs/DESIGN_INTERACTION.md) | 交互系统 |
-| [DESIGN_BOARD_V2.md](docs/DESIGN_BOARD_V2.md) | 看板设计 |
-| [DESIGN_RUNTIME.md](docs/DESIGN_RUNTIME.md) | 运行页设计 |
-| [DESIGN_RUNTIME_LAYOUT.md](docs/DESIGN_RUNTIME_LAYOUT.md) | 运行页布局 |
-| [DESIGN_NEW_ROOM.md](docs/DESIGN_NEW_ROOM.md) | 新建房间流程 |
-| [DESIGN_SECURITY.md](docs/DESIGN_SECURITY.md) | 安全修复 |
-| [DESIGN_REFACTOR.md](docs/DESIGN_REFACTOR.md) | 架构重构 |
-| [DESIGN_GAP.md](docs/DESIGN_GAP.md) | 验收缺口 & 分工 |
+| [ONBOARD.md](ONBOARD.md) | 新成员上手指南 |
+| [CONTRACT_ARCH.md](docs/CONTRACT_ARCH.md) | 架构总纲 |
+| [CONTRACT_MODEL.md](docs/CONTRACT_MODEL.md) | 多模型协作契约 |
+| [CONTRACT_ROOM.md](docs/CONTRACT_ROOM.md) | 房间契约 |
+| [CONTRACT_RUNTIME.md](docs/CONTRACT_RUNTIME.md) | 运行页契约 |
+| [CONTRACT_SECURITY.md](docs/CONTRACT_SECURITY.md) | 安全契约 |
+| [CONTRACT_STORAGE.md](docs/CONTRACT_STORAGE.md) | 存储系统契约 |
+| [MOV_DESIGN_SPEC_V2.html](docs/MOV_DESIGN_SPEC_V2.html) | 视觉设计规范 |
 
 ---
 

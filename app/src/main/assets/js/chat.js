@@ -48,7 +48,7 @@ async function runDeviceCommand(id,text){
   var dur=((Date.now()-t0)/1000).toFixed(2)+'s';
   var ok=out.indexOf('❌')!==0&&out.indexOf('⚠')!==0;
   push(id,toolNode('device',text,dur,esc(out)+'\n<span class="'+(ok?'ok-line':'err-line')+'">'+(ok?'exit 0':'exit 1')+'</span>'));
-  push(id,mkMsg({t:'agent',who:'mov',h:esc(out)}));
+  push(id,mkMsg({t:'agent',who:'mov',h:out}));
   var room=ROOMS.find(function(r){return r.id===id;});
   if(room){room.last=out.length>32?out.slice(0,32)+'…':out;room.time='现在';renderRooms();persistRooms();}
   ev('执行设备指令: '+text+' → '+(ok?'OK':'FAIL'));
@@ -63,8 +63,9 @@ function runAiChat(id,text){
   B.aiAsync(text,function(resp){
     killTyping(typing);
     if(!alive())return;
-    var content=resp.ok?resp.content:resp.content;
-    push(id,mkMsg({t:'agent',who:'mov',h:esc(content)}));
+    /* Fix: 去掉 esc 双重转义 (safeBubble 已 textNode 防护); 失败时 content 即错误信息 */
+    var content=resp.content||(resp.ok?'':'AI 调用失败');
+    push(id,mkMsg({t:'agent',who:'mov',h:content}));
     var room=ROOMS.find(function(r){return r.id===id;});
     if(room){room.last=(content||'').replace(/\n/g,' ').slice(0,32);room.time='现在';renderRooms();persistRooms();}
   });
@@ -101,7 +102,7 @@ function sendMsg(){
   if(!v&&pending.length===0)return;
   var room=ROOMS.find(function(r){return r.id===curRoomId;});
   var gen=genCounter,id=curRoomId;
-  push(id,mkMsg({t:'agent',who:'YOU',me:true,h:esc(v),att:pending.length?pending[pending.length-1]:null}));
+  push(id,mkMsg({t:'agent',who:'YOU',me:true,h:v,att:pending.length?pending[pending.length-1]:null}));
   room.last=v||('[附件] '+(pending[0]&&ATT[pending[0]]?ATT[pending[0]].n:'文件'));room.time='现在';renderRooms();persistRooms();
   $('msgInput').value='';pending=[];renderPend();
   ev('发送消息'+(v?'':'(纯附件)'));
@@ -131,14 +132,14 @@ function runCouncil(id,topic,gen){
 
     if(data.type==='error'){
       killTyping(typing);
-      push(id,mkMsg({t:'agent',who:'mov',h:t('council.fail')+esc(data.content||'未知错误')}));
+      push(id,mkMsg({t:'agent',who:'mov',h:t('council.fail')+(data.content||'未知错误')}));
       setPhase(id,'讨论中');return;
     }
     if(data.type==='summary'){
       killTyping(typing);
       setPhase(id,'收敛中');
       push(id,mkMsg({t:'sys',h:t('council.converge')}));
-      push(id,mkMsg({t:'agent',who:'mov',h:esc(data.summary||'(无汇总)')}));
+      push(id,mkMsg({t:'agent',who:'mov',h:data.summary||'(无汇总)'}));
       var steps;try{steps=JSON.parse(data.nextSteps||'[]');}catch(e){steps=[];}
       if(Array.isArray(steps)&&steps.length){
         renderCouncilPlan(id,steps,gen);setPhase(id,'待确认');
@@ -151,7 +152,7 @@ function runCouncil(id,topic,gen){
     /* 单个模型回复 — 先到先显, 逐条追加 */
     replyCount++;
     killTyping(typing);
-    push(id,mkMsg({t:'agent',who:data.who,role:data.role,h:esc(data.content||'')}));
+    push(id,mkMsg({t:'agent',who:data.who,role:data.role,h:data.content||''}));
     /* 如果还有没到的, 显示等待 */
     typing=mkMsg({t:'agent',who:'mov',caret:true});
     if(alive())showTyping(id,typing);

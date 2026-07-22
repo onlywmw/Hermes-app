@@ -567,10 +567,15 @@ public class CapabilityExecutor {
         Process proc = null;
         try {
             File outDir = externalBase != null ? externalBase : ctx.getExternalFilesDir(null);
-            String path = new File(outDir, "mov_screenshot_" + System.currentTimeMillis() + ".png").getAbsolutePath();
-            proc = Runtime.getRuntime().exec(new String[]{"screencap", "-p", path});
-            proc.waitFor();
-            return CommandResult.ok("📸 截屏已保存: " + path);
+            File outFile = new File(outDir, "mov_screenshot_" + System.currentTimeMillis() + ".png");
+            proc = Runtime.getRuntime().exec(new String[]{"screencap", "-p", outFile.getAbsolutePath()});
+            int exit = proc.waitFor();
+            // Fix: 检查退出码与产物 — 无 root/shell 权限时 screencap 失败但进程仍返回
+            if (exit != 0 || !outFile.exists() || outFile.length() == 0) {
+                if (outFile.exists()) outFile.delete();
+                return CommandResult.fail("截屏失败 (exit " + exit + ")\n(需要 ADB 权限或 root)");
+            }
+            return CommandResult.ok("📸 截屏已保存: " + outFile.getAbsolutePath());
         } catch (Exception e) {
             return CommandResult.fail("截屏失败: " + e.getMessage() + "\n(需要 ADB 权限或 root)");
         } finally {
@@ -621,7 +626,11 @@ public class CapabilityExecutor {
         Process proc = null;
         try {
             proc = Runtime.getRuntime().exec(new String[]{"input", "tap", String.valueOf(x), String.valueOf(y)});
-            proc.waitFor();
+            int exit = proc.waitFor();
+            // Fix: 检查退出码 — 无 shell 权限时 input 命令失败但进程仍返回
+            if (exit != 0) {
+                return CommandResult.fail("点击失败 (exit " + exit + ")\n(需要 ADB 权限或 root)");
+            }
             return CommandResult.ok("👆 已点击 (" + x + ", " + y + ")");
         } catch (Exception e) {
             return CommandResult.fail("点击失败: " + e.getMessage());
@@ -638,7 +647,11 @@ public class CapabilityExecutor {
             int x2 = cmd.getIntArg("x2", 0), y2 = cmd.getIntArg("y2", 0);
             proc = Runtime.getRuntime().exec(new String[]{"input", "swipe",
                 String.valueOf(x1), String.valueOf(y1), String.valueOf(x2), String.valueOf(y2), "300"});
-            proc.waitFor();
+            int exit = proc.waitFor();
+            // Fix: 检查退出码 — 无 shell 权限时 input 命令失败但进程仍返回
+            if (exit != 0) {
+                return CommandResult.fail("滑动失败 (exit " + exit + ")\n(需要 ADB 权限或 root)");
+            }
             return CommandResult.ok("👆 已滑动 (" + x1 + "," + y1 + ") → (" + x2 + "," + y2 + ")");
         } catch (Exception e) {
             return CommandResult.fail("滑动失败: " + e.getMessage());

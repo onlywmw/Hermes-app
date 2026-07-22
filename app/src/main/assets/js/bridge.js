@@ -86,7 +86,13 @@ window.onerror=function(msg,url,line,col,err){
   try{
     var b=document.getElementById('chatBody');
     if(b){
-      b.innerHTML+='<div class="sysline" style="color:var(--err);border-color:var(--err-dot);">'+esc(String(msg)).slice(0,200)+' (行 '+line+')</div>';
+      /* Fix: 不用 innerHTML+= (会重解析全部子节点、销毁事件绑定)，改用 appendChild */
+      var lineDiv=document.createElement('div');
+      lineDiv.className='sysline';
+      lineDiv.style.color='var(--err)';
+      lineDiv.style.borderColor='var(--err-dot)';
+      lineDiv.textContent=String(msg).slice(0,200)+' (行 '+line+')';
+      b.appendChild(lineDiv);
       b.scrollTop=b.scrollHeight;
     }
   }catch(e2){}
