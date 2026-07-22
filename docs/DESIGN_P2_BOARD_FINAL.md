@@ -1,79 +1,114 @@
 # DESIGN: P2 — 看板彻底删除
 
-版本: v1.0
+版本: v2.0
 日期: 2026-07-22
 status: design-ready
 
 ---
 
-## 问题
+## 验收测试用例
 
-FIX1 的方案是"隐藏底部入口，代码保留"。这是半吊子——代码库里有 `board.js`（131行）、`board-apps/`（4个HTML文件）、`js/app-board.js`（事件绑定）、`view-board` HTML 区块、看板相关 CSS（~80行）。任何新开发者看到这些文件都会困惑："这些是干什么的？为什么还留着？"
-
-"代码保留但不暴露入口" = 未完成的技术债 = V5 重构时的双倍代价。
-
----
-
-## 方案：彻底删除
-
-### 删文件
+### TC-P2-01：底部导航只有两个 tab
 
 ```
-rm app/src/main/assets/js/board.js
-rm app/src/main/assets/js/app-board.js
-rm app/src/main/assets/board-apps/music.html
-rm app/src/main/assets/board-apps/reader.html
-rm app/src/main/assets/board-apps/fitness.html
-rm app/src/main/assets/board-apps/notes.html
-rmdir app/src/main/assets/board-apps/
+Given: MOV v4.0 全新安装
+When: 打开 APP, 看首屏
+Then:
+  1. 底部导航显示: [会话] [运行]
+  2. "看板" tab 不存在
+  3. 两个 tab 各占 50% 宽度（不是 33%）
+  4. 点击"会话" → 房间列表
+  5. 点击"运行" → 运行页
 ```
 
-### 删 HTML
+### TC-P2-02：看板相关 JS 文件不存在
 
-`hermes-shell.html`：
-- 删除 `#view-board` 的整个 div（约 30 行，包括 iframe、触发条、面板、添加应用 sheet）
-- 底部导航删除 `<button data-tab="board">`
-- `<script src="js/board.js">` 删除
-- `<script src="js/app-board.js">` 删除
+```
+Given: 构建 APK
+When: 检查 APK 内容
+Then:
+  1. assets/js/board.js 不存在
+  2. assets/js/app-board.js 不存在
+  3. assets/board-apps/ 目录不存在或其下无任何文件
+  4. hermes-shell.html 不含任何 board 相关 script 标签
+```
 
-### 删 CSS
+### TC-P2-03：看板相关 CSS 已清理
 
-`shell.css`：
-- `.board-trigger` `.board-trigger.hidden` `.board-panel-mask` `.board-panel` `.board-grid` `.board-app-card` `.board-app-card.active` `.board-app-card .ba-icon` `.board-app-card .ba-name` — 约 50 行
+```
+Given: 构建 APK
+When: 检查 assets/css/shell.css
+Then:
+  1. 不含 .board-trigger
+  2. 不含 .board-panel
+  3. 不含 .board-grid
+  4. 不含 .board-app-card
+  5. CSS 文件大小 ≤ 改前大小 - board 相关行数
+```
 
-### 删 JS 引用
+### TC-P2-04：看板相关 HTML 已清理
 
-`render.js` setTab：删除 `if(t==='board')` 分支。  
-局部变量：`_boardApps`、`_boardActive`、`_boardHideTimer`、`_boardInited` — 都在已删除的 board.js 里，不影响。
+```
+Given: 构建 APK
+When: 检查 assets/hermes-shell.html
+Then:
+  1. 不含 id="view-board"
+  2. 不含 id="boardFrame"
+  3. 不含 id="boardTrigger"
+  4. 不含 id="boardPanel"
+  5. 不含 id="boardAddSheet"
+```
+
+### TC-P2-05：现有功能不受影响
+
+```
+Given: 看板已删除
+When: 执行以下操作
+Then:
+  1. 新建房间 → 成功
+  2. 发送消息 → 成功
+  3. 执行设备指令 → 成功
+  4. 打开文件 tab → 成功
+  5. 运行页所有模块正常 → 成功
+  6. 构建通过 → 成功
+```
 
 ---
 
-## 影响
+## 实现约束（不可违反）
 
-| 维度 | 改前 | 改后 |
-|------|------|------|
-| 底部导航 | 会话 / 看板 / 运行 | 会话 / 运行 |
-| 源文件数 | +6 个 board 相关文件 | 0 |
-| 代码行数 | ~350 行 board 相关 | 0 |
-| 用户困惑 | "为什么有音乐播放器" | 不再困惑 |
-| 以后想恢复 | 从 git history 找回 | — |
+1. **必须物理删除文件，不能只注释代码。** `git rm`，不是注释掉。
+2. **CSS 清理必须精确到行。** 搜索 `.board-` 前缀，逐条删除。不要批量替换（可能误删 `.board` 无关的样式）。
+3. **`render.js` 的 `setTab()` 中的 `if(t==='board')` 分支必须删除。** 如果 JS 中其他地方引用了 `_boardApps` / `_boardActive` / `_boardHideTimer` / `_boardInited`，也一并删除。
+4. **`localStorage` 中的 `mov_board_apps_v1` key 不清理。** 用户以后想用回看板（从 git history 恢复代码），数据还在。不占什么空间。
+5. **构建后必须验证 APK 中的 assets 目录不包含被删除的文件。** 用 `unzip -l app.apk | grep board` 确认零结果。
 
 ---
 
-## 如果以后想做看板
+## 删除文件清单（物理删除, git rm）
 
-不是回到现在的"简陋桌面"方案。而是实现 `MOV_MASTER.md` 0.2 节写的"房间产出部署到看板"——当时这只是口号，现在砍掉看板意味着我们承认：**那个口号在当前阶段没有实现路径。**
-
-以后真想做了，设计成"轻应用插件系统"：看板只有一个"部署"入口，应用来自房间产出（AI 写的 HTML），不是用户自己添加的 URL。那是独立的设计文档，不放在这里。
+```
+app/src/main/assets/js/board.js
+app/src/main/assets/js/app-board.js
+app/src/main/assets/board-apps/music.html
+app/src/main/assets/board-apps/reader.html
+app/src/main/assets/board-apps/fitness.html
+app/src/main/assets/board-apps/notes.html
+app/src/main/assets/board-apps/  (空目录, 一并删除)
+```
 
 ---
 
-## 验收
+## 改动清单
 
-- [ ] `board.js`、`app-board.js` 不存在
-- [ ] `board-apps/` 目录不存在
-- [ ] `hermes-shell.html` 无看板相关 HTML
-- [ ] `shell.css` 无看板相关样式
-- [ ] 底部导航只有"会话"和"运行"
-- [ ] 构建通过，测试通过
-- [ ] 运行页和聊天功能不受影响
+| 文件 | 改动 |
+|------|------|
+| `hermes-shell.html` | 删除 `#view-board` div（整个区块） |
+| `hermes-shell.html` | 删除 `<button data-tab="board">` |
+| `hermes-shell.html` | 删除 `<script src="js/board.js">` |
+| `hermes-shell.html` | 删除 `<script src="js/app-board.js">` |
+| `css/shell.css` | 删除 ~50 行 `.board-` 前缀样式 |
+| `js/render.js` | 删除 `if(t==='board')` 分支 |
+| `js/render.js` | 删除任何 `_boardApps` / `_boardActive` 等引用（如果有） |
+| `js/store.js` | 删除 `mov_board_apps_v1` 的读写代码（如果有） |
+| 6 个文件 | git rm（见上方清单） |
