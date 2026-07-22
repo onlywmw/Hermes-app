@@ -151,7 +151,7 @@ public class AiClient {
                 responseBody = readStream(conn);
             } else {
                 String err = readErrorStream(conn);
-                return new AiResponse(false, "AI 请求失败 (" + code + "): " + firstLine(err));
+                return new AiResponse(false, "AI 请求失败 (" + code + "): " + friendlyError(code, err));
             }
 
             JSONObject json = new JSONObject(responseBody);
@@ -216,10 +216,47 @@ public class AiClient {
         }
     }
 
-    private String firstLine(String text) {
+    private static String firstLine(String text) {
         if (text == null || text.trim().isEmpty()) return "无详细信息";
         int idx = text.indexOf('\n');
         if (idx > 0) return text.substring(0, idx).trim();
         return text.trim();
+    }
+
+    /**
+     * HTTP 错误友好化: 常见状态码给中文提示, 并尽量带上服务端 error.message。
+     * 包级 static 以便单测。
+     */
+    static String friendlyError(int code, String errBody) {
+        String hint;
+        switch (code) {
+            case 400: hint = "请求参数错误"; break;
+            case 401: hint = "API Key 无效或已过期"; break;
+            case 402: hint = "余额不足，请充值后重试"; break;
+            case 403: hint = "无权限访问该模型或接口"; break;
+            case 404: hint = "模型不存在或接口地址错误"; break;
+            case 429: hint = "请求过于频繁，请稍后再试"; break;
+            default:  hint = null;
+        }
+        String server = extractServerMessage(errBody);
+        if (hint != null) {
+            // 服务端 message 与提示不重复时附上, 便于定位 (如具体欠费说明)
+            return (server != null && !server.isEmpty() && !hint.contains(server))
+                    ? hint + " · " + server : hint;
+        }
+        if (server != null && !server.isEmpty()) return server;
+        return firstLine(errBody);
+    }
+
+    /** 从 OpenAI 兼容错误体提取 error.message / message, 失败返回 "" */
+    static String extractServerMessage(String errBody) {
+        try {
+            JSONObject j = new JSONObject(errBody);
+            JSONObject err = j.optJSONObject("error");
+            if (err != null) return err.optString("message", "");
+            return j.optString("message", "");
+        } catch (Exception e) {
+            return "";
+        }
     }
 }

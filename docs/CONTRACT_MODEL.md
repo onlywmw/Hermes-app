@@ -91,7 +91,7 @@ Then:
 ### TC-M08：添加模型只填 Key
 
 ```
-Given: 设置页"添加模型"表单, ModelPresets 含 13 个厂商预设
+Given: 设置页"添加模型"表单, ModelPresets 含 14 个厂商预设
 When: 用户在厂商 Spinner 中选择 "智谱 GLM"
 Then:
   1. etBaseUrl 自动填充 "https://open.bigmodel.cn/api/paas/v4" (无 /v1 后缀)
@@ -114,7 +114,7 @@ Then:
 Given: 运行页模型区, "＋ 添加模型" 行
 When: 点击该行
 Then:
-  1. 弹出底部 sheet (不跳原生设置页), 含 13 厂商单选列表 (彩色头像+显示名+备注), 默认选中 DeepSeek
+  1. 弹出底部 sheet (不跳原生设置页), 含 14 厂商单选列表 (彩色头像+显示名+备注), 默认选中 DeepSeek
   2. 切换厂商 → 高级区 baseUrl/模型名按 ModelPresets 自动填充 (可改)
   3. "获取 API Key →" 点击 → BridgeDevice.openUrl 打开该厂商 keyConsoleUrl (仅 http/https)
   4. 选 Ollama → Key 框隐藏, 提示"本地模型无需 Key"
@@ -152,7 +152,7 @@ Then:
 
 ## 厂商预设表 (ModelPresets)
 
-13 家 OpenAI 兼容厂商的单一数据源: `model/ModelPresets.java`。ModelConfig 的空值默认、设置页的自动填充、JS 侧的厂商列表 (`getProviderPresets()`) 都从它取，禁止各自硬编码。
+14 家 OpenAI 兼容厂商的单一数据源: `model/ModelPresets.java`。ModelConfig 的空值默认、设置页的自动填充、JS 侧的厂商列表 (`getProviderPresets()`) 都从它取，禁止各自硬编码。
 
 | key | 显示名 | baseUrl | 默认模型 | 获取 Key 页面 | 备注 |
 |---|---|---|---|---|---|
@@ -165,6 +165,7 @@ Then:
 | minimax | MiniMax | https://api.minimaxi.com/v1 | MiniMax-M2.5 | platform.minimaxi.com | 模型 ID 大小写敏感 |
 | baichuan | 百川智能 | https://api.baichuan-ai.com/v1 | Baichuan4-Turbo | platform.baichuan-ai.com/console/apikey | 需实名 |
 | stepfun | 阶跃星辰 | https://api.stepfun.com/v1 | step-3.5-flash | platform.stepfun.com/interface-key | |
+| mimo | 小米 MiMo | https://api.xiaomimimo.com/v1 | mimo-v2.5 | platform.xiaomimimo.com (控制台 → API Keys) | 按量付费需余额; Token Plan 的 tp- Key 不通用 |
 | hunyuan | 腾讯混元 | https://tokenhub.tencentmaas.com/v1 | hy3 | console.cloud.tencent.com/tokenhub | 新平台 TokenHub |
 | yi | 零一万物 | https://api.lingyiwanwu.com/v1 | yi-lightning | platform.lingyiwanwu.com/apikeys | 维护停滞 |
 | openai | OpenAI | https://api.openai.com/v1 | gpt-4o-mini | platform.openai.com/api-keys | |

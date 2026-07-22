@@ -1,7 +1,7 @@
 package com.hermes.android.model;
 
 /**
- * 厂商预设表 — 13 家 OpenAI 兼容厂商的 baseUrl / 默认模型 / 旗舰模型 / 获取 Key 页面。
+ * 厂商预设表 — 14 家 OpenAI 兼容厂商的 baseUrl / 默认模型 / 旗舰模型 / 获取 Key 页面。
  * 单一数据源: ModelConfig 的空值默认、设置页的自动填充、JS 侧的厂商列表都从这里取。
  * 纯 Java, 不依赖 Android, 可直接单测。
  */
@@ -87,6 +87,12 @@ public class ModelPresets {
             new String[]{"step-3.5-flash", "step-3.7-flash", "step-3"},
             "https://platform.stepfun.com/interface-key",
             ""),
+        p("mimo", "小米 MiMo",
+            "https://api.xiaomimimo.com/v1",
+            "mimo-v2.5",
+            new String[]{"mimo-v2.5", "mimo-v2.5-pro", "mimo-v2.5-pro-ultraspeed"},
+            "https://platform.xiaomimimo.com",
+            "按量付费需余额；Token Plan 的 tp- Key 不通用"),
         p("hunyuan", "腾讯混元",
             "https://tokenhub.tencentmaas.com/v1",
             "hy3",

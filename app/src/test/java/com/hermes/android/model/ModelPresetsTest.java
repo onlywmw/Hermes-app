@@ -4,21 +4,21 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 /**
- * ModelPresets 单元测试 — 13 个预设齐全、默认值、边界输入。
+ * ModelPresets 单元测试 — 14 个预设齐全、默认值、边界输入。
  * 纯 Java 测试，不依赖 Android 运行时。
  */
 public class ModelPresetsTest {
 
     private static final String[] EXPECTED_KEYS = {
         "deepseek", "moonshot", "zhipu", "qwen", "doubao", "spark", "minimax",
-        "baichuan", "stepfun", "hunyuan", "yi", "openai", "ollama"
+        "baichuan", "stepfun", "mimo", "hunyuan", "yi", "openai", "ollama"
     };
 
     // ==================== 预设齐全 ====================
-    @Test public void allReturns13PresetsInOrder() {
+    @Test public void allReturns14PresetsInOrder() {
         ModelPresets.Preset[] all = ModelPresets.all();
         assertNotNull(all);
-        assertEquals(13, all.length);
+        assertEquals(14, all.length);
         for (int i = 0; i < EXPECTED_KEYS.length; i++) {
             assertEquals(EXPECTED_KEYS[i], all[i].key);
         }
@@ -73,6 +73,20 @@ public class ModelPresetsTest {
         assertNotNull(p);
         assertEquals("", p.keyConsoleUrl);
         assertEquals("http://192.168.1.100:11434/v1", p.baseUrl);
+    }
+
+    // ==================== 小米 MiMo (第 14 家) ====================
+    @Test public void mimoPreset() {
+        ModelPresets.Preset p = ModelPresets.get("mimo");
+        assertNotNull(p);
+        assertEquals("小米 MiMo", p.displayName);
+        assertEquals("https://api.xiaomimimo.com/v1", p.baseUrl);
+        assertEquals("mimo-v2.5", p.defaultModel);
+        assertEquals(3, p.models.length);
+        assertEquals("mimo-v2.5-pro", p.models[1]); // 旗舰放第二个
+        assertEquals("mimo-v2.5-pro-ultraspeed", p.models[2]);
+        assertEquals("https://platform.xiaomimimo.com", p.keyConsoleUrl);
+        assertTrue(p.note.contains("tp-"));
     }
 
     @Test public void legacyProvidersUnchanged() {

@@ -33,4 +33,7 @@ dependencies {
     implementation "androidx.work:work-runtime:2.9.1"
 
     testImplementation "junit:junit:4.13.2"
+    /* org.json 的 JVM 实现: 让 AiClient 等使用 org.json 的类可在本地单测中真实解析 JSON
+       (android.jar 的 org.json 是 stub, 单测中会抛异常) */
+    testImplementation "org.json:json:20231013"
 }

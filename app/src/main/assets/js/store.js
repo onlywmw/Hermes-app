@@ -38,11 +38,11 @@ function persistRooms(){
   }catch(e){}
 }
 var AV={ 'claude':['CL','#38bdf8'],'gpt-5':['G5','#a3e635'],'gemini':['GM','#22d3ee'],'mov':['MO','#f59e0b'],'YOU':['ME','#f1f5f9'] };
-/* 厂商色板: 13 个 provider key → 头像区分色 (后端未给 color 时的兜底); 未知 provider 回退金色 */
+/* 厂商色板: 14 个 provider key → 头像区分色 (后端未给 color 时的兜底); 未知 provider 回退金色 */
 var PROVIDER_COLORS={
   'deepseek':'#4D6BFE','moonshot':'#1F1F23','zhipu':'#3A5BF0','qwen':'#615CED',
   'doubao':'#3370FF','spark':'#00A1E0','minimax':'#E8442E','baichuan':'#FF7A00',
-  'stepfun':'#6E56CF','hunyuan':'#00B578','yi':'#4B5563','openai':'#10A37F','ollama':'#52525B'
+  'stepfun':'#6E56CF','mimo':'#FF6900','hunyuan':'#00B578','yi':'#4B5563','openai':'#10A37F','ollama':'#52525B'
 };
 function providerColor(key){return PROVIDER_COLORS[key]||'#D97706';}
 /* 厂商显示名: 以后端桥 getProviderPresets 为准 (与 ModelPresets.displayName 一致), 查不到用 key 本身 */
