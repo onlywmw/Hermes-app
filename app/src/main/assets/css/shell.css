@@ -40,6 +40,8 @@ button,input,textarea{font-family:inherit;}
 .abar .grow{flex:1;}
 .abar .ico-btn{min-width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:rgba(120,120,128,.12);font-family:var(--font-mono);font-size:12px;color:var(--ink-2);cursor:pointer;transition:all var(--t-fast);flex:none;padding:0 4px;border:none;}
 .abar .ico-btn:active{background:rgba(120,120,128,.24);}
+.back-float{position:absolute;top:12px;left:10px;z-index:5;font-family:var(--font-sans);font-size:17px;color:var(--ink-2);cursor:pointer;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:color var(--t-fast)}
+.back-float:active{color:var(--acc)}
 .sbody{flex:1;overflow-y:auto;background:var(--bg);scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:var(--bnav-h);}
 .sbody::-webkit-scrollbar{width:0;}
 
@@ -149,7 +151,7 @@ button,input,textarea{font-family:inherit;}
 @keyframes rise{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
 
 /* ---------- 房间列表 · Apple grouped 质感 ---------- */
-.room-list{padding:0 0 88px;display:flex;flex-direction:column;}
+.room-list{padding:12px 0 88px;display:flex;flex-direction:column;}
 .room{background:var(--panel);border-radius:var(--r-lg);padding:13px 16px;cursor:pointer;transition:background var(--t-fast);position:relative;overflow:hidden;box-shadow:var(--sh-1);}
 .room:active{background:var(--panel-2);}
 .room .r1{display:flex;align-items:center;gap:8px;}
@@ -249,6 +251,13 @@ button,input,textarea{font-family:inherit;}
 .mopt-detail{font-family:var(--font-mono);font-size:9.5px;color:var(--acc-strong);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);line-height:1.5;}
 .sh-label{font-family:var(--font-sans);font-size:11px;font-weight:600;color:var(--ink-2);margin:10px 0 4px;}
 .sh-hint{font-family:var(--font-mono);font-size:9.5px;color:var(--ink-4);text-align:center;margin-bottom:10px;}
+/* 底部按钮条: sticky 防键盘遮挡 (E1) */
+.step-foot{position:sticky;bottom:0;background:var(--panel);padding:6px 0 0;margin:0 -4px;display:flex;gap:8px;border-top:1px solid var(--line-soft);}
+/* 模型列表收折: max-height 过渡防视觉跳跃 (E2) */
+.mpick-wrap{max-height:0;overflow:hidden;transition:max-height .35s var(--spring);}
+.mpick-wrap.open{max-height:500px;overflow-y:auto;}
+.mpick-wrap .mpick{margin-top:6px;}
+.mpick-empty{padding:18px;text-align:center;font-family:var(--font-sans);font-size:12px;color:var(--ink-4);line-height:1.8;}
 
 /* ---------- 自动化 / 运行时 ---------- */
 .auto-input{margin:12px 16px;display:flex;gap:8px;}

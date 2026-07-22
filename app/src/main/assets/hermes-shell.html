@@ -13,12 +13,9 @@
 
     <!-- 会话 tab · 房间列表 -->
     <div class="view act" id="view-rooms">
-      <!-- 大标题头 (mockup bighead) -->
       <div class="bighead">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <div style="min-width:0;flex:1"><h3 data-i18n="rooms.title">房间</h3><div class="bh-sub" id="roomsSub">—</div></div>
-          <span class="ico-btn" id="btnHelp" title="帮助" data-i18n="help">?</span>
-          <span class="ico-btn" id="btnSettings" title="设置" data-i18n="settings">≡</span>
         </div>
       </div>
       <div class="sbody">
@@ -205,7 +202,7 @@
         <div class="sh-label" data-i18n="sheet.descLabel">简单描述 (选填, 帮助 AI 理解项目)</div>
         <textarea id="newRoomDesc" data-i18n-ph="sheet.descPlaceholder" placeholder="这个房间要干什么 · 如: 确定 P0/P1/P2, 输出 PRD 初稿" style="width:100%;height:72px;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;resize:vertical;outline:none;background:var(--panel-2);margin-bottom:12px"></textarea>
         <div class="sh-hint" data-i18n="sheet.hint">下一步: 选择协作方式</div>
-        <div style="display:flex;gap:8px">
+        <div class="step-foot">
           <button class="btn btn-ghost" id="btnStep1Cancel" style="flex:1;justify-content:center" data-i18n="sheet.cancel">取消</button>
           <button class="btn btn-acc" id="btnStep1Next" style="flex:1;justify-content:center" data-i18n="sheet.next">下一步</button>
         </div>
@@ -225,10 +222,9 @@
             <div class="mopt-detail" data-i18n="sheet.councilDetail">从你配置的 AI 中选参与者 · 适合: 方案评审、头脑风暴、技术选型</div>
           </div>
         </div>
-        <!-- 多模型: 动态模型勾选区 (council 模式显示) -->
-        <div id="modelPicker" style="display:none"></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" id="btnStep2Prev" style="flex:1;justify-content:center" data-i18n="sheet.prev">上一步</button>
+        <!-- 多模型: 动态模型勾选区 (council 模式展开, E2: max-height 过渡) -->
+        <div class="mpick-wrap" id="modelPicker"></div>
+        <div class="step-foot">
           <button class="btn btn-acc" id="btnCreate" style="flex:1;justify-content:center" data-i18n="sheet.create">创建</button>
         </div>
       </div>

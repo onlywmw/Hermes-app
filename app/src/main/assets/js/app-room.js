@@ -23,6 +23,10 @@ $('fabNew').addEventListener('click',function(){
   openSheetExclusive('sheetMask','sheetNew');
   $('sheetStep1').style.display='';$('sheetStep2').style.display='none';
   $('newRoomName').value='';$('newRoomDesc').value='';
+  _pickedModels=[]; /* B1: 重置勾选 */
+  newMode='single'; /* 重置模式 */
+  document.querySelectorAll('.mopt').forEach(function(o){o.classList.toggle('sel',o.getAttribute('data-mode')==='single');});
+  $('modelPicker').classList.remove('open'); /* E2: 收起模型列表 */
   $('newRoomName').focus();ev('打开新建房间 sheet');
 });
 $('sheetMask').addEventListener('click',closeSheet);
@@ -38,9 +42,7 @@ $('btnStep1Cancel').addEventListener('click',closeSheet);
 $('btnStep2Back').addEventListener('click',function(){
   $('sheetStep2').style.display='none';$('sheetStep1').style.display='';
 });
-$('btnStep2Prev').addEventListener('click',function(){
-  $('sheetStep2').style.display='none';$('sheetStep1').style.display='';
-});
+/* btnStep2Prev 已删除, ← 箭头替代 (B5) */
 
 /* 协作方式选择 */
 document.querySelectorAll('.mopt').forEach(function(el){el.addEventListener('click',function(){newMode=el.getAttribute('data-mode');document.querySelectorAll('.mopt').forEach(function(o){o.classList.toggle('sel',o===el);});renderModelPicker();});});
@@ -50,11 +52,19 @@ var _pickedModels=[];
 function renderModelPicker(){
   var wrap=$('modelPicker');
   if(!wrap)return;
-  if(newMode!=='council'){wrap.style.display='none';return;}
-  wrap.style.display='';
+  if(newMode!=='council'){wrap.classList.remove('open');return;}
+  wrap.classList.add('open'); /* E2: max-height 展开 */
   var models=B.listModels();
   _pickedModels=models.filter(function(m){return m.isDefault;}).map(function(m){return m.id;});
   var h='<div class="sh-label">'+t('model.selectTitle')+'</div>';
+  /* B4: 空状态 */
+  if(models.length===0){
+    h+='<div class="mpick-empty">'+t('model.none')+'<br><span style="cursor:pointer;color:var(--acc-live);font-weight:600" id="mpickGoSettings">→ 去设置添加模型</span></div>';
+    wrap.innerHTML=h;
+    var btn=document.getElementById('mpickGoSettings');
+    if(btn)btn.addEventListener('click',function(){B.openSettings();closeSheet();});
+    return;
+  }
   models.forEach(function(m){
     var isDef=!!m.isDefault;
     var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
@@ -95,7 +105,7 @@ $('btnCreate').addEventListener('click',function(){
   if(newMode==='council'){
     members={human:[{who:'you',role:'owner'}],ai:_pickedModels.slice()};
   }else{
-    members=['mov'];
+    members={human:[{who:'you',role:'owner'}],ai:['mov']}; /* B2: 统一格式 */
   }
   var seed=[];
   if(desc){

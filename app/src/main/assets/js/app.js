@@ -46,9 +46,7 @@ $('btnStep1Cancel').addEventListener('click',closeSheet);
 $('btnStep2Back').addEventListener('click',function(){
   $('sheetStep2').style.display='none';$('sheetStep1').style.display='';
 });
-$('btnStep2Prev').addEventListener('click',function(){
-  $('sheetStep2').style.display='none';$('sheetStep1').style.display='';
-});
+/* btnStep2Prev 已删除 (B5) */
 
 /* 协作方式选择 */
 document.querySelectorAll('.mopt').forEach(function(el){el.addEventListener('click',function(){newMode=el.getAttribute('data-mode');document.querySelectorAll('.mopt').forEach(function(o){o.classList.toggle('sel',o===el);});renderModelPicker();});});
@@ -146,9 +144,6 @@ $('btnCreate').addEventListener('click',function(){
   ev('新建房间 '+name+' ('+newMode+')');
   renderRooms();persistRooms();enterRoom(id);
 });
-
-/* ============ 顶栏入口 ============ */
-$('btnSettings').addEventListener('click',function(){B.present?B.openSettings():B.toast(t('settings'));ev('打开 AI 设置');});
 
 /* ============ 房间操作 sheet (替代 prompt) ============ */
 var _opsRoomId=null,_opsConfirmAction=null;
@@ -332,11 +327,6 @@ $('btnFileNewCreate').addEventListener('click',function(){
   }else{
     B.toast(res.message||'');
   }
-});
-
-$('btnHelp').addEventListener('click',function(){
-  var desk=ROOMS.find(function(r){return r.id==='desk';});
-  if(desk){enterRoom('desk');setTimeout(function(){$('msgInput').value='帮助';sendMsg();},300);}
 });
 
 /* 运行页刷新按钮 */
