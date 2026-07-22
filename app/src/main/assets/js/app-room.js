@@ -1,157 +1,56 @@
 /* ============================================================
-   app-room.js — 新建房间 Sheet + 房间操作 Sheet + 帮助
-   (从 app.js 拆出, DESIGN_POLISH #2)
+   app-room.js — 新建房间 + 房间操作 + Sheet 工具函数
    ============================================================ */
 
-/* ============ Sheet 互斥: 全局锁, 同一时刻只能有一个 sheet ============ */
-var _sheetOpen=false;
+/* ============ Sheet 工具: 全局互斥 ============ */
 function closeAllSheets(){
   document.querySelectorAll('.sheet-mask').forEach(function(m){m.classList.remove('open');});
   document.querySelectorAll('.sheet').forEach(function(s){s.classList.remove('open');});
-  _sheetOpen=false;
 }
 function openSheetExclusive(maskId,sheetId){
   closeAllSheets();
   $(maskId).classList.add('open');
   $(sheetId).classList.add('open');
-  _sheetOpen=true;
 }
 
-/* ============ 新建房间 sheet (两步) ============ */
-var newMode='single';
+/* ============ 新建房间 ============ */
 $('fabNew').addEventListener('click',function(){
-  openSheetExclusive('sheetMask','sheetNew');
-  $('sheetStep1').style.display='';$('sheetStep2').style.display='none';
-  $('newRoomName').value='';$('newRoomDesc').value='';
-  _pickedModels=[]; /* B1: 重置勾选 */
-  newMode='single'; /* 重置模式 */
-  document.querySelectorAll('.mopt').forEach(function(o){o.classList.toggle('sel',o.getAttribute('data-mode')==='single');});
-  $('modelPicker').classList.remove('open'); /* E2: 收起模型列表 */
-  $('newRoomName').focus();ev('打开新建房间 sheet');
+  closeAllSheets();
+  $('sheetMask').classList.add('open');
+  $('sheetNew').classList.add('open');
+  $('newRoomName').value='';
+  $('newRoomName').focus();
 });
-$('sheetMask').addEventListener('click',closeSheet);
-function closeSheet(){closeAllSheets();}
 
-/* 第一步 → 第二步 */
-$('btnStep1Next').addEventListener('click',function(){
-  $('sheetStep1').style.display='none';$('sheetStep2').style.display='';
-});
-$('btnStep1Cancel').addEventListener('click',closeSheet);
-
-/* 第二步 ← 第一步 */
-$('btnStep2Back').addEventListener('click',function(){
-  $('sheetStep2').style.display='none';$('sheetStep1').style.display='';
-});
-/* btnStep2Prev 已删除, ← 箭头替代 (B5) */
-
-/* 协作方式选择 */
-document.querySelectorAll('.mopt').forEach(function(el){el.addEventListener('click',function(){newMode=el.getAttribute('data-mode');document.querySelectorAll('.mopt').forEach(function(o){o.classList.toggle('sel',o===el);});renderModelPicker();});});
-
-/* ============ 多模型: 动态模型勾选 (新建房间第二步) ============ */
-var _pickedModels=[];
-function renderModelPicker(){
-  var wrap=$('modelPicker');
-  if(!wrap)return;
-  if(newMode!=='council'){wrap.classList.remove('open');return;}
-  wrap.classList.add('open'); /* E2: max-height 展开 */
-  var models=B.listModels();
-  _pickedModels=models.filter(function(m){return m.isDefault;}).map(function(m){return m.id;});
-  var h='<div class="sh-label">'+t('model.selectTitle')+'</div>';
-  /* B4: 空状态 */
-  if(models.length===0){
-    h+='<div class="mpick-empty">'+t('model.none')+'<br><span style="cursor:pointer;color:var(--acc-live);font-weight:600" id="mpickGoSettings">→ 去设置添加模型</span></div>';
-    wrap.innerHTML=h;
-    var btn=document.getElementById('mpickGoSettings');
-    if(btn)btn.addEventListener('click',function(){B.openSettings();closeSheet();});
-    return;
-  }
-  models.forEach(function(m){
-    var isDef=!!m.isDefault;
-    var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
-    h+='<div class="mpick'+(isDef?' sel':'')+'" data-mid="'+esc(m.id)+'">'
-      +'<i class="av" style="background:'+esc(m.color||'#D97706')+'">'+esc((m.name||'?').charAt(0))+'</i>'
-      +'<div class="mpick-info"><b>'+esc(m.name)+'</b><span>'+(isDef?t('model.default')+' · ':'')+(ready?'':t('model.noKey'))+'</span></div>'
-      +'<span class="mcheck">'+(isDef?'✓':'')+'</span></div>';
-  });
-  h+='<div class="mpick-hint" id="mpickHint">'+t('model.selectHint')+'</div>';
-  wrap.innerHTML=h;
-  document.querySelectorAll('#modelPicker .mpick').forEach(function(el){
-    el.addEventListener('click',function(){
-      var mid=el.getAttribute('data-mid');
-      var m=models.find(function(x){return x.id===mid;});
-      if(m&&m.isDefault)return;
-      var idx=_pickedModels.indexOf(mid);
-      if(idx>=0){_pickedModels.splice(idx,1);el.classList.remove('sel');el.querySelector('.mcheck').textContent='';}
-      else{_pickedModels.push(mid);el.classList.add('sel');el.querySelector('.mcheck').textContent='✓';}
-      updatePickHint();
-    });
-  });
-  updatePickHint();
-}
-function updatePickHint(){
-  var el=$('mpickHint');
-  if(el)el.textContent=t('model.selected')+' '+_pickedModels.length+' · '+t('model.selectHint');
+function closeNewRoomSheet(){
+  closeAllSheets();
 }
 
-/* 创建房间 */
+$('sheetMask').addEventListener('click',closeNewRoomSheet);
+$('btnSheetClose').addEventListener('click',closeNewRoomSheet);
+
 $('btnCreate').addEventListener('click',function(){
-  var desc=$('newRoomDesc').value.trim();
-  var name=$('newRoomName').value.trim();
-  if(!name){
-    name=desc?desc.slice(0,15):t('sheet.defaultName');
-  }
+  var name=$('newRoomName').value.trim()||'新项目';
   var id='r'+Date.now();
-  var members;
-  if(newMode==='council'){
-    members={human:[{who:'you',role:'owner'}],ai:_pickedModels.slice()};
-  }else{
-    members={human:[{who:'you',role:'owner'}],ai:['mov']}; /* B2: 统一格式 */
-  }
-  var seed=[];
-  if(desc){
-    seed.push({t:'sys',h:t('sheet.createdMsg')+' '+name+'\n'+t('sheet.goalMsg')+' '+desc});
-    if(newMode==='council'){
-      seed.push({t:'agent',who:'mov',h:t('sheet.councilFirst')});
-    }else{
-      seed.push({t:'agent',who:'mov',h:t('sheet.descFirst')});
-    }
-  }else{
-    if(newMode==='council'){
-      seed.push({t:'sys',h:t('sheet.councilReady')});
-      seed.push({t:'agent',who:'mov',h:t('sheet.councilAsk')});
-    }else{
-      seed.push({t:'agent',who:'mov',h:t('sheet.readyMsg')+' '+name+t('sheet.readySuffix')});
-    }
-  }
-  ROOMS.splice(1,0,{id:id,name:name,mode:newMode,members:members,
-    phase:newMode==='council'?'讨论中':'已交付',
-    last:newMode==='council'?t('sheet.councilReady'):t('sheet.movReady'),
-    time:'现在',unread:0,played:false,msgs:[],seed:seed});
-  $('newRoomName').value='';$('newRoomDesc').value='';closeSheet();
-  var memberObjs;
-  if(newMode==='council'){
-    memberObjs=[{who:'you',role:'owner'}].concat(_pickedModels.map(function(mid){
-      var models=B.listModels();var m=models.find(function(x){return x.id===mid;});
-      return {who:mid,role:m?m.role:'ai'};
-    }));
-  }else{
-    memberObjs=[{who:'mov',role:'agent'}];
-  }
-  B.initRoom(id,name,desc,memberObjs);
+  ROOMS.splice(1,0,{
+    id:id, name:name, mode:'single', members:['mov'],
+    phase:'已交付', last:'MOV 已就绪', time:'现在',
+    unread:0, played:false, msgs:[],
+    seed:[{t:'agent',who:'mov',h:'我是 MOV。直接下达指令或提问即可。'}]
+  });
+  closeNewRoomSheet();
   B.initRoomStorage(id);
-  ev('新建房间 '+name+' ('+newMode+')');
   renderRooms();persistRooms();enterRoom(id);
 });
 
-/* ============ 顶栏入口 ============ */
-$('btnSettings').addEventListener('click',function(){B.present?B.openSettings():B.toast(t('settings'));ev('打开 AI 设置');});
-
-/* ============ 房间操作 sheet (替代 prompt) ============ */
+/* ============ 房间操作 sheet ============ */
 var _opsRoomId=null,_opsConfirmAction=null;
 
 function openRoomOpsSheet(roomId){
   var room=ROOMS.find(function(r){return r.id===roomId;});
   if(!room)return;
+  $('roomOpsMask').classList.add('open');
+  $('sheetRoomOps').classList.add('open');
   _opsRoomId=roomId;
   $('roomOpsName').textContent=room.name;
   var isDesk=(roomId==='desk');
@@ -162,13 +61,14 @@ function openRoomOpsSheet(roomId){
   $('roomOpsMenu').style.display='';
   $('roomOpsConfirm').style.display='none';
   $('roomOpsRename').style.display='none';
-  openSheetExclusive('roomOpsMask','sheetRoomOps');
-  ev('打开房间操作 sheet');
 }
+
 function closeRoomOpsSheet(){
-  closeAllSheets();
+  $('roomOpsMask').classList.remove('open');
+  $('sheetRoomOps').classList.remove('open');
   _opsRoomId=null;_opsConfirmAction=null;
 }
+
 function showOpsConfirm(text,action){
   $('roomOpsMenu').style.display='none';
   $('roomOpsRename').style.display='none';
@@ -177,14 +77,16 @@ function showOpsConfirm(text,action){
   _opsConfirmAction=action;
 }
 
+/* 入口 */
 $('btnRoomMore').addEventListener('click',function(){
   if(curRoomId)openRoomOpsSheet(curRoomId);
 });
+
 function bindRoomListLongPress(){
   document.querySelectorAll('#roomList .room').forEach(function(el){
     bindLongPress(el,{
       text:'',
-      exec:function(){if(!_sheetOpen)openRoomOpsSheet(el.getAttribute('data-room'));}
+      exec:function(){openRoomOpsSheet(el.getAttribute('data-room'));}
     });
   });
 }
@@ -208,25 +110,25 @@ $('opsRenameCancel').addEventListener('click',function(){
 $('opsRenameOk').addEventListener('click',function(){
   var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
   var newName=$('opsRenameInput').value.trim();
-  if(room&&newName){room.name=newName;$('roomTitle').textContent=newName;renderRooms();persistRooms();ev(t('ops.rename')+' → '+newName);}
+  if(room&&newName){room.name=newName;$('roomTitle').textContent=newName;renderRooms();persistRooms();}
   closeRoomOpsSheet();
 });
 
 $('opsArchive').addEventListener('click',function(){
   var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
-  if(room){room.phase='已归档';setPhase(room.id,'已归档');B.toast(t('ops.archived'));ev(t('ops.archive')+' '+room.name);}
+  if(room){room.phase='已归档';setPhase(room.id,'已归档');B.toast('已归档');}
   closeRoomOpsSheet();
 });
 
 $('opsClear').addEventListener('click',function(){
-  showOpsConfirm(t('ops.confirmClear'),function(){
+  showOpsConfirm('确定清空所有聊天记录？不可撤销。',function(){
     clearRoomHistory(_opsRoomId);
     closeRoomOpsSheet();
   });
 });
 
 $('opsDelete').addEventListener('click',function(){
-  showOpsConfirm(t('ops.confirmDelete'),function(){
+  showOpsConfirm('确定删除此房间？不可撤销。',function(){
     var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
     if(room){
       var idx=ROOMS.indexOf(room);
@@ -234,7 +136,7 @@ $('opsDelete').addEventListener('click',function(){
       genCounter++;curRoomId=null;
       try{if(window.HermesBridge)HermesBridge.setRoomOpen('');}catch(e){}
       setTab('chat');showView('view-rooms');renderRooms();persistRooms();
-      B.toast(t('ops.deleted'));ev(t('ops.delete')+' '+room.name);
+      B.toast('已删除');
     }
     closeRoomOpsSheet();
   });
@@ -248,10 +150,7 @@ $('opsConfirmOk').addEventListener('click',function(){
   if(_opsConfirmAction)_opsConfirmAction();
 });
 
-$('btnSheetClose').addEventListener('click',closeSheet);
-
-/* 帮助按钮 */
-$('btnHelp').addEventListener('click',function(){
-  var desk=ROOMS.find(function(r){return r.id==='desk';});
-  if(desk){enterRoom('desk');setTimeout(function(){$('msgInput').value='帮助';sendMsg();},300);}
+/* ============ 顶栏入口 ============ */
+$('btnSettings').addEventListener('click',function(){
+  B.present?B.openSettings():B.toast('设置');
 });
