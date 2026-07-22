@@ -227,7 +227,7 @@ function executeCouncilSteps(id,steps,gen){
           var fcontent=step.args.content||'';
           var card=document.createElement('div');card.className='msg wide';
           var wrap=document.createElement('div');wrap.className='deliver-card';
-          wrap.style.borderLeftColor='#F2DFC2';
+          wrap.style.borderLeftColor='var(--acc-line)';
           var ic=document.createElement('span');ic.className='ic';ic.textContent='W';
           var info=document.createElement('div');info.style.flex='1';info.style.minWidth='0';
           var tt=document.createElement('div');tt.className='tt';tt.textContent=fpath;
@@ -253,7 +253,7 @@ function executeCouncilSteps(id,steps,gen){
             if(action==='write'){
               var res=B.saveWorkFile(id,fpath,fcontent,'mov');
               ss.textContent=fcontent.length+' 字符 · '+(res.ok?'已写入':'写入失败');
-              wrap.style.borderLeftColor=res.ok?'var(--ok-dot)':'#e55';
+              wrap.style.borderLeftColor=res.ok?'var(--ok-dot)':'var(--err-dot)';
               push(id,toolNode('file.write',fpath,dur2,esc(res.ok?('已写入 '+fpath):(res.error||'写入失败'))+'\n<span class="'+(res.ok?'ok-line':'err-line')+'">'+(res.ok?'exit 0':'exit 1')+'</span>'));
               if(res.ok)produced.push(fpath);
             }else{

@@ -8,7 +8,7 @@ function renderSkillPage(){
   var el=$('skillSummary');
   if(el){
     el.textContent=skills.length+' · '+totalUses+' '+t('skill.uses');
-    el.style.color='#E8A33D';
+    el.style.color='var(--ink-3)';
   }
 }
 

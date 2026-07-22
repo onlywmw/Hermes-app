@@ -93,6 +93,10 @@ public class HermesActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_hermes);
 
+        /* 状态栏 + 导航栏融入暗色主题 */
+        getWindow().setStatusBarColor(0xFF0f172a);
+        getWindow().setNavigationBarColor(0xFF0f172a);
+
         aiConfig = new AiProviderConfig(this);
         modelRegistry = new com.hermes.android.model.ModelRegistry(this);
         storageManager = new StorageManager(this);

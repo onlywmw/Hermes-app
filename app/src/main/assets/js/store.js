@@ -37,6 +37,7 @@ function persistRooms(){
     })));
   }catch(e){}
 }
+<<<<<<< Updated upstream
 var AV={ 'claude':['CL','#52525B'],'gpt-5':['G5','#27272A'],'gemini':['GM','#71717A'],'mov':['MO','#D97706'],'YOU':['ME','#09090B'] };
 /* 厂商色板: 13 个 provider key → 头像区分色 (后端未给 color 时的兜底); 未知 provider 回退金色 */
 var PROVIDER_COLORS={
@@ -54,15 +55,24 @@ function providerDisplayName(key){
     return p?p.displayName:key;
   }catch(e){return key;}
 }
+=======
+var AV={ 'claude':['CL','#38bdf8'],'gpt-5':['G5','#a3e635'],'gemini':['GM','#22d3ee'],'mov':['MO','#f59e0b'],'YOU':['ME','#f1f5f9'] };
+>>>>>>> Stashed changes
 /* 多模型: 把注册表模型的颜色合并进 AV 表 */
 function refreshModelAvatars(){
   try{
     var models=B.listModels();
     models.forEach(function(m){
+<<<<<<< Updated upstream
       var col=m.color||providerColor(m.provider);
       AV[m.id]=[(m.name||'?').slice(0,2).toUpperCase(),col];
       /* 兼容: 用模型名也能匹配 */
       AV[m.name]=[(m.name||'?').slice(0,2).toUpperCase(),col];
+=======
+      AV[m.id]=[(m.name||'?').slice(0,2).toUpperCase(),m.color||'#f59e0b'];
+      /* 兼容: 用模型名也能匹配 */
+      AV[m.name]=[(m.name||'?').slice(0,2).toUpperCase(),m.color||'#f59e0b'];
+>>>>>>> Stashed changes
     });
   }catch(e){}
 }

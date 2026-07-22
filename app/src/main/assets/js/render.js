@@ -31,15 +31,15 @@ function safeBubble(html){
 }
 
 /* ---------- 房间列表渲染 · Apple grouped ---------- */
-function avstack(r){var s='<span class="avstack">';var ms=Array.isArray(r.members)?r.members:(r.members&&r.members.ai?r.members.ai:[]);ms.forEach(function(m){var a=AV[m]||AV.mov;var col=safeColor(a[1]);s+='<i style="background:'+col+'">'+esc(a[0])+'</i>';});return s+'</span>';}
+function avstack(r){var s='<span class="avstack">';var ms=Array.isArray(r.members)?r.members:(r.members&&r.members.ai?r.members.ai:[]);if(ms.length===0){s+='<i style="background:var(--acc-live)">M</i>';}else{ms.forEach(function(m){var a=AV[m]||AV.mov;var col=safeColor(a[1]);s+='<i style="background:'+col+'">'+esc(a[0])+'</i>';});}return s+'</span>';}
 /* P0: 颜色白名单 — 只允许 #hex 或字母数字命名色，否则回退默认色 (防 style 注入) */
-function safeColor(c){c=String(c||'');return /^(#[0-9a-fA-F]{3,8}|[a-zA-Z0-9]+)$/.test(c)?c:'#D97706';}
+function safeColor(c){c=String(c||'');return /^(#[0-9a-fA-F]{3,8}|[a-zA-Z0-9]+)$/.test(c)?c:'#f59e0b';}
 function roomCard(r){
   var bc=PHASE_BADGE[r.phase]||'off';
   return '<div class="room" data-room="'+r.id+'">'
     +'<span class="udot'+(r.unread?' show':'')+'"></span>'
     +'<div class="r1">'+avstack(r)+'<b>'+esc(r.name)+'</b><time>'+esc(r.time)+'</time></div>'
-    +'<div class="r2"><span class="mini-tag '+(r.mode==='council'?'council':'')+'">'+(r.mode==='council'?'council · '+(roomAiMembers(r).length||'?')+' AI':'单聊 · mov')+'</span><span class="badge '+bc+'"><span class="dot"></span>'+esc(r.phase)+'</span></div>'
+    +'<div class="r2"><span class="mini-tag '+(r.mode==='council'?'council':'')+'">'+(r.mode==='council'?'council · '+roomAiMembers(r).length+' AI':'单聊 · mov')+'</span><span class="badge '+bc+'"><span class="dot"></span>'+esc(r.phase)+'</span></div>'
     +'<div class="r3">'+esc(r.last)+'</div></div>';
 }
 function renderRooms(){

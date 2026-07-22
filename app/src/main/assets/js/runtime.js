@@ -79,7 +79,7 @@ function refreshChannels(){
   var on=chs.filter(function(c){return c.on;}).length;
   var el=$('chanSummary');
   el.textContent=on+'/'+chs.length+' '+t('rt.online');
-  el.style.color=on===chs.length?'#30D158':'#FF3B30';
+  el.style.color=on===chs.length?'var(--ok)':(on===0?'var(--err)':'var(--warn)');
 }
 
 /* ---------- PERMISSIONS (摘要 + 详情) ---------- */
@@ -93,7 +93,7 @@ function renderPermissions(){
   var granted=ps.filter(function(p){return p.granted;}).length;
   var el=$('permSummary');
   el.textContent=granted+'/'+ps.length+' '+t('rt.granted');
-  el.style.color=granted===ps.length?'#30D158':'#FF3B30';
+  el.style.color=granted===ps.length?'var(--ok)':(granted===0?'var(--err)':'var(--warn)');
 }
 
 /* ---------- 详情弹层 (通道/权限/技能共用) ---------- */
@@ -158,7 +158,11 @@ function refreshModel(){
     var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
     var sel=m.isDefault?' sel':'';
     mh+='<div class="model-row'+sel+'" data-model="'+esc(m.id)+'">'
+<<<<<<< Updated upstream
       +'<i class="av" style="background:'+esc(m.color||providerColor(m.provider))+'">'+esc((m.name||'?').charAt(0))+'</i>'
+=======
+      +'<i class="av" style="background:'+esc(m.color||'#f59e0b')+'">'+esc((m.name||'?').charAt(0))+'</i>'
+>>>>>>> Stashed changes
       +'<div><div class="pv">'+esc(m.role||t('model.roleGeneral'))+(m.isDefault?' · '+t('model.default'):'')+'</div>'
       +'<div class="md">'+esc(m.name)+'</div>'
       +'<div class="ms">'+modelStatusDot(m)+'<span>'+esc(modelStatusText(m))+'</span></div></div>'

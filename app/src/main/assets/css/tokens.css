@@ -1,65 +1,78 @@
 /* ============================================================
-   MOV DESIGN TOKENS V2.0 · Apple 风格
-   纯变量文件 · shell.css 与 board-apps/*.html 共用
-   变量名与 V1 完全一致 (只换值 + 纯增量)
+   MOV DESIGN TOKENS V4.0 · Precision Grid
+   深空蓝底 · 纯平 · 严格 4px 网格 · 金色三职责
+   参考: Linear 精确感 + Raycast 数据密度 + Claude 留白
    ============================================================ */
 :root {
-  /* INK · 文字色阶 (Apple 官方灰阶) */
-  --ink-1:#1D1D1F; --ink-2:#48484A; --ink-3:#6E6E73; --ink-4:#AEAEB2;
+  /* INK · 四级文字色阶 (Slate) */
+  --ink-1:#f1f5f9; --ink-2:#cbd5e1; --ink-3:#94a3b8; --ink-4:#64748b;
 
-  /* SURFACE · 层级 */
-  --line:#E5E5EA; --line-soft:#F2F2F5;
-  --bg:#F2F2F7; --panel:#FFFFFF; --panel-2:#F7F7F9;
-  --code-bg:#1C1C1E; --code-ink:#E5E5EA;
+  /* SURFACE · 层级靠边框 */
+  --line:#334155; --line-soft:#1e293b;
+  --bg:#0f172a; --panel:#1e293b; --panel-2:#162036;
+  --code-bg:#0b1120; --code-ink:#e2e8f0;
 
-  /* ACCENT · 信使金 (保留, 微调饱和度) */
-  --acc:#B45309; --acc-strong:#8A4B00; --acc-live:#E08600;
-  --acc-tint:#FBEEDB; --acc-tint-2:#FDF7EE;
+  /* ACCENT · 信使金 · 选中 / 主操作 / 品牌 */
+  --acc:#d97706; --acc-strong:#fbbf24; --acc-live:#f59e0b;
+  --acc-tint:rgba(245,158,11,.16); --acc-tint-2:rgba(245,158,11,.07);
+  --acc-line:rgba(245,158,11,.35);
 
-  /* STATUS · 对齐 iOS 系统色 */
-  --ok:#248A3D; --ok-dot:#30D158;
-  --err:#D70015; --err-dot:#FF3B30;
+  /* STATUS · 三色分工 */
+  --ok:#34d399; --ok-dot:#10b981;
+  --warn:#fbbf24; --warn-dot:#f59e0b;
+  --err:#f87171; --err-dot:#ef4444;
 
-  /* FONT · Sans 正文 + Mono 数据 */
+  /* FONT */
   --font-mono:'JetBrains Mono',ui-monospace,'SF Mono','Cascadia Mono',Consolas,monospace;
   --font-sans:-apple-system,'SF Pro Text','Segoe UI',Roboto,'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
 
-  /* SIZE */
-  --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
-  --fs-16:16px; --fs-18:18px; --fs-22:22px; --fs-28:28px;
-  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px; --s12:48px;
+  /* ── TYPE SCALE · 整数阶梯，禁止小数 ── */
+  --fs-xs:10px;    /* 辅助标签、时间戳 */
+  --fs-sm:11px;    /* 次要信息、badge */
+  --fs-base:13px;  /* 正文、输入框 */
+  --fs-md:14px;    /* 卡片标题 */
+  --fs-lg:16px;    /* Sheet 标题、大标题 */
+  --fs-xl:20px;    /* 页面标题 */
+  --fs-2xl:26px;   /* 大标题头 */
 
-  /* SHAPE · 圆角放大一档 */
-  --r-sm:8px; --r-md:14px; --r-lg:20px; --r-xl:26px;
+  /* ── SPACING · 严格 4px 网格 ── */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
 
-  /* SHADOW · 更轻 */
-  --sh-1:0 1px 2px rgba(0,0,0,.04);
-  --sh-2:0 4px 14px rgba(0,0,0,.07);
-  --sh-3:0 14px 44px rgba(0,0,0,.14);
+  /* ── COMPONENT SIZES · 只有 sm/md/lg 三档 ── */
+  /* 可点击元素高度 */
+  --h-sm:32px;   /* badge, mini-tag, 小按钮 */
+  --h-md:40px;   /* 标准按钮, 输入行 */
+  --h-lg:48px;   /* 主操作, 列表项 */
+  /* 图标/头像方块 */
+  --av-sm:24px;  /* 消息头像, 小图标 */
+  --av-md:32px;  /* 卡片图标, 模型头像 */
+  --av-lg:40px;  /* 大头像, 文件网格图标 */
+  /* 列表项固定高度 */
+  --row-h:56px;  /* 房间/模型/技能等列表行 */
 
-  /* MOTION · Apple 弹簧 */
+  /* ── SHAPE · 三档圆角 ── */
+  --r-sm:8px;    /* 按钮、badge、小元素 */
+  --r-md:12px;   /* 卡片、输入框 */
+  --r-lg:16px;   /* Sheet、Dialog、大容器 */
+
+  /* ── SHADOW · 深色下只留浮层 ── */
+  --sh-1:none;
+  --sh-2:0 4px 16px rgba(0,0,0,.32);
+  --sh-3:0 16px 48px rgba(0,0,0,.5);
+
+  /* ── MOTION ── */
   --t-fast:120ms ease-out;
   --t-med:320ms cubic-bezier(.32,.72,0,1);
   --spring:cubic-bezier(.32,.72,0,1);
 
-  /* GLASS · 毛玻璃 (NEW) */
-  --glass:rgba(249,249,251,.76);
-  --glass-dark:rgba(28,28,30,.62);
-  --blur:blur(22px) saturate(180%);
+  /* ── SHELL ── */
+  --glass:#1e293b;
+  --glass-dark:#0b1120;
+  --blur:none;
+  --bnav-h:calc(56px + env(safe-area-inset-bottom,0px));
 
-  /* 底部导航高度 (含安全区) · 内容全出血滚到毛玻璃下方 */
-  --bnav-h:calc(64px + env(safe-area-inset-bottom,0px));
-
-  /* AVATAR · AI 成员固定色板 (NEW · iOS 系统色) */
-  --av-1:#0A84FF; --av-2:#BF5AF2; --av-3:#FF375F;
-  --av-4:#30D158; --av-5:#FF9F0A; --av-6:#64D2FF;
-}
-
-/* 毛玻璃兜底: WebView 76- 或低端机降级为实色 */
-@supports not (backdrop-filter:blur(1px)) {
-  :root {
-    --glass:rgba(249,249,251,.96);
-    --glass-dark:rgba(28,28,30,.92);
-    --blur:none;
-  }
+  /* ── AVATAR 色板 ── */
+  --av-1:#38bdf8; --av-2:#a3e635; --av-3:#fb7185;
+  --av-4:#34d399; --av-5:#f59e0b; --av-6:#22d3ee;
 }
