@@ -73,7 +73,6 @@ function setTab(t){
   if(t==='chat'){showView(curRoomId?'view-room':'view-rooms');}
   else{showView('view-'+t);}
   if(t==='run'){refreshRuntime();}
-  if(t==='board'){initBoardIfNeeded();}
 }
 document.querySelectorAll('.bnav button').forEach(function(b){b.addEventListener('click',function(){setTab(b.getAttribute('data-tab'));ev('切换 Tab → '+b.getAttribute('data-tab'));});});
 

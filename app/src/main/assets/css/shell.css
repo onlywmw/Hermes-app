@@ -472,23 +472,6 @@ button,input,textarea{font-family:inherit;}
 .preview-name{font-family:var(--font-mono);font-size:12px;font-weight:600;}
 .preview-body{flex:1;overflow:auto;padding:16px;font-family:var(--font-mono);font-size:11px;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
 
-/* ---------- 看板 v2 · 深色毛玻璃触发条 + 面板 ---------- */
-.board-trigger{position:absolute;bottom:calc(var(--bnav-h) + 14px);left:50%;transform:translateX(-50%);height:40px;padding:0 14px 0 6px;background:var(--glass-dark);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:99px;display:flex;align-items:center;gap:8px;cursor:pointer;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.35);transition:transform .35s var(--spring),opacity .3s ease;}
-.board-trigger.hidden{transform:translateX(-50%) translateY(150%);opacity:0;}
-.board-trigger .bt-icon{width:26px;height:26px;border-radius:50%;background:var(--acc-live);display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;}
-.board-trigger span:last-child{font-family:var(--font-sans);font-size:12px;font-weight:600;color:#F5F5F7;}
-.board-panel-mask{position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:29;opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s;}
-.board-panel-mask.open{opacity:1;visibility:visible;transition:opacity .28s ease;}
-.board-panel{position:absolute;left:0;right:0;bottom:0;background:var(--glass);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);border-radius:var(--r-xl) var(--r-xl) 0 0;z-index:30;transform:translateY(102%);transition:transform .38s var(--spring);display:flex;flex-direction:column;padding:10px 18px 26px;}
-.board-panel.open{transform:none;}
-.board-panel::before{content:'';display:block;width:36px;height:4.5px;border-radius:3px;background:rgba(120,120,128,.3);margin:2px auto 10px;}
-.board-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 8px;padding:8px 0;overflow-y:auto;}
-.board-app-card{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;transition:all var(--t-fast);}
-.board-app-card:active .ba-icon{transform:scale(.86);}
-/* 身份区分04: 自带 = 深色块金字 · 选中 = 金环 */
-.board-app-card .ba-icon{width:52px;height:52px;border-radius:15px;background:var(--code-bg);color:#E8A33D;display:grid;place-items:center;font-size:19px;font-weight:800;transition:transform .22s var(--spring);box-shadow:0 4px 12px rgba(0,0,0,.22);}
-.board-app-card.active .ba-icon{box-shadow:0 0 0 2.5px var(--bg),0 0 0 4.5px var(--acc-live);}
-.board-app-card .ba-name{font-family:var(--font-sans);font-size:10.5px;color:var(--ink-2);font-weight:500;text-align:center;}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}

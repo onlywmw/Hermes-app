@@ -96,30 +96,7 @@
       </div>
     </div>
 
-    <!-- 看板 tab (v2: 悬浮切换) -->
-    <div class="view" id="view-board">
-      <iframe id="boardFrame" src="" sandbox="allow-scripts allow-same-origin" style="position:absolute;inset:0;width:100%;height:100%;border:none;background:#fff;"></iframe>
-      <div class="board-trigger hidden" id="boardTrigger">
-        <span class="bt-icon" id="boardTriggerIcon">音</span>
-        <span id="boardTriggerName">音乐</span>
-      </div>
-      <div class="board-panel-mask" id="boardPanelMask"></div>
-      <div class="board-panel" id="boardPanel">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px">
-          <h5 data-i18n="board.title">应用</h5>
-          <span class="sheet-close" id="boardPanelClose">✕</span>
-        </div>
-        <div class="board-grid" id="boardGrid"></div>
-      </div>
-      <!-- 添加应用 sheet -->
-      <div class="sheet-mask" id="boardAddMask" style="z-index:31"></div>
-      <div class="sheet" id="boardAddSheet" style="z-index:32">
-        <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="board.add">添加应用</h5><span class="sheet-close" id="btnBoardAddClose">✕</span></div>
-        <input id="boardAddName" data-i18n-ph="board.addName" placeholder="应用名称" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:8px 0">
-        <input id="boardAddUrl" data-i18n-ph="board.addUrl" placeholder="应用地址 (URL 或本地路径)" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:0 0 8px">
-        <button class="btn btn-acc" id="btnBoardAddOk" style="width:100%;justify-content:center" data-i18n="board.add">添加应用</button>
-      </div>
-    </div>
+
 
     <!-- 运行 tab (v3: 个人信息 + 精简 + 合并 Cron) -->
     <div class="view" id="view-run">
@@ -234,8 +211,6 @@
   </div>
   <div class="bnav">
     <button data-tab="chat" class="on"><span class="ic">▤<i class="nd" id="ndChat"></i></span><span data-i18n="nav.chat">会话</span></button>
-    <!-- 看板暂隐藏 (REDESIGN_BRIEF §F3: 待重新定位) -->
-    <!-- <button data-tab="board"><span class="ic">▦</span><span data-i18n="nav.board">看板</span></button> -->
     <button data-tab="run"><span class="ic">▣</span><span data-i18n="nav.runtime">运行</span></button>
   </div>
 </div>
@@ -249,12 +224,10 @@
 <script src="js/chat.js"></script>
 <script src="js/skills.js"></script>
 <script src="js/files.js"></script>
-<script src="js/board.js"></script>
 <script src="js/runtime.js"></script>
 <script src="js/app-chat.js"></script>
 <script src="js/app-room.js"></script>
 <script src="js/app-files.js"></script>
-<script src="js/app-board.js"></script>
 <script src="js/app-run.js"></script>
 <script src="js/app.js"></script>
 </body>
