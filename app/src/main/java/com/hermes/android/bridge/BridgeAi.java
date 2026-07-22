@@ -84,6 +84,60 @@ public class BridgeAi extends BaseBridge {
         });
     }
 
+    /** DESIGN_NEW_ROOM v2: 单聊房按房间绑定模型对话 (modelId 空/失效 → 注册表默认模型) */
+    public void aiChatWithModel(String text, String modelId, String callbackId) {
+        if (text == null || text.trim().isEmpty()) {
+            evalJs("window._hermesCb('" + callbackId + "',{\"ok\":false,\"content\":\"消息为空\"})");
+            return;
+        }
+        if (text.length() > 4000) {
+            evalJs("window._hermesCb('" + callbackId + "',{\"ok\":false,\"content\":\"消息过长\"})");
+            return;
+        }
+        aiExecutor.execute(() -> {
+            String resultJson;
+            try {
+                com.hermes.android.model.ModelConfig mc = null;
+                if (modelId != null && !modelId.isEmpty()) mc = modelRegistry.get(modelId);
+                if (mc == null) mc = modelRegistry.getDefault();
+                if (mc == null) {
+                    resultJson = "{\"ok\":false,\"content\":\"AI 尚未配置模型, 运行页添加后即可畅聊。\"}";
+                } else {
+                    AiClient client = new AiClient(mc);
+                    List<AiClient.Message> history;
+                    synchronized (chatHistory) {
+                        history = new ArrayList<>(chatHistory);
+                    }
+                    AiClient.AiResponse resp = client.chat(text, history);
+                    if (resp.success) {
+                        synchronized (chatHistory) {
+                            chatHistory.add(new AiClient.Message("user", text));
+                            chatHistory.add(new AiClient.Message("assistant", resp.content));
+                            while (chatHistory.size() > MAX_HISTORY * 2) chatHistory.remove(0);
+                        }
+                        activity.saveChatHistoryPublic();
+                        resultJson = new JSONObject()
+                                .put("ok", true)
+                                .put("content", resp.content).toString();
+                    } else {
+                        resultJson = new JSONObject()
+                                .put("ok", false)
+                                .put("content", "AI 调用失败: " + resp.content).toString();
+                    }
+                }
+            } catch (Exception e) {
+                try {
+                    resultJson = new JSONObject()
+                            .put("ok", false)
+                            .put("content", "AI 调用异常: " + e.getMessage()).toString();
+                } catch (Exception ex) {
+                    resultJson = "{\"ok\":false,\"content\":\"AI 调用异常\"}";
+                }
+            }
+            evalJs("window._hermesCb('" + callbackId + "'," + resultJson + ")");
+        });
+    }
+
     public void councilAsync(String topic, String callbackId) {
         councilAsync(topic, "[]", null, callbackId);
     }

@@ -490,7 +490,7 @@ button,input,textarea{font-family:inherit;}
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}
 }
 
-/* ---------- 居中弹窗 ---------- */
+/* ---------- 居中弹窗 (DESIGN_NEW_ROOM v2: 新建房间已改底部 Sheet, 此类暂保留备用) ---------- */
 .dialog-mask{display:none;position:absolute;inset:0;background:rgba(2,6,23,.6);z-index:99;}
 .dialog-mask.open{display:flex;align-items:center;justify-content:center;opacity:1;visibility:visible;transition:opacity .2s ease;}
 .dialog{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--sp-5);width:calc(100% - var(--sp-12));max-width:360px;box-shadow:var(--sh-3);transform:scale(.92);transition:transform .25s var(--spring);}

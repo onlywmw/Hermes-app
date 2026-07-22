@@ -40,6 +40,7 @@ public class BridgeFactory {
 
     // ==================== AI ====================
     @JavascriptInterface public void aiChatAsync(String text, String cbId) { ai.aiChatAsync(text, cbId); }
+    @JavascriptInterface public void aiChatWithModel(String text, String modelId, String cbId) { ai.aiChatWithModel(text, modelId, cbId); }
     @JavascriptInterface public void councilAsync(String topic, String cbId) { ai.councilAsync(topic, cbId); }
     @JavascriptInterface public void councilAsync(String topic, String modelIdsJson, String context, String cbId) { ai.councilAsync(topic, modelIdsJson, context, cbId); }
     @JavascriptInterface public String aiChat(String text) { return ai.aiChat(text); }

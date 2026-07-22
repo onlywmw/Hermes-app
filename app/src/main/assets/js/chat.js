@@ -11,8 +11,7 @@ function enterRoom(id){
   r.unread=0;
   $('roomTitle').textContent=r.name;
   /* 多模型: 副标题显示真实模型名 */
-  var aiNames=roomAiNames(r);
-  $('roomSub').textContent=(r.mode==='council'?'council · '+(aiNames.length?aiNames.join(' / '):'--')+' · 主持 mov':'单聊 · mov-agent');
+  $('roomSub').textContent=roomSubtitle(r);
   $('roomPhaseBadge').innerHTML=phaseBadge(r.phase);
   var b=$('chatBody');b.innerHTML='';
   if((!r.msgs||r.msgs.length===0)&&(r.msgData&&r.msgData.length>0)){
@@ -53,13 +52,20 @@ async function runDeviceCommand(id,text){
   ev('执行设备指令: '+text+' → '+(ok?'OK':'FAIL'));
 }
 
+/* 房间副标题 (enterRoom / 成员编辑共用, DESIGN_NEW_ROOM v2) */
+function roomSubtitle(r){
+  var aiNames=roomAiNames(r);
+  return r.mode==='council'?'council · '+(aiNames.length?aiNames.join(' / '):'--')+' · 主持 mov':'单聊 · mov-agent';
+}
+
 /* ---------- AI 对话 (P0-1: 异步, 不阻塞 UI) ---------- */
-function runAiChat(id,text){
+/* modelId 可选: DESIGN_NEW_ROOM v2 单聊房按绑定模型路由 */
+function runAiChat(id,text,modelId){
   var gen=genCounter;
   var alive=function(){return genCounter===gen&&curRoomId===id;};
   var typing=mkMsg({t:'agent',who:'mov',caret:true});
   showTyping(id,typing);
-  B.aiAsync(text,function(resp){
+  var onResp=function(resp){
     killTyping(typing);
     if(!alive())return;
     /* Fix: 去掉 esc 双重转义 (safeBubble 已 textNode 防护); 失败时 content 即错误信息 */
@@ -67,22 +73,31 @@ function runAiChat(id,text){
     push(id,mkMsg({t:'agent',who:'mov',h:content}));
     var room=ROOMS.find(function(r){return r.id===id;});
     if(room){room.last=(content||'').replace(/\n/g,' ').slice(0,32);room.time='现在';renderRooms();persistRooms();}
-  });
+  };
+  if(modelId){B.aiChatWithModel(text,modelId,onResp);}
+  else{B.aiAsync(text,onResp);}
 }
 
 function routeMessage(id,text){
   var parsed=B.parse(text);
   if(parsed.cmd){
     runDeviceCommand(id,text);
+    return;
+  }
+  /* DESIGN_NEW_ROOM v2: 非 desk 且绑定了模型的房间 → 按房间模型对话 */
+  var room=ROOMS.find(function(r){return r.id===id;});
+  var mids=room?roomAiMembers(room):[];
+  if(room&&id!=='desk'&&mids.length>0){
+    runAiChat(id,text,mids[0]);
+    return;
+  }
+  var info=B.aiInfo();
+  if(info.enabled&&info.configured){
+    runAiChat(id,text);
+  }else if(!info.enabled){
+    push(id,mkMsg({t:'agent',who:'mov',h:'「'+esc(text)+'」不是设备指令, 且 AI 已关闭。点右上角 <code>≡</code> 可启用并配置 API。'}));
   }else{
-    var info=B.aiInfo();
-    if(info.enabled&&info.configured){
-      runAiChat(id,text);
-    }else if(!info.enabled){
-      push(id,mkMsg({t:'agent',who:'mov',h:'「'+esc(text)+'」不是设备指令, 且 AI 已关闭。点右上角 <code>≡</code> 可启用并配置 API。'}));
-    }else{
-      push(id,mkMsg({t:'agent',who:'mov',h:'「'+esc(text)+'」不是设备指令。AI 尚未配置 API Key —— 点右上角 <code>≡</code> 设置后即可畅聊。输入 <code>帮助</code> 查看全部设备指令。'}));
-    }
+    push(id,mkMsg({t:'agent',who:'mov',h:'「'+esc(text)+'」不是设备指令。AI 尚未配置 API Key —— 点右上角 <code>≡</code> 设置后即可畅聊。输入 <code>帮助</code> 查看全部设备指令。'}));
   }
 }
 

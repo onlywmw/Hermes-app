@@ -167,13 +167,21 @@
       </div>
     </div>
 
-    <!-- 新建房间: 居中弹窗 -->
-    <div class="dialog-mask" id="newRoomMask">
-      <div class="dialog" id="newRoomDialog">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><h5>新建房间</h5><span class="sheet-close" id="btnSheetClose">✕</span></div>
-        <input id="newRoomName" placeholder="项目名 · 如: 产品V2.0" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin-bottom:10px">
-        <button class="btn btn-acc" id="btnCreate" style="width:100%;justify-content:center">创建</button>
+    <!-- 新建房间: 底部 Sheet (DESIGN_NEW_ROOM v2) -->
+    <div class="sheet-mask" id="newRoomMask"></div>
+    <div class="sheet" id="newRoomSheet">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="sheet.title">新建项目房间</h5><span class="sheet-close" id="btnSheetClose">✕</span></div>
+      <div class="sh-label" data-i18n="sheet.nameLabel">项目名</div>
+      <input id="newRoomName" data-i18n-ph="sheet.placeholder" placeholder="项目名 · 如: 产品V2.0">
+      <div class="sh-label" data-i18n="sheet.modeLabel">协作方式</div>
+      <div class="mode-opts" id="newRoomModeOpts">
+        <div class="mopt sel" data-mode="single"><b data-i18n="sheet.single">和 MOV 一对一</b><span data-i18n="sheet.singleDesc">快速问答、设备指令、简单记录</span></div>
+        <div class="mopt" data-mode="council"><b data-i18n="sheet.council">拉 AI 团队一起讨论</b><span data-i18n="sheet.councilDesc">多角色给不同视角, 投票决策</span></div>
       </div>
+      <div class="sh-label" data-i18n="sheet.modelsLabel">AI 成员</div>
+      <div id="newRoomModels"></div>
+      <div class="mpick-empty" id="newRoomModelsEmpty" style="display:none"><span data-i18n="sheet.modelsEmpty">还没有配置模型</span> · <span id="btnGotoModels" style="color:var(--acc-strong);cursor:pointer" data-i18n="sheet.modelsAdd">去添加 →</span></div>
+      <button class="btn btn-acc" id="btnCreate" style="width:100%;justify-content:center;margin-top:var(--sp-2)" data-i18n="sheet.create">创建</button>
     </div>
 
     <!-- 房间操作 sheet -->
@@ -183,6 +191,7 @@
       <div class="sh-sub" id="roomOpsName">—</div>
       <div id="roomOpsMenu">
         <div class="sheet-row" id="opsRename" data-i18n="ops.rename">重命名</div>
+        <div class="sheet-row" id="opsMembers" data-i18n="ops.members">AI 成员</div>
         <div class="sheet-row" id="opsArchive" data-i18n="ops.archive">归档</div>
         <div class="sheet-row" id="opsClear" data-i18n="ops.clear">清空聊天记录</div>
         <div class="sheet-row danger" id="opsDelete" data-i18n="ops.delete">删除房间</div>
@@ -199,6 +208,19 @@
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost" id="opsRenameCancel" style="flex:1;justify-content:center" data-i18n="ops.cancel">取消</button>
           <button class="btn btn-acc" id="opsRenameOk" style="flex:1;justify-content:center" data-i18n="ops.confirm">确认</button>
+        </div>
+      </div>
+      <!-- AI 成员编辑 (DESIGN_NEW_ROOM v2: 创建后可改模式与成员) -->
+      <div id="roomOpsMembers" style="display:none">
+        <div class="mode-opts" id="opsModeOpts">
+          <div class="mopt" data-mode="single"><b data-i18n="sheet.single">和 MOV 一对一</b><span data-i18n="sheet.singleDesc">快速问答、设备指令、简单记录</span></div>
+          <div class="mopt" data-mode="council"><b data-i18n="sheet.council">拉 AI 团队一起讨论</b><span data-i18n="sheet.councilDesc">多角色给不同视角, 投票决策</span></div>
+        </div>
+        <div id="opsModels"></div>
+        <div class="mpick-empty" id="opsModelsEmpty" style="display:none"><span data-i18n="sheet.modelsEmpty">还没有配置模型</span> · <span id="btnOpsGotoModels" style="color:var(--acc-strong);cursor:pointer" data-i18n="sheet.modelsAdd">去添加 →</span></div>
+        <div style="display:flex;gap:8px;margin-top:var(--sp-2)">
+          <button class="btn btn-ghost" id="opsMembersCancel" style="flex:1;justify-content:center" data-i18n="ops.cancel">取消</button>
+          <button class="btn btn-acc" id="opsMembersOk" style="flex:1;justify-content:center" data-i18n="ops.save">保存</button>
         </div>
       </div>
     </div>
