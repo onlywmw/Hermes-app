@@ -11,7 +11,7 @@ status: design-ready
 
 Android 手机上，拉多个 AI 模型进房间一起干活。
 
-两个 tab：**会话**（房间列表 + 聊天 + 文件）和 **运行**（设备状态 + AI 模型 + Cron）。
+两个 tab：**会话**（房间列表 + 聊天 + 文件）和 **运行**（设备状态 + AI 模型 + Cron）。看板已删除（P2），不再存在。
 
 ---
 
@@ -23,8 +23,8 @@ Android 手机上，拉多个 AI 模型进房间一起干活。
 4. **所有桥方法参数必须过 `BridgeValidator`。** 无例外。
 5. **所有 AI 文件写入必须走预览卡片（用户确认才落盘）。** 无例外。
 6. **Cron 只能执行白名单 action。** 无例外。
-7. **JS 文件加载顺序 = 依赖顺序。** `i18n → store → bridge → render → council → chat → skills → files → board → runtime → app-chat → app-room → app-files → app-board → app-run → app`。
-8. **三个 view（view-rooms, view-room, view-run）全部预渲染在 HTML，切换通过 CSS `.act` class。** 不销毁重建。
+7. **JS 文件加载顺序 = 依赖顺序。** `i18n → store → bridge → render → council → chat → skills → files → runtime → app-chat → app-room → app-files → app-run → app`。
+8. **两个 view（view-rooms, view-room）在会话 tab 中切换，view-run 独立。** 切换通过 CSS `.act` class，不销毁重建。
 
 ---
 

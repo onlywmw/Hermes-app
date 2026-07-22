@@ -2,19 +2,19 @@
 
 status: active
 
-> **定义**: 运行在 Android 手机上的多模型协作工作台。人和 AI 在项目房间里共同工作，产出文件。有看板运行轻应用，能直接操控设备。
+> **定义**: 运行在 Android 手机上的多模型协作工作台。人和 AI 在项目房间里共同工作，产出文件。能直接操控设备。
 
-**完整项目文档**: [docs/MOV_MASTER.md](docs/MOV_MASTER.md)
+**完整项目文档**: [docs/CONTRACT_ARCH.md](docs/CONTRACT_ARCH.md)
 
 ---
 
 ## Tab 结构
 
 ```
-会话  │  看板(🔵)  │  运行
-──────┼───────────┼──────
-AI 协作│轻应用面板  │系统 & 技能
-项目房间│Dock + Web │设备 & Cron
+会话  │  运行
+──────┼──────
+AI 协作│系统 & 模型
+项目房间│设备 & Cron
 ```
 
 ## 核心架构
@@ -63,7 +63,7 @@ MOVActivity (WebView 壳)
 
 | 优先级 | 事项 |
 |--------|------|
-| ✅ | 看板 tab 实现 (v2.0 悬浮切换) |
+| ✅ | 看板 tab 已删除 (P2) |
 | ✅ | 技能合并到运行页 |
 | ✅ | 多模型管理 (ModelRegistry + Council) |
 | ✅ | 运行页个人信息 + 精简 (DESIGN_OPTIMIZE §1) |
@@ -72,4 +72,3 @@ MOVActivity (WebView 壳)
 | 🔵 | SQLite 存储升级 (DESIGN_SQLITE.md, draft) |
 | 🔵 | 伪流式 Council (DESIGN_HYBRID.md) |
 | 🔵 | 遥测移除 (StatsCollector) |
-| 🔵 | 看板应用内容填充 (音乐/阅读/健身/笔记) |
