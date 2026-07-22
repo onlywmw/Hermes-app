@@ -260,7 +260,7 @@ public class HermesActivity extends AppCompatActivity {
                     if (idx >= 0) name = c.getString(idx);
                 }
             }
-            java.io.File base = new java.io.File("/sdcard/mov/rooms/" + roomId);
+            java.io.File base = new java.io.File(storageManager.getRoomsDir(), roomId);
             base.mkdirs();
             java.io.File target = new java.io.File(base, name);
             try (java.io.InputStream is = getContentResolver().openInputStream(uri);
