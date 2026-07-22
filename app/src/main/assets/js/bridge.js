@@ -16,8 +16,8 @@ var B=(function(){
     ai:function(t){try{return b?b.aiChat(t):'';}catch(e){return '';}},
     /* P0-1: 异步 AI */
     aiAsync:function(t,cb){if(!b){cb({ok:false,content:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.aiChatAsync(t,id);},
-    /* P1-5: 异步 Council (多模型: 传 modelIds) */
-    councilAsync:function(topic,modelIds,cb){if(!b){cb({ok:false,error:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.councilAsync(topic,JSON.stringify(modelIds||[]),id);},
+    /* P1-5: 异步 Council (伪流式: 通过 window._councilReply 回调, DESIGN_HYBRID v2.0) */
+    councilAsync:function(topic,modelIds,cb){if(!b){cb({ok:false,error:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.councilAsync(topic,JSON.stringify(modelIds||[]),'',id);},
     aiInfo:function(){try{return b?JSON.parse(b.getAiInfo()):{enabled:false,configured:false};}catch(e){return {enabled:false,configured:false};}},
     device:function(){try{return b?JSON.parse(b.getDeviceInfo()):{};}catch(e){return {};}},
     toast:function(m){try{if(b)b.toast(m);}catch(e){}},

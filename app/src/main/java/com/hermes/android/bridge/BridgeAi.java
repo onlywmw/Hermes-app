@@ -36,6 +36,14 @@ public class BridgeAi extends BaseBridge {
     }
 
     public void aiChatAsync(String text, String callbackId) {
+        if (text == null || text.trim().isEmpty()) {
+            evalJs("window._hermesCb('" + callbackId + "',{\"ok\":false,\"content\":\"消息为空\"})");
+            return;
+        }
+        if (text.length() > 4000) {
+            evalJs("window._hermesCb('" + callbackId + "',{\"ok\":false,\"content\":\"消息过长\"})");
+            return;
+        }
         aiExecutor.execute(() -> {
             String resultJson;
             try {
@@ -98,11 +106,15 @@ public class BridgeAi extends BaseBridge {
                     JSONArray arr = new JSONArray(modelIdsJson);
                     for (int i = 0; i < arr.length(); i++) ids.add(arr.getString(i));
                 } catch (Exception ignored) {}
-                String resultJson = council.discuss(topic, ids.isEmpty() ? null : ids, context);
-                evalJs("window._hermesCb('" + callbackId + "'," + resultJson + ")");
+
+                council.discussAsync(topic, ids.isEmpty() ? null : ids, context,
+                    reply -> {
+                        // 每个模型回复 → 立即推 JS (先到先显)
+                        evalJs("window._councilReply('" + callbackId + "'," + reply.toString() + ")");
+                    });
             } catch (Exception e) {
-                evalJs("window._hermesCb('" + callbackId +
-                        "',{\"ok\":false,\"error\":\"" + e.getMessage() + "\"})");
+                evalJs("window._councilReply('" + callbackId +
+                        "',{\"type\":\"error\",\"content\":\"" + e.getMessage() + "\"})");
             }
         });
     }

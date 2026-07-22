@@ -48,6 +48,8 @@ public class BridgeDevice extends BaseBridge {
     }
 
     public String execCommand(String text) {
+        if (text == null || text.trim().isEmpty()) return "{\"ok\":false,\"error\":\"指令为空\"}";
+        if (text.length() > 500) return "{\"ok\":false,\"error\":\"指令过长\"}";
         long t0 = System.currentTimeMillis();
         try {
             ParsedCommand cmd = parser.parse(text);

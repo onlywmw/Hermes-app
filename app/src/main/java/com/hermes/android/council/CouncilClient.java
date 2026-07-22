@@ -10,6 +10,8 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -193,6 +195,127 @@ public class CouncilClient {
             case "技术": return "技术选型、架构可行性、交付周期";
             case "数据": return "留存、指标、用户行为分析";
             default:     return "全局视角、风险与机会";
+        }
+    }
+
+    /** Callback — 每收到一个模型回复或汇总时调用 */
+    public interface ReplyCallback {
+        void onReply(JSONObject reply);
+    }
+
+    /**
+     * 伪流式讨论: 每个模型回复到达即回调 JS (DESIGN_HYBRID v2.0).
+     * 先到先显, 无需 SSE/云函数。
+     */
+    public void discussAsync(String topic, List<String> modelIds, String context,
+                              ReplyCallback callback) {
+        if (modelIds == null || modelIds.isEmpty()) {
+            try {
+                callback.onReply(new JSONObject()
+                        .put("type", "error")
+                        .put("content", "没有选择参与讨论的模型"));
+            } catch (Exception ignored) {}
+            return;
+        }
+
+        List<ModelConfig> models = new ArrayList<>();
+        for (String id : modelIds) {
+            ModelConfig mc = registry.get(id);
+            if (mc != null && mc.enabled && mc.isConfigured()) models.add(mc);
+        }
+        if (models.isEmpty()) {
+            try {
+                callback.onReply(new JSONObject()
+                        .put("type", "error")
+                        .put("content", "所选模型均未配置或已禁用"));
+            } catch (Exception ignored) {}
+            return;
+        }
+
+        StringBuilder ctx = new StringBuilder();
+        if (context != null && !context.trim().isEmpty()) {
+            ctx.append("项目背景:\n").append(context.trim()).append("\n\n");
+        }
+
+        ExecutorService exec = Executors.newFixedThreadPool(
+                Math.min(models.size(), MAX_PARALLEL));
+        CompletionService<ModelReply> cs = new ExecutorCompletionService<>(exec);
+
+        for (ModelConfig mc : models) {
+            final String rolePrompt = buildRolePrompt(mc, topic, ctx.toString());
+            cs.submit(new Callable<ModelReply>() {
+                @Override
+                public ModelReply call() {
+                    AiClient client = new AiClient(mc, rolePrompt);
+                    AiClient.AiResponse resp = client.chat(
+                            "议题: " + topic + "\n请从你的角色角度给出观点。简洁, 3 句话以内。");
+                    return new ModelReply(
+                            mc.id,
+                            mc.name.isEmpty() ? mc.getProviderDisplayName() : mc.name,
+                            mc.role, mc.color,
+                            resp.success ? resp.content : "(调用失败: " + resp.content + ")",
+                            resp.success);
+                }
+            });
+        }
+
+        // 谁先返回先回调 (CompletionService)
+        StringBuilder councilContext = new StringBuilder(
+                "以下是各专家对「" + topic + "」的讨论:\n\n");
+
+        for (int i = 0; i < models.size(); i++) {
+            try {
+                Future<ModelReply> f = cs.take(); // 阻塞等下一个完成的
+                ModelReply reply = f.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                JSONObject msg = new JSONObject();
+                msg.put("type", "model");
+                msg.put("who", reply.modelId);
+                msg.put("name", reply.name);
+                msg.put("role", reply.role);
+                msg.put("color", reply.color);
+                msg.put("content", reply.content);
+                msg.put("success", reply.success);
+                callback.onReply(msg); // ← 立即推给 JS
+
+                councilContext.append(reply.name)
+                        .append("(").append(reply.role).append("): ")
+                        .append(reply.content).append("\n\n");
+            } catch (Exception e) {
+                try {
+                    callback.onReply(new JSONObject()
+                            .put("type", "model")
+                            .put("who", "?")
+                            .put("name", "调用超时")
+                            .put("content", "模型超时未响应"));
+                } catch (Exception ignored) {}
+            }
+        }
+        exec.shutdown();
+
+        // 全部收齐 → 汇总
+        ModelConfig defaultModel = registry.getDefault();
+        if (defaultModel != null && defaultModel.isConfigured()) {
+            String summaryPrompt = "你是会议主持人。请根据以下讨论:\n"
+                    + "1. 用 2-3 句话总结共识和分歧\n"
+                    + "2. 给出推荐方案\n"
+                    + "3. 列出下一步行动 (JSON 数组, 每项 {action, target, detail})\n"
+                    + "用中文回答。";
+
+            AiClient summarizer = new AiClient(defaultModel, summaryPrompt);
+            AiClient.AiResponse summaryResp = summarizer.chat(
+                    councilContext.toString()
+                    + "\n请总结并给出下一步行动计划。"
+                    + "\n下一步行动请用 JSON 数组格式: [{\"action\":\"file.write\",\"target\":\"文件名\",\"detail\":\"内容描述\"}]");
+
+            if (summaryResp.success) {
+                try {
+                    JSONObject sum = new JSONObject();
+                    sum.put("type", "summary");
+                    sum.put("summary", summaryResp.content);
+                    sum.put("nextSteps", extractNextSteps(summaryResp.content));
+                    callback.onReply(sum); // ← 推汇总
+                } catch (Exception ignored) {}
+            }
         }
     }
 

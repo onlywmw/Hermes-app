@@ -114,7 +114,7 @@ function sendMsg(){
   }
 }
 
-/* 多模型: 真实 Council 讨论 (传房间 modelIds, 结构化输出驱动执行) */
+/* 多模型: 真实 Council 讨论 (伪流式: 先到先显, DESIGN_HYBRID v2.0) */
 function runCouncil(id,topic,gen){
   var alive=function(){return genCounter===gen&&curRoomId===id;};
   var room=ROOMS.find(function(r){return r.id===id;});
@@ -122,35 +122,43 @@ function runCouncil(id,topic,gen){
   setPhase(id,'讨论中');
   var typing=mkMsg({t:'agent',who:'mov',caret:true});
   showTyping(id,typing);
-  B.councilAsync(topic,modelIds,function(resp){
-    killTyping(typing);
+  var replyCount=0;
+  var allReplies=[];
+  /* 注册全局回调: 每个模型完成就推一条消息 (先到先显) */
+  window._councilReply=function(callbackId,data){
     if(!alive())return;
-    if(!resp.ok){
-      push(id,mkMsg({t:'agent',who:'mov',h:t('council.fail')+esc(resp.error||'未知错误')}));
-      setPhase(id,'讨论中');
+    try{if(typeof data==='string')data=JSON.parse(data);}catch(e){return;}
+
+    if(data.type==='error'){
+      killTyping(typing);
+      push(id,mkMsg({t:'agent',who:'mov',h:t('council.fail')+esc(data.content||'未知错误')}));
+      setPhase(id,'讨论中');return;
+    }
+    if(data.type==='summary'){
+      killTyping(typing);
+      setPhase(id,'收敛中');
+      push(id,mkMsg({t:'sys',h:t('council.converge')}));
+      push(id,mkMsg({t:'agent',who:'mov',h:esc(data.summary||'(无汇总)')}));
+      var steps;try{steps=JSON.parse(data.nextSteps||'[]');}catch(e){steps=[];}
+      if(Array.isArray(steps)&&steps.length){
+        renderCouncilPlan(id,steps,gen);setPhase(id,'待确认');
+      }else{setPhase(id,'待评审');}
+      var room2=ROOMS.find(function(r){return r.id===id;});
+      if(room2){room2.last=t('council.done');renderRooms();persistRooms();}
+      ev('Council 完成 · '+replyCount+' 个模型回复');
       return;
     }
-    /* 各模型回复按序展示 */
-    (resp.messages||[]).forEach(function(m){
-      push(id,mkMsg({t:'agent',who:m.who,role:m.role,h:esc(m.content)}));
-    });
-    setPhase(id,'收敛中');
-    push(id,mkMsg({t:'sys',h:t('council.converge')}));
-    push(id,mkMsg({t:'agent',who:'mov',h:esc(resp.summary||'(无汇总)')}));
-    /* 结构化输出: 投票卡片 */
-    if(resp.votes&&resp.votes.length){renderCouncilVotes(id,resp.votes);}
-    /* 结构化输出: 执行计划 → 审批/自动执行 */
-    var steps=resp.nextSteps||[];
-    if(steps.length){
-      renderCouncilPlan(id,steps,gen);
-      setPhase(id,'待确认');
-    }else{
-      setPhase(id,'待评审');
-    }
-    var room2=ROOMS.find(function(r){return r.id===id;});
-    if(room2){room2.last=t('council.done');renderRooms();persistRooms();}
-    ev('Council 讨论完成 · '+modelIds.length+' 个模型');
-  });
+    /* 单个模型回复 — 先到先显, 逐条追加 */
+    replyCount++;
+    killTyping(typing);
+    push(id,mkMsg({t:'agent',who:data.who,role:data.role,h:esc(data.content||'')}));
+    /* 如果还有没到的, 显示等待 */
+    typing=mkMsg({t:'agent',who:'mov',caret:true});
+    if(alive())showTyping(id,typing);
+    ev('Council 收到 #'+replyCount+' '+data.name);
+  };
+  /* 发起异步讨论 */
+  B.councilAsync(topic,modelIds,function(resp){/* 旧回调不再触发, 流式走 _councilReply */});
 }
 
 /* ---------- 投票卡片 (结构化输出) ---------- */

@@ -34,12 +34,41 @@ public class BridgeFile extends BaseBridge {
     public String saveNote(String name, String content) { return sm.saveNote(name, content); }
     public String readNote(String name) { return sm.readNote(name); }
     public String deleteNote(String name) { return sm.deleteNote(name); }
-    public String appendChatMessage(String roomId, String messageJson) { return sm.appendChatMessage(roomId, messageJson); }
-    public String loadChatMessages(String roomId, String date) { return sm.loadChatMessages(roomId, date); }
-    public String writeFile(String roomId, String path, String content) { return sm.writeFile(roomId, path, content); }
-    public String readFile(String roomId, String path) { return sm.readFile(roomId, path); }
-    public String deleteFile(String roomId, String path) { return sm.deleteFile(roomId, path); }
-    public String listRoomFiles(String roomId, String subPath) { return sm.listRoomFiles(roomId, subPath); }
-    public String initRoom(String roomId, String name, String description, String membersJson) { return sm.initRoom(roomId, name, description, membersJson); }
+    public String appendChatMessage(String roomId, String messageJson) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        return sm.appendChatMessage(roomId, messageJson);
+    }
+    public String loadChatMessages(String roomId, String date) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        return sm.loadChatMessages(roomId, date);
+    }
+    public String writeFile(String roomId, String path, String content) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkPath(path); if (e != null) return e;
+        e = BridgeValidator.checkContent(content); if (e != null) return e;
+        return sm.writeFile(roomId, path, content);
+    }
+    public String readFile(String roomId, String path) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkPath(path); if (e != null) return e;
+        return sm.readFile(roomId, path);
+    }
+    public String deleteFile(String roomId, String path) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkPath(path); if (e != null) return e;
+        return sm.deleteFile(roomId, path);
+    }
+    public String listRoomFiles(String roomId, String subPath) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        if (subPath != null && !subPath.isEmpty()) {
+            e = BridgeValidator.checkPath(subPath); if (e != null) return e;
+        }
+        return sm.listRoomFiles(roomId, subPath);
+    }
+    public String initRoom(String roomId, String name, String description, String membersJson) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkName(name); if (e != null) return e;
+        return sm.initRoom(roomId, name, description, membersJson);
+    }
     public void pickFile(String cbId, String roomId) { activity.pickFilePublic(cbId, roomId); }
 }
