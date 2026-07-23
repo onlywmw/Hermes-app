@@ -370,8 +370,12 @@ public class AgentLoop implements Runnable {
                     ToolRegistry.Result res = tool.handler.run(a);
                     stepLog(step, action, arg, res.ok, res.text, t0);
                     if (res.produced != null) producedFiles.put(res.produced);
+                    /* file.read 的全文必须进 transcript — oneLine 截 120 字符会让大脑
+                       永远看不到自己读到的内容, 只能反复重读 (R4 复读循环的根因);
+                       大文件由 transcript 16k 压缩窗兜底 */
+                    String forTranscript = "file.read".equals(action) ? res.text : oneLine(res.text);
                     transcript.append("[").append(action).append(arg.isEmpty() ? "" : " " + arg)
-                            .append("] → ").append(oneLine(res.text)).append("\n");
+                            .append("] → ").append(forTranscript).append("\n");
                 } catch (Exception e) {
                     stepLog(step, action, arg, false, "执行异常: " + e.getMessage(), t0);
                     transcript.append("[").append(action).append("] → 执行异常: ")
@@ -408,8 +412,8 @@ public class AgentLoop implements Runnable {
 
     private String buildStepInput(int step) {
         String t = transcript.toString();
-        // 压缩: 超 8k 保留尾部
-        if (t.length() > 8000) t = "…(早期步骤已压缩)\n" + t.substring(t.length() - 7000);
+        // 压缩: 超 16k 保留尾部 (阈值须覆盖一次完整 file.read — 大脑改文件时上文不能丢文件内容)
+        if (t.length() > 16000) t = "…(早期步骤已压缩)\n" + t.substring(t.length() - 14500);
         return "目标: " + goal + "\n已批准的可写文件: " + allowedPaths
                 + "\n\n工作日志:\n" + t
                 + "\n\n这是第 " + step + "/" + MAX_STEPS + " 步。只输出一个 JSON 动作。";
@@ -587,6 +591,8 @@ public class AgentLoop implements Runnable {
             + "把用户目标拆成执行计划, 只输出 JSON, 不要输出其他任何文字:\n"
             + "{\"plan\":[{\"action\":\"file.write\",\"path\":\"文件名\",\"desc\":\"这一步做什么\"}]}\n"
             + "规则: file.write 的 path 是你计划创建/修改的文件, 后续执行只允许写这些文件;"
+            + "计划必须完整覆盖到交付 — 修改类任务 = 读取(如需要)+file.write(每个要改的文件都有步)+"
+            + "app.package(需要 APK 时), 禁止只规划读取/调查步骤;"
             + "小游戏/网页类需求规划为一个可运行的单文件 HTML; 不规划图片等二进制文件;"
             + "工作区里的 .apk 都由同名 .html 打包而来 — 用户要求改游戏/改应用时,"
             + "计划 = 修改源 .html + 重新 app.package, 不要问用户玩的是 html 还是 apk;"
@@ -600,7 +606,8 @@ public class AgentLoop implements Runnable {
             + "{\"action\":\"revise_plan\",\"reason\":\"原因\",\"plan\":[...]} | "
             + "{\"action\":\"finish\",\"summary\":\"交付说明\"}\n"
             + "3. file.write 只能写已批准计划中的文件, content 必须是完整最终内容。\n"
-            + "4. 工具结果在工作日志里, 根据结果决定下一步; 需要回看文件内容用 file.read。\n"
+            + "4. 工具结果在工作日志里, 根据结果决定下一步; 需要回看文件内容用 file.read;"
+            + "仅当结果尾部明确提示『继续读』才用 offset 续读, 显示『文件读完』就禁止再读同一文件。\n"
             + "5. 目标完成就输出 finish。\n"
             + "6. ask_user 仅限真正卡住(缺信息且无法自行判断)时使用; 用户发来的修改/反馈意见"
             + "本身就是指令, 直接照做, 禁止反问「是否需要我修改」这类确认问题。\n"

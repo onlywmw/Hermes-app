@@ -126,7 +126,10 @@ function push(roomId,node,data){
     else if(dc){data={t:'deliver',h:dc.outerHTML,tt:dc.querySelector('.tt')?dc.querySelector('.tt').textContent:''};}
     else if(tc){data={t:'tool',h:tc.outerHTML};}
   }
-  if(data){room.msgData=room.msgData||[];room.msgData.push(data);}
+  if(data){room.msgData=room.msgData||[];
+    /* 持久化体积闸: 单条卡 HTML 超 4000 字符截断 (file.read 全文卡是 localStorage 配额杀手) */
+    if(data.h&&data.h.length>4000)data={t:data.t,h:data.h.slice(0,4000)+'…(截断)',tt:data.tt};
+    room.msgData.push(data);}
   if(curRoomId===roomId){var b=$('chatBody');b.appendChild(node);b.scrollTop=b.scrollHeight;}
   /* Fix: 新消息也要绑长按删除 (此前只有 enterRoom 时统一绑, 动态 push 的消息漏绑) */
   if(typeof bindMsgLongPress==='function')bindMsgLongPress(node,roomId);

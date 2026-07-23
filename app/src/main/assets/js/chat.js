@@ -154,6 +154,7 @@ function sendMsg(){
 /* ---------- Agentic 任务 (DESIGN_AGENT_LOOP v1: 1 驱动 + 工作日志) ---------- */
 var _agentLoop=null;   /* {loopId, roomId, gen, awaiting: null|'plan'|'ask'} */
 var _agentExecuting=false;
+var _agentLogBuf=[];   /* 竞态缓冲: 原生循环启动即吐日志, 回调还没拿到 loopId 时先存后放 */
 
 function runAgentTask(id,goal,gen){
   var room=ROOMS.find(function(r){return r.id===id;});
@@ -167,13 +168,21 @@ function runAgentTask(id,goal,gen){
     if(!resp.ok){push(id,mkMsg({t:'agent',who:'mov',h:resp.error||'任务启动失败'}));return;}
     if(resp.queued){push(id,mkMsg({t:'sys',h:'mov 还在执行上一个任务, 此任务已排队'}));}
     _agentLoop={loopId:resp.loopId,roomId:id,gen:gen,awaiting:null};
+    /* 回放启动竞态期缓冲的日志 (phase/plan 可能早于回调到达) */
+    var buf=_agentLogBuf;_agentLogBuf=[];
+    buf.forEach(function(d){window._agentLog(d);});
   });
 }
 
 /* 工作日志入口 (原生 BridgeAi → window._agentLog) */
 window._agentLog=function(data){
   try{if(typeof data==='string')data=JSON.parse(data);}catch(e){return;}
-  if(!_agentLoop||data.loopId!==_agentLoop.loopId)return;
+  if(!_agentLoop){
+    /* 启动竞态: 回调未回, 先缓冲 (上限防无限堆积); 非竞态的游离日志自然被后续 loopId 校验丢弃 */
+    if(_agentLogBuf.length<50)_agentLogBuf.push(data);
+    return;
+  }
+  if(data.loopId!==_agentLoop.loopId)return;
   var id=_agentLoop.roomId;
   if(data.type==='phase'){setPhase(id,data.phase);return;}
   /* 切房守卫: 不渲染 UI, 但终态事件仍要清理状态, plan/filePreview 自动驳回防原生挂起 */
@@ -235,7 +244,8 @@ function renderAgentPlan(id,data){
   data.steps.forEach(function(s){
     var li=document.createElement('li');
     /* 计划闸: desc 之外同时展示授权文件路径, 供用户批准前核对 */
-    var desc=s.desc||((s.action||'')+' '+(s.path||''));
+    var desc=(s.desc||((s.action||'')+' '+(s.path||''))).trim();
+    if(!desc){try{desc=JSON.stringify(s);}catch(e){desc='(未知步骤)';}} /* 大脑输出非标字段时不留空白 */
     li.textContent=s.desc&&s.path?desc+' → '+s.path:desc;
     pb.appendChild(li);
   });
@@ -302,6 +312,8 @@ function renderAgentFilePreview(id,data){
   });
   pf.appendChild(bOk);pf.appendChild(bRj);pc.appendChild(pf);
   p.appendChild(pc);
+  /* 持久化只留一行摘要 — 整张卡含完整文件内容, 几次写入预览就会撑爆 localStorage 配额 */
+  p._md={t:'sys',h:'写入预览 · '+esc(data.path||'')};
   push(id,p);
 }
 
@@ -314,6 +326,7 @@ function setAgentStatus(id,data){
 function endAgentTask(id){
   _agentExecuting=false;
   $('btnSend').textContent=t('room.send');
+  restoreAgentInput(); /* 否则 ask/驳回 的 placeholder 残留到下一个任务 */
   var r=ROOMS.find(function(x){return x.id===id;});
   if(r&&curRoomId===id)$('roomSub').textContent=roomSubtitle(r);
   _agentLoop=null;
