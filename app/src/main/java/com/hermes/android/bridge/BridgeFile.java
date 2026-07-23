@@ -173,6 +173,48 @@ public class BridgeFile extends BaseBridge {
         return result[0] != null ? result[0] : "{\"ok\":false,\"error\":\"未知错误\"}";
     }
 
+    /**
+     * 打包成应用 (CONTRACT_STORAGE 打包成应用 §): 房间产出 HTML → 已签名真 APK,
+     * 成功后直接调起系统安装器 (FileProvider 授权)。签名/组装在调用线程执行,
+     * 调用方 (BridgeFactory) 负责放到后台线程。
+     */
+    public String buildApk(String roomId, String path, String appName) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkPath(path); if (e != null) return e;
+        com.hermes.android.packager.PackageBuilder.Result r =
+                com.hermes.android.packager.PackageBuilder.build(activity, sm, roomId, path, appName);
+        try {
+            org.json.JSONObject o = new org.json.JSONObject().put("ok", r.ok);
+            if (!r.ok) {
+                o.put("error", r.error != null ? r.error : "打包失败");
+                return o.toString();
+            }
+            o.put("sizeBytes", r.sizeBytes).put("packageName", r.packageName);
+            final java.io.File apk = r.apkFile;
+            activity.runOnUiThread(() -> launchInstaller(apk));
+            return o.toString();
+        } catch (Exception ex) {
+            return "{\"ok\":false,\"error\":\"JSON 异常\"}";
+        }
+    }
+
+    /** 调起系统安装器; MIUI 首次会引导开启「未知来源安装」授权 (正常行为) */
+    private void launchInstaller(java.io.File apk) {
+        try {
+            android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    activity, "com.hermes.android.fileprovider", apk);
+            android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(i);
+        } catch (Exception ex) {
+            android.widget.Toast.makeText(activity,
+                    "无法打开安装器: " + (ex.getMessage() != null ? ex.getMessage() : "未知"),
+                    android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
     private String doPinShortcut(String roomId, String path, String label) {
         try {
             if (!androidx.core.content.pm.ShortcutManagerCompat

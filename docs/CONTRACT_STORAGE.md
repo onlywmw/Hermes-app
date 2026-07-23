@@ -157,6 +157,65 @@ Then:
 
 ---
 
+## 打包成应用（产出 HTML 一键打成真 APK 安装）
+
+### 链路
+
+```
+文件 tab 长按产出 .html 卡 → 操作菜单「打包成应用」→ 输入应用名 (≤16 字符)
+→ HermesBridge.buildApk(roomId, path, appName, cbId) (后台线程, 回调式)
+→ BridgeFile.buildApk → PackageBuilder.build:
+  1. resolveWorkFile 取 HTML (限 .html/.htm, ≤5MB)
+  2. 复制 assets/shell-template.apk (PC 预编译壳, 含 classes.dex + 占位符 manifest)
+  3. ApkAssembler: AxmlPatcher 在二进制 AXML string pool 等长替换
+     包名占位 (24 字符 com.movgen.app0000000000 → com.movgen.a+12随机)
+     应用名占位 (16 字符 MOVAPPPLACEHOLDR → 消毒后 label 空格补足)
+     注入 assets/app.html = 房间 HTML
+  4. apksig (com.android.tools.build:apksig) v1+v2 签名, minSdk 26
+→ 成功: FileProvider (com.hermes.android.fileprovider) 授权
+  + ACTION_VIEW "application/vnd.android.package-archive" 调起系统安装器
+→ 系统安装确认弹窗 (正常行为) → 桌面独立图标 → 点开即玩
+```
+
+### 关键决策与约束
+
+1. **路线 = PC 预编译壳 + 手机只组装**。壳工程 `templates/webapp-shell/`（独立 settings.gradle，主工程不 include），重建命令 `./gradlew -p templates/webapp-shell assembleRelease --offline`。壳 Activity 纯 framework 零 androidx，APK ≈3.8KB。手机端零外部依赖（不要 Termux/root/Linux）。
+2. **签名密钥共享内嵌**：`assets/movgen-sign.p12`（PKCS12, alias=movgen, 口令 movgen123, RSA2048, CN=MOV Generated Apps, 30 年）。所有 MOV 安装产出的 APK 共享同一"MOV 生成"签名身份——同包名可互相覆盖升级；**不可用于应用商店分发**。口令以明文存于源码是有意为之（本地工具属性），文档如实说明。
+3. **包名必须恰好 24 字符且不含空格**：AXML string pool 等长替换要求。`genPackageName()` = "com.movgen.a" + 12 随机 [a-z0-9] = 24。禁止用 padRight 补包名（尾部空格 = 非法包名）。label 空格补足 16 UTF-16 单元（尾部空格显示不可见）。
+4. **等长替换失败即抛异常**：替换串编码后字节数必须与原占位符完全一致；模板缺占位符时 ApkAssembler 抛 IOException（提示重建壳模板）。
+5. **resources.arsc 包名补丁是双保险**：无资源的壳模板 arsc 只有表头+空全局 string pool（无 package chunk），`patchArscPackageName` 跳过并返回 0（不算失败）；包名由 manifest 决定。
+6. **安全约束**：roomId/path 全过 BridgeValidator；限 work 区 `.html/.htm`（扩展名检查先于存在性检查）；≤5MB；label 经 `sanitizeLabel` 限 16 单元，空回退文件名再回退 "MOV App"。输出在 `files/packager/<pkg>.apk`（应用私有目录，FileProvider files-path 暴露）。
+7. **REQUEST_INSTALL_PACKAGES 权限**：manifest 已声明。MIUI 首次安装弹「是否允许 MOV 安装应用」，勾选"记住我的选择"后后续安装只弹一次「继续安装」。**实测 MIUI 行为（2026-07-23, MIUI Pad）**：点"允许"后系统会自动补完此前挂起的安装 intent（可能一次装上多个待装包）；**短时间内多次应用内安装会触发风控**「MOV频繁安装应用」滑块拼图验证（人工验证，自动化无法代过）——属平台反诈机制，正常使用频率不会触发。
+8. **壳 WebView 必须重写 `onJsAlert/onJsConfirm`**：默认弹窗依赖 Activity 主题，`Theme.NoTitleBar.Fullscreen` 下实测不渲染——`alert()` 阻塞 JS 线程但无界面，游戏假死（此前"画面冻结"即此因）。修复为显式 `AlertDialog` + `Theme_DeviceDefault_Dialog_Alert`。
+9. **壳开启 `WebView.setWebContentsDebuggingEnabled(true)`**：生成应用暴露 `webview_devtools_remote_<pid>` 供 CDP 诊断/E2E（本地侧载工具定位，文档如实说明）。
+10. **JS 入口仅 work 区 .html 可见**（fopsApk 显示条件与 fopsPin 同规则 + 扩展名过滤）。
+
+### TC-S12：HTML 打包成 APK → 安装 → 独立图标可玩
+
+```
+Given: 房间 work 目录有 snake.html
+When: 文件 tab 长按 snake.html → 打包成应用 → 应用名"贪吃蛇" → 开始打包
+Then:
+  1. 桥回调 ok=true, 返回 packageName (com.movgen.a*) 与 sizeBytes
+  2. 系统安装器弹窗出现 (MIUI 首次先引导未知来源授权)
+  3. 确认安装后桌面出现"贪吃蛇"独立图标
+  4. 点击图标 → 全屏打开, 游戏可玩
+  5. dumpsys package | grep com.movgen 可查到该包
+```
+
+### TC-S13：打包参数校验
+
+```
+Given: buildApk(r1, "../../etc/x", "t") / buildApk(r1, "notes.md", "t") / buildApk(r1, "ghost.html", "t")
+When: 调桥
+Then:
+  1. 路径遍历被 BridgeValidator 拒绝
+  2. 非 .html/.htm 被拒绝 ("只支持打包 HTML 文件")
+  3. 文件不存在返回错误, 不产出任何 APK
+```
+
+---
+
 ## 实现约束（不可违反）
 
 1. **存储根路径：`context.getExternalFilesDir(null) + "/mov/"`。** 禁止硬编码 `/sdcard/mov/`。`StorageManager.BASE` 由 `init(Context)` 运行时设置。

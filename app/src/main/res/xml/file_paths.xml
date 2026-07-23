@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 打包器输出目录: files/packager/*.apk -->
+    <files-path name="packager" path="packager/" />
+</paths>

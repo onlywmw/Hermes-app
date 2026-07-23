@@ -62,6 +62,8 @@ var B=(function(){
     pickFile:function(cb,roomId){if(!b){cb(null);return;}var id=nextCbId();_cbMap[id]=cb;b.pickFile(id,roomId||'');},
     /* 发送到桌面: 产出文件固定桌面快捷方式 (CONTRACT_STORAGE 发送到桌面 §) */
     pinFileShortcut:function(rid,path,label){try{return b&&b.pinFileShortcut?JSON.parse(b.pinFileShortcut(rid,path,label||'')):{ok:false,error:'桥不可用'};}catch(e){return {ok:false,error:String(e)};}},
+    /* 打包成应用: HTML → 签名 APK 并调起系统安装器 (CONTRACT_STORAGE 打包成应用 §); 异步回调 */
+    buildApk:function(rid,path,appName,cb){if(!b||!b.buildApk){cb({ok:false,error:'桥不可用'});return;}var id=nextCbId();_cbMap[id]=cb;b.buildApk(rid,path,appName||'',id);},
     /* RUNTIME 真数据 */
     runtimeStats:function(){try{return b?JSON.parse(b.getRuntimeStats()):{};}catch(e){return {};}},
     permState:function(){try{return b?JSON.parse(b.getPermissionState()):{};}catch(e){return {};}},

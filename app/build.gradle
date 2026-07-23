@@ -31,6 +31,8 @@ dependencies {
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
     implementation "androidx.work:work-runtime:2.9.1"
+    /* 打包器: 纯 Java APK 签名 (v1+v2), 手机本地签名生成的壳 APK */
+    implementation "com.android.tools.build:apksig:8.7.3"
 
     testImplementation "junit:junit:4.13.2"
     /* org.json 的 JVM 实现: 让 AiClient 等使用 org.json 的类可在本地单测中真实解析 JSON

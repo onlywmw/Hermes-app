@@ -1,0 +1,6 @@
+/* WebView 壳模板独立工程 — 不纳入 MOV 主工程 settings.gradle
+   重新构建模板: 在 MOV-APP 根目录执行
+     ./gradlew -p templates/webapp-shell assembleRelease
+   产物: app/build/outputs/apk/release/app-release-unsigned.apk
+   更新 MOV 内嵌模板: 拷贝为 app/src/main/assets/shell-template.apk */
+include ':app'

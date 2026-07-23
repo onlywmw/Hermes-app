@@ -144,6 +144,8 @@ function openFileOpsSheet(fname,ftype){
   $('fileOpsName').textContent=fname;
   /* 发送到桌面仅产出 (HtmlViewerActivity 只读 files/work 目录) */
   $('fopsPin').style.display=ftype==='work'?'':'none';
+  /* 打包成应用仅产出 .html (PackageBuilder 限 work 区 HTML) */
+  $('fopsApk').style.display=(ftype==='work'&&/\.html?$/i.test(fname))?'':'none';
   openSheetExclusive('fileOpsMask','fileOpsSheet');
 }
 $('btnFileOpsClose').addEventListener('click',function(){closeAllSheets();});
@@ -155,6 +157,35 @@ $('fopsPin').addEventListener('click',function(){
   var r=B.pinFileShortcut(curRoomId,fname,fname);
   if(r.ok)B.toast(t('files.pinRequested'));
   else B.toast(r.error||t('files.pinFail'));
+});
+/* ---------- 打包成应用 sheet ---------- */
+$('fopsApk').addEventListener('click',function(){
+  if(!_fileOpsTarget)return;
+  var fname=_fileOpsTarget.name;
+  $('apkFileName').textContent=fname;
+  /* 默认应用名: 文件名去扩展名 (≤16 字符, 原生侧再消毒) */
+  $('apkAppName').value=fname.replace(/\.[^.]+$/,'').slice(0,16);
+  var btn=$('btnApkBuild');
+  btn.disabled=false;btn.textContent=t('pack.start');
+  openSheetExclusive('apkMask','apkSheet');
+});
+$('btnApkClose').addEventListener('click',function(){closeAllSheets();});
+$('apkMask').addEventListener('click',function(){closeAllSheets();});
+$('btnApkBuild').addEventListener('click',function(){
+  if(!_fileOpsTarget)return;
+  var fname=_fileOpsTarget.name;
+  var appName=$('apkAppName').value.trim();
+  var btn=$('btnApkBuild');
+  btn.disabled=true;btn.textContent=t('pack.building');
+  B.buildApk(curRoomId,fname,appName,function(r){
+    btn.disabled=false;btn.textContent=t('pack.start');
+    if(r&&r.ok){
+      closeAllSheets();
+      B.toast(t('pack.done'));
+    }else{
+      B.toast((r&&r.error)?r.error:t('pack.fail'));
+    }
+  });
 });
 $('fopsDelete').addEventListener('click',function(){
   if(!_fileOpsTarget)return;

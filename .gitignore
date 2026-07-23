@@ -1,6 +1,8 @@
 .gradle/
 build/
 *.apk
+# 打包器壳模板必须入库 — 运行时从 assets 复制组装生成 APK
+!app/src/main/assets/shell-template.apk
 *.ap_
 *.dex
 *.class

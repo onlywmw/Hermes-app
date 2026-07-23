@@ -1,0 +1,36 @@
+apply plugin: 'com.android.application'
+
+/* WebView 壳模板: 极简工程, 零 androidx 依赖, 产物 <2MB (实测约 40-60KB)
+   关键: package 与 label 是定长占位字符串, 手机端在二进制 AXML string pool 里等长替换
+   - package 占位 24 字符: com.movgen.app0000000000 → com.movgen.a + 12 随机字符
+   - label   占位 16 字符: MOVAPPPLACEHOLDR → 应用名 (UTF-8 池按 16 字节上限, UTF-16 池按 16 单元, 空格补足) */
+android {
+    namespace "com.movgen.shell"
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+        /* 最终包名 = 定长占位 (24 字符), 手机端在二进制 AXML 等长替换 */
+        applicationId "com.movgen.app0000000000"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    /* 模板工程: 跳过 release lint (避免联网拉 lint 依赖, 壳代码无 lint 价值) */
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}

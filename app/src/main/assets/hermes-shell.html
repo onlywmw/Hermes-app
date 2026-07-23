@@ -278,8 +278,18 @@
       <div class="sh-sub" id="fileOpsName">—</div>
       <div id="fileOpsMenu">
         <div class="sheet-row" id="fopsPin" data-i18n="files.pin">发送到桌面</div>
+        <div class="sheet-row" id="fopsApk" data-i18n="pack.entry">打包成应用</div>
         <div class="sheet-row danger" id="fopsDelete" data-i18n="files.delete">删除文件</div>
       </div>
+    </div>
+
+    <!-- 打包成应用 sheet (仅 work 区 .html 产出; 输入应用名 → 签名 APK → 系统安装器) -->
+    <div class="sheet-mask" id="apkMask" style="z-index:33"></div>
+    <div class="sheet" id="apkSheet" style="z-index:34">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="pack.title">打包成应用</h5><span class="sheet-close" id="btnApkClose">✕</span></div>
+      <div class="sh-sub" id="apkFileName">—</div>
+      <input id="apkAppName" maxlength="16" data-i18n-ph="pack.nameLabel" placeholder="应用名 (≤16 字符)" style="width:100%;border:1px solid var(--line);border-radius:var(--r-md);padding:10px 12px;font-family:var(--font-mono);font-size:12px;outline:none;background:var(--panel-2);margin:8px 0">
+      <button class="btn btn-acc" id="btnApkBuild" style="width:100%;justify-content:center" data-i18n="pack.start">开始打包</button>
     </div>
 
     <!-- 消息/技能长按操作条 -->

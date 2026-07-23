@@ -75,6 +75,13 @@ public class BridgeFactory {
     @JavascriptInterface public String initRoom(String roomId, String name, String description, String membersJson) { return file.initRoom(roomId, name, description, membersJson); }
     @JavascriptInterface public void pickFile(String cbId, String roomId) { file.pickFile(cbId, roomId); }
     @JavascriptInterface public String pinFileShortcut(String roomId, String path, String label) { return file.pinFileShortcut(roomId, path, label); }
+    /* 打包成应用: 签名耗时, 走 testModel 同款后台线程 + 回调 */
+    @JavascriptInterface public void buildApk(String roomId, String path, String appName, String cbId) {
+        activity.getAiExecutor().execute(() -> {
+            String r = file.buildApk(roomId, path, appName);
+            activity.evalJsPublic("window._hermesCb('" + cbId + "'," + r + ")");
+        });
+    }
 
     // ==================== Cron ====================
     @JavascriptInterface public String listCronJobs() { return cron.listCronJobs(); }
