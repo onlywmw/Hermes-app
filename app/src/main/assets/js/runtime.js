@@ -177,17 +177,16 @@ function refreshModel(){
   var mh='';
   /* 原生引擎: 永远在线, 置顶 */
   mh+='<div class="model-row" data-model="__native"><div><div class="pv">'+esc(t('rt.nativeEngine'))+'</div><div class="md">'+esc(t('rt.nativeDesc'))+'</div></div><span class="badge ok"><span class="dot"></span>'+t('rt.online')+'</span></div>';
-  /* 已注册模型 */
+  /* 已注册模型 (无 radio/选中框: 身份由 AGENT 标签与大脑徽章表达) */
   models.forEach(function(m){
     var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
-    var sel=m.isDefault?' sel':'';
-    mh+='<div class="model-row'+sel+'" data-model="'+esc(m.id)+'">'
+    mh+='<div class="model-row" data-model="'+esc(m.id)+'">'
       +'<i class="av" style="background:'+esc(m.color||_pvColor(m.provider))+'">'+esc((m.name||'?').charAt(0))+'</i>'
       +'<div><div class="pv">'+(m.isDefault?esc(t('model.brainTag')):esc(m.role||t('model.roleGeneral')))
       +'</div>'
       +'<div class="md">'+esc(m.name)+'</div>'
       +'<div class="ms">'+modelStatusDot(m)+'<span>'+esc(modelStatusText(m))+'</span></div></div>'
-      +(m.isDefault?'<span class="badge ok"><span class="dot"></span>'+t('model.brain')+'</span>':'<span class="radio"></span>')
+      +(m.isDefault?'<span class="badge ok"><span class="dot"></span>'+t('model.brain')+'</span>':'')
       +'</div>';
   });
   if(models.length===0){
