@@ -588,6 +588,8 @@ public class AgentLoop implements Runnable {
             + "{\"plan\":[{\"action\":\"file.write\",\"path\":\"文件名\",\"desc\":\"这一步做什么\"}]}\n"
             + "规则: file.write 的 path 是你计划创建/修改的文件, 后续执行只允许写这些文件;"
             + "小游戏/网页类需求规划为一个可运行的单文件 HTML; 不规划图片等二进制文件;"
+            + "工作区里的 .apk 都由同名 .html 打包而来 — 用户要求改游戏/改应用时,"
+            + "计划 = 修改源 .html + 重新 app.package, 不要问用户玩的是 html 还是 apk;"
             + "涉及手机硬件操作(手电/音量/亮度/震动/语音/通知/启动应用/查询状态)时,"
             + "直接计划 device.cmd 真做, 禁止写成 HTML 模拟。";
 
@@ -599,5 +601,8 @@ public class AgentLoop implements Runnable {
             + "{\"action\":\"finish\",\"summary\":\"交付说明\"}\n"
             + "3. file.write 只能写已批准计划中的文件, content 必须是完整最终内容。\n"
             + "4. 工具结果在工作日志里, 根据结果决定下一步; 需要回看文件内容用 file.read。\n"
-            + "5. 目标完成就输出 finish。";
+            + "5. 目标完成就输出 finish。\n"
+            + "6. ask_user 仅限真正卡住(缺信息且无法自行判断)时使用; 用户发来的修改/反馈意见"
+            + "本身就是指令, 直接照做, 禁止反问「是否需要我修改」这类确认问题。\n"
+            + "7. .apk 是 .html 的打包产物 — 改游戏永远改源 .html 再重新打包, 不要问用户玩的是哪个文件。";
 }
