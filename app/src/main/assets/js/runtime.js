@@ -71,7 +71,7 @@ function refreshModel(){
   models.forEach(function(m){
     var ready=(m.apiKey&&m.apiKey.length>0)||(m.provider==='ollama');
     mh+='<div class="model-row" data-model="'+esc(m.id)+'">'
-      +'<i class="av" style="background:'+esc(m.color||_pvColor(m.provider))+'">'+esc((m.name||'?').charAt(0))+'</i>'
+      +'<i class="av" style="background:'+safeColor(m.color||_pvColor(m.provider))+'">'+esc((m.name||'?').charAt(0))+'</i>'
       +'<div><div class="pv">'+(m.isDefault?esc(t('model.brainTag')):esc(m.role||t('model.roleGeneral')))
       +'</div>'
       +'<div class="md">'+esc(m.name)+'</div>'
@@ -215,6 +215,7 @@ function collectModelPayload(){
     o.enabled=_msOld.enabled!==false;
     o.isDefault=!!_msOld.isDefault;
     o.systemPrompt=_msOld.systemPrompt||'';
+    o.color=_msOld.color||o.color; /* 编辑保留原色, 仅新建用厂商色默认值 */
   }
   return o;
 }

@@ -32,6 +32,7 @@ var I18N={
     'sheet.readyMsg':'「','sheet.readySuffix':'」已就绪。直接发指令、提问、或者让我帮你写东西都行。',
     'sheet.movReady':'MOV 待命',
     'sheet.modeLabel':'协作方式','sheet.modelsLabel':'AI 成员',
+    'sheet.agentLock':'必选 · 驱动任务执行与交付',
     'sheet.modelsEmpty':'还没有配置模型','sheet.modelsAdd':'去添加 →',
     'skill.title':'技能','skill.search':'搜索技能…',
     'skill.loop':'学习闭环','skill.loopDesc':'执行任务 → 沉淀技能 → 复用 → 修订',
@@ -111,7 +112,7 @@ var I18N={
     'model.brainDesc':'AGENT · 大脑 — 所有 agent 任务由它驱动',
     'model.reviewerDesc':'评审候选 — 可在房间「AI 成员」中加入评审团',
     'model.brainSet':'大脑已切换 →','model.setAsBrain':'设为大脑',
-    'model.testConn':'测连接','model.connOk':'在线','model.connFail':'离线',
+    'model.connOk':'在线','model.connFail':'离线',
     'model.disabled':'已停用',
     'model.noKey':'未配置 Key',
     'model.roleGeneral':'通用',
@@ -316,7 +317,7 @@ var I18N={
     'plan.reviewHint':'Pending review · say what to change, council re-discusses'
   }
 };
-function t(key){var d=I18N[LANG]||I18N.zh;return d[key]||I18N.zh[key]||key;}
+function t(key){var d=I18N[LANG]||I18N.zh;return (key in d)?d[key]:(I18N.zh[key]!==undefined?I18N.zh[key]:key);}
 function applyI18n(){
   document.querySelectorAll('[data-i18n]').forEach(function(el){
     el.textContent=t(el.getAttribute('data-i18n'));

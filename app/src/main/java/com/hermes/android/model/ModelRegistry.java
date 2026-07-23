@@ -10,6 +10,8 @@ import androidx.security.crypto.MasterKey;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.hermes.android.ai.AiProviderConfig;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,12 +21,23 @@ import java.util.UUID;
  * 存储: EncryptedSharedPreferences "mov_models" → JSONArray
  * 至少保留一个模型。
  * 首次启动自动从旧 AiProviderConfig 迁移。
+ * 应用级单例: 通过 getInstance(context) 获取, 避免多实例数据互相覆盖。
  */
 public class ModelRegistry {
 
     private static final String TAG = "ModelRegistry";
     private static final String PREFS = "mov_models";
     private static final String KEY_MODELS = "models";
+
+    private static ModelRegistry instance;
+
+    /** 应用级单例, 静态持有 applicationContext 防泄漏 */
+    public static synchronized ModelRegistry getInstance(Context context) {
+        if (instance == null) {
+            instance = new ModelRegistry(context.getApplicationContext());
+        }
+        return instance;
+    }
 
     private final SharedPreferences prefs;
     private final boolean encrypted;
@@ -52,20 +65,20 @@ public class ModelRegistry {
         }
     }
 
-    /* ── CRUD ── */
+    /* ── CRUD (全部 synchronized: 读在 aiExecutor 线程, 写在 JavaBridge 线程) ── */
 
-    public List<ModelConfig> list() {
+    public synchronized List<ModelConfig> list() {
         return new ArrayList<>(models);
     }
 
-    public ModelConfig get(String id) {
+    public synchronized ModelConfig get(String id) {
         for (ModelConfig m : models) {
             if (m.id.equals(id)) return m;
         }
         return null;
     }
 
-    public ModelConfig getDefault() {
+    public synchronized ModelConfig getDefault() {
         for (ModelConfig m : models) {
             if (m.isDefault && m.enabled) return m;
         }
@@ -76,7 +89,7 @@ public class ModelRegistry {
         return models.isEmpty() ? null : models.get(0);
     }
 
-    public String add(ModelConfig config) {
+    public synchronized String add(ModelConfig config) {
         if (config.id == null || config.id.isEmpty()) {
             config.id = UUID.randomUUID().toString().substring(0, 8);
         }
@@ -87,7 +100,7 @@ public class ModelRegistry {
         return config.id;
     }
 
-    public boolean update(ModelConfig config) {
+    public synchronized boolean update(ModelConfig config) {
         for (int i = 0; i < models.size(); i++) {
             if (models.get(i).id.equals(config.id)) {
                 models.set(i, config);
@@ -99,7 +112,7 @@ public class ModelRegistry {
     }
 
     /** 删除模型, 至少保留一个 */
-    public boolean delete(String id) {
+    public synchronized boolean delete(String id) {
         if (models.size() <= 1) return false;
         boolean removed = models.removeIf(m -> m.id.equals(id));
         if (removed) {
@@ -116,7 +129,7 @@ public class ModelRegistry {
         return removed;
     }
 
-    public boolean setDefault(String id) {
+    public synchronized boolean setDefault(String id) {
         boolean found = false;
         for (ModelConfig m : models) {
             if (m.id.equals(id)) {
@@ -132,7 +145,7 @@ public class ModelRegistry {
 
     /* ── 序列化 ── */
 
-    public String listJson() {
+    public synchronized String listJson() {
         try {
             JSONArray arr = new JSONArray();
             for (ModelConfig m : models) {
@@ -149,7 +162,7 @@ public class ModelRegistry {
 
     /* ── 持久化 ── */
 
-    private void load() {
+    private synchronized void load() {
         models.clear();
         String json = prefs.getString(KEY_MODELS, "[]");
         try {
@@ -162,7 +175,7 @@ public class ModelRegistry {
         }
     }
 
-    private void save() {
+    private synchronized void save() {
         try {
             JSONArray arr = new JSONArray();
             for (ModelConfig m : models) {
@@ -176,23 +189,38 @@ public class ModelRegistry {
 
     /* ── 从旧 AiProviderConfig 迁移 ── */
 
-    private void migrateFromLegacy(Context context) {
+    private synchronized void migrateFromLegacy(Context context) {
         try {
-            SharedPreferences old = context.getSharedPreferences("hermes_ai_prefs_enc", Context.MODE_PRIVATE);
-            String apiKey = old.getString("api_key", "");
-            String provider = old.getString("provider", "deepseek");
-            String model = old.getString("model", "");
-            String baseUrl = old.getString("base_url", "");
-            String sysPrompt = old.getString("system_prompt", "");
+            // 旧加密 prefs 的 key 本身已加密, 必须用 EncryptedSharedPreferences 读,
+            // 复用 AiProviderConfig 的工厂方法; Keystore 异常时返回 null, 走明文回落
+            String apiKey = "";
+            String provider = "deepseek";
+            String model = "";
+            String baseUrl = "";
+            String sysPrompt = "";
+
+            SharedPreferences old = AiProviderConfig.openEncryptedPrefs(context);
+            if (old != null) {
+                apiKey = old.getString("api_key", "");
+                provider = old.getString("provider", "deepseek");
+                model = old.getString("model", "");
+                baseUrl = old.getString("base_url", "");
+                sysPrompt = old.getString("system_prompt", "");
+            }
 
             if (apiKey == null || apiKey.trim().isEmpty()) {
-                // 试明文 prefs
+                // 试明文 prefs (若已被 AiProviderConfig 迁移并 clear, 读到空, 下面会跳过)
                 old = context.getSharedPreferences("hermes_ai_prefs", Context.MODE_PRIVATE);
                 apiKey = old.getString("api_key", "");
                 provider = old.getString("provider", "deepseek");
                 model = old.getString("model", "");
                 baseUrl = old.getString("base_url", "");
                 sysPrompt = old.getString("system_prompt", "");
+            }
+
+            if (apiKey == null || apiKey.trim().isEmpty()) {
+                Log.i(TAG, "旧配置为空或已迁移, 跳过");
+                return;
             }
 
             ModelConfig legacy = new ModelConfig();

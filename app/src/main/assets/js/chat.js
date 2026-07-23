@@ -54,8 +54,9 @@ async function runDeviceCommand(id,text){
 
 /* 房间副标题 (enterRoom / 成员编辑共用, DESIGN_NEW_ROOM v2) */
 function roomSubtitle(r){
+  /* 房间恒为 agent 房: 副标题 = agent + 评审团 (可无) */
   var aiNames=roomAiNames(r);
-  return r.mode==='council'?'council · '+(aiNames.length?aiNames.join(' / '):'--')+' · 主持 mov':'单聊 · mov-agent';
+  return 'mov agent'+(aiNames.length?' · 评审 '+aiNames.join(' / '):'');
 }
 
 /* ---------- AI 对话 (P0-1: 异步, 不阻塞 UI) ---------- */
@@ -67,9 +68,19 @@ function runAiChat(id,text,modelId){
   showTyping(id,typing);
   var onResp=function(resp){
     killTyping(typing);
-    if(!alive())return;
     /* Fix: 去掉 esc 双重转义 (safeBubble 已 textNode 防护); 失败时 content 即错误信息 */
     var content=resp.content||(resp.ok?'':'AI 调用失败');
+    if(!alive()){
+      /* 切房不丢回复: 写入对应房间并置 unread, 不渲染 */
+      var nr=ROOMS.find(function(r){return r.id===id;});
+      if(nr){
+        push(id,mkMsg({t:'agent',who:'mov',h:content}));
+        if(curRoomId!==id)nr.unread=(nr.unread||0)+1;
+        nr.last=(content||'').replace(/\n/g,' ').slice(0,32);nr.time='现在';
+        renderRooms();persistRooms();
+      }
+      return;
+    }
     push(id,mkMsg({t:'agent',who:'mov',h:content}));
     var room=ROOMS.find(function(r){return r.id===id;});
     if(room){room.last=(content||'').replace(/\n/g,' ').slice(0,32);room.time='现在';renderRooms();persistRooms();}
@@ -95,9 +106,9 @@ function routeMessage(id,text){
   if(info.enabled&&info.configured){
     runAiChat(id,text);
   }else if(!info.enabled){
-    push(id,mkMsg({t:'agent',who:'mov',h:'「'+esc(text)+'」不是设备指令, 且 AI 已关闭。点右上角 <code>≡</code> 可启用并配置 API。'}));
+    push(id,mkMsg({t:'agent',who:'mov',h:'「'+text+'」不是设备指令, 且 AI 已关闭。点右上角 <code>≡</code> 可启用并配置 API。'}));
   }else{
-    push(id,mkMsg({t:'agent',who:'mov',h:'「'+esc(text)+'」不是设备指令。AI 尚未配置 API Key —— 点右上角 <code>≡</code> 设置后即可畅聊。输入 <code>帮助</code> 查看全部设备指令。'}));
+    push(id,mkMsg({t:'agent',who:'mov',h:'「'+text+'」不是设备指令。AI 尚未配置 API Key —— 点右上角 <code>≡</code> 设置后即可畅聊。输入 <code>帮助</code> 查看全部设备指令。'}));
   }
 }
 
@@ -125,18 +136,18 @@ function sendMsg(){
   $('msgInput').value='';pending=[];renderPend();
   ev('发送消息'+(v?'':'(纯附件)'));
   if(!v)return;
-  if(room.mode==='council'){
-    /* DESIGN_AGENT_LOOP: ask_user 答案 / 计划闸意见 优先回灌 */
-    if(_agentLoop&&_agentLoop.roomId===id&&_agentLoop.awaiting){
-      var aw=_agentLoop.awaiting;
-      _agentLoop.awaiting=null;restoreAgentInput();
-      if(aw==='ask'){B.agentAnswer(_agentLoop.loopId,v);}
-      else{B.agentPlanRespond(_agentLoop.loopId,false,v);push(id,mkMsg({t:'sys',h:'已驳回并补充, 重新规划中'}));}
-    }else{
-      runAgentTask(id,v,gen);
-    }
+  if(id==='desk'){
+    routeMessage(id,v); /* desk 房: 设备指令 + 全局问答, 不走 agent 循环 */
+    return;
+  }
+  /* 非 desk 房恒为 agent 房 (agent 必选): ask_user 答案 / 计划闸意见优先回灌 */
+  if(_agentLoop&&_agentLoop.roomId===id&&_agentLoop.awaiting){
+    var aw=_agentLoop.awaiting;
+    _agentLoop.awaiting=null;restoreAgentInput();
+    if(aw==='ask'){B.agentAnswer(_agentLoop.loopId,v);}
+    else{B.agentPlanRespond(_agentLoop.loopId,false,v);push(id,mkMsg({t:'sys',h:'已驳回并补充, 重新规划中'}));}
   }else{
-    routeMessage(id,v);
+    runAgentTask(id,v,gen);
   }
 }
 
@@ -165,9 +176,16 @@ window._agentLog=function(data){
   if(!_agentLoop||data.loopId!==_agentLoop.loopId)return;
   var id=_agentLoop.roomId;
   if(data.type==='phase'){setPhase(id,data.phase);return;}
-  if(curRoomId!==id||genCounter!==_agentLoop.gen)return; /* 切房守卫 (v1 接受丢弃) */
+  /* 切房守卫: 不渲染 UI, 但终态事件仍要清理状态, plan/filePreview 自动驳回防原生挂起 */
+  if(curRoomId!==id||genCounter!==_agentLoop.gen){
+    if(data.type==='plan'&&_agentLoop){B.agentPlanRespond(_agentLoop.loopId,false,'房间已切换, 计划自动驳回');}
+    else if(data.type==='filePreview'&&_agentLoop){B.agentFileWriteRespond(_agentLoop.loopId,false);}
+    else if(data.type==='deliver'||data.type==='fail'||data.type==='stopped'){endAgentTask(id);}
+    return;
+  }
   switch(data.type){
     case 'plan': renderAgentPlan(id,data);break;
+    case 'filePreview': renderAgentFilePreview(id,data);break;
     case 'step':
       push(id,toolNode(data.name,data.arg||'',((data.durMs||0)/1000).toFixed(2)+'s',
         esc(data.result||'')+'\n<span class="'+(data.ok?'ok-line':'err-line')+'">'+(data.ok?'exit 0':'exit 1')+'</span>'));
@@ -179,21 +197,21 @@ window._agentLog=function(data){
       setAgentInputHint('回答问题后发送…');
       break;
     case 'note':
-      push(id,mkMsg({t:'sys',h:data.text}));break;
+      push(id,mkMsg({t:'sys',h:esc(data.text)}));break;
     case 'review':
       /* v2: 交付评审投票轮次 */
       push(id,mkMsg({t:'sys',h:'交付评审·第'+data.round+'轮: '+(data.pass||0)+' 通过 / '+(data.fail||0)+' 返工'}));
       break;
     case 'deliver':
       renderDeliverCard(id,data.files||[]);
-      var metric='实际 '+(data.promptTokens+data.completionTokens)+' tokens · '+fmtSec(data.elapsedSec)+' (预估 ~'+Math.round(data.estTokens/1000)+'k · '+fmtSec(data.estSeconds)+')';
+      var metric='实际 '+((data.promptTokens||0)+(data.completionTokens||0))+' tokens · '+fmtSec(data.elapsedSec)+' (预估 ~'+Math.round((data.estTokens||0)/1000)+'k · '+fmtSec(data.estSeconds)+')';
       if(data.reviewTokens>0)metric+=' · 含评审 '+data.reviewTokens;
       if(data.reworkRounds>0)metric+=' · 返工 '+data.reworkRounds+' 轮';
       push(id,mkMsg({t:'sys',h:metric}));
       /* v2: 交付评审结论 */
       if(data.comments&&data.comments.length){
         data.comments.forEach(function(c){
-          push(id,mkMsg({t:'sys',h:'评审 '+(c.pass?'✓':'✗')+' '+(c.name||'')+': '+(c.reason||'')}));
+          push(id,mkMsg({t:'sys',h:'评审 '+(c.pass?'✓':'✗')+' '+esc(c.name||'')+': '+esc(c.reason||'')}));
         });
       }
       endAgentTask(id);break;
@@ -216,7 +234,9 @@ function renderAgentPlan(id,data){
   var pb=document.createElement('div');pb.className='pb';
   data.steps.forEach(function(s){
     var li=document.createElement('li');
-    li.textContent=s.desc||((s.action||'')+' '+(s.path||''));
+    /* 计划闸: desc 之外同时展示授权文件路径, 供用户批准前核对 */
+    var desc=s.desc||((s.action||'')+' '+(s.path||''));
+    li.textContent=s.desc&&s.path?desc+' → '+s.path:desc;
     pb.appendChild(li);
   });
   pc.appendChild(pb);
@@ -236,16 +256,51 @@ function renderAgentPlan(id,data){
   var bAp=document.createElement('button');bAp.className='btn btn-acc';bAp.textContent=t('plan.approve');
   var bRj=document.createElement('button');bRj.className='btn btn-ghost';bRj.textContent=t('plan.reject');
   bAp.addEventListener('click',function(){
+    /* 任务已结束 (_agentLoop 被清空/换轮) 时禁止再点, 先置灰再 return */
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bAp.disabled=true;bRj.disabled=true;return;}
     bAp.disabled=true;bRj.disabled=true;bAp.textContent=t('plan.approved');
     _agentLoop.awaiting=null;
     B.agentPlanRespond(data.loopId,true,'');
     ev('批准计划 → agent 开工');
   });
   bRj.addEventListener('click',function(){
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bAp.disabled=true;bRj.disabled=true;return;}
     bRj.disabled=true;
     setAgentInputHint('输入驳回意见后发送…');
   });
   pf.appendChild(bAp);pf.appendChild(bRj);pc.appendChild(pf);
+  p.appendChild(pc);
+  push(id,p);
+}
+
+/* P1: 写盘前强制预览卡 (落盘前 loop 挂起, 确认才写; 驳回=该步失败, AI 重试/改计划) */
+function renderAgentFilePreview(id,data){
+  var p=document.createElement('div');p.className='msg wide';
+  var pc=document.createElement('div');pc.className='plan-card';
+  var phd=document.createElement('div');phd.className='ph';
+  phd.textContent='写入预览 · '+(data.path||'');
+  pc.appendChild(phd);
+  /* 内容只走 textContent, 不拼 HTML (安全红线) */
+  var pre=document.createElement('pre');pre.className='pvw';
+  pre.textContent=data.content||'';
+  pc.appendChild(pre);
+  var pf=document.createElement('div');pf.className='pf';
+  var bOk=document.createElement('button');bOk.className='btn btn-acc';bOk.textContent='确认写入';
+  var bRj=document.createElement('button');bRj.className='btn btn-ghost';bRj.textContent='驳回';
+  bOk.addEventListener('click',function(){
+    /* 任务已结束/换轮时禁止再点, 先置灰再 return */
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bOk.disabled=true;bRj.disabled=true;return;}
+    bOk.disabled=true;bRj.disabled=true;bOk.textContent='已确认 ✓';
+    B.agentFileWriteRespond(data.loopId,true);
+    ev('确认写入 '+(data.path||''));
+  });
+  bRj.addEventListener('click',function(){
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bOk.disabled=true;bRj.disabled=true;return;}
+    bOk.disabled=true;bRj.disabled=true;bRj.textContent='已驳回';
+    B.agentFileWriteRespond(data.loopId,false);
+    ev('驳回写入 '+(data.path||''));
+  });
+  pf.appendChild(bOk);pf.appendChild(bRj);pc.appendChild(pf);
   p.appendChild(pc);
   push(id,p);
 }

@@ -4,9 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
-import androidx.work.NetworkType;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
@@ -104,7 +102,7 @@ public class CronManager {
             }
             return result.toString();
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return errJson(e);
         }
     }
 
@@ -115,6 +113,14 @@ public class CronManager {
             for (int i = 0; i < jobs.length(); i++) {
                 JSONObject job = jobs.getJSONObject(i);
                 if (jobId.equals(job.getString("id"))) {
+                    if (enabled) {
+                        // Fix: 重新启用存量任务时补白名单校验, 与 createJob 一致
+                        com.hermes.android.ParsedCommand cmd =
+                                new com.hermes.android.IntentParser().parse(job.getString("command"));
+                        if (cmd == null || cmd.isError() || !CronPolicy.isAllowed(cmd.getCapability())) {
+                            return "{\"ok\":false,\"error\":\"该指令不支持定时执行\"}";
+                        }
+                    }
                     job.put("enabled", enabled);
                     saveJobs(jobs);
                     if (enabled) {
@@ -134,7 +140,7 @@ public class CronManager {
             }
             return "{\"ok\":false,\"error\":\"任务不存在\"}";
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return errJson(e);
         }
     }
 
@@ -153,7 +159,17 @@ public class CronManager {
             WorkManager.getInstance(context).cancelUniqueWork("hermes_cron_" + jobId);
             return new JSONObject().put("ok", true).toString();
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return errJson(e);
+        }
+    }
+
+    /** JSONObject 构造错误 JSON (自动转义), 与 StorageManager.errJson 同模式 */
+    private String errJson(Exception e) {
+        try {
+            return new JSONObject().put("ok", false)
+                    .put("error", e.getMessage() != null ? e.getMessage() : "未知错误").toString();
+        } catch (Exception ex) {
+            return "{\"ok\":false}";
         }
     }
 
@@ -162,15 +178,12 @@ public class CronManager {
         // WorkManager 最小周期 15 分钟
         long interval = Math.max(15, intervalMinutes);
 
-        Constraints constraints = new Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build();
-
+        // Fix: 白名单动作 (见 CronPolicy) 全为本地能力, 不强制网络约束,
+        // 否则 NetworkType.CONNECTED 会导致断网时合法任务永不执行
         PeriodicWorkRequest work = new PeriodicWorkRequest.Builder(
                 HermesCronWorker.class, interval, TimeUnit.MINUTES)
                 // P2: 按 cron 表达式计算下次触发时间作为 initialDelay
                 .setInitialDelay(Math.max(0, initialDelayMinutes), TimeUnit.MINUTES)
-                .setConstraints(constraints)
                 .addTag("hermes_cron")
                 .addTag("job_" + jobId)
                 .build();

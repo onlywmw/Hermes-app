@@ -51,7 +51,7 @@ public class BridgeModel extends BaseBridge {
             String id = registry.add(mc);
             return "{\"ok\":true,\"id\":\"" + id + "\"}";
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return "{\"ok\":false,\"error\":\"" + sanitize(e.getMessage()) + "\"}";
         }
     }
 

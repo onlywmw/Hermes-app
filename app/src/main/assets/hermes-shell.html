@@ -125,11 +125,6 @@
       <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="sheet.title">新建项目房间</h5><span class="sheet-close" id="btnSheetClose">✕</span></div>
       <div class="sh-label" data-i18n="sheet.nameLabel">项目名</div>
       <input id="newRoomName" data-i18n-ph="sheet.placeholder" placeholder="项目名 · 如: 产品V2.0">
-      <div class="sh-label" data-i18n="sheet.modeLabel">协作方式</div>
-      <div class="mode-opts" id="newRoomModeOpts">
-        <div class="mopt sel" data-mode="single"><b data-i18n="sheet.single">和 MOV 一对一</b><span data-i18n="sheet.singleDesc">快速问答、设备指令、简单记录</span></div>
-        <div class="mopt" data-mode="council"><b data-i18n="sheet.council">拉 AI 团队一起讨论</b><span data-i18n="sheet.councilDesc">多角色给不同视角, 投票决策</span></div>
-      </div>
       <div class="sh-label" data-i18n="sheet.modelsLabel">AI 成员</div>
       <div id="newRoomModels"></div>
       <div class="mpick-empty" id="newRoomModelsEmpty" style="display:none"><span data-i18n="sheet.modelsEmpty">还没有配置模型</span> · <span id="btnGotoModels" style="color:var(--acc-strong);cursor:pointer" data-i18n="sheet.modelsAdd">去添加 →</span></div>
@@ -162,12 +157,8 @@
           <button class="btn btn-acc" id="opsRenameOk" style="flex:1;justify-content:center" data-i18n="ops.confirm">确认</button>
         </div>
       </div>
-      <!-- AI 成员编辑 (DESIGN_NEW_ROOM v2: 创建后可改模式与成员) -->
+      <!-- AI 成员编辑 (创建后可改评审团; agent 必选不可取消) -->
       <div id="roomOpsMembers" style="display:none">
-        <div class="mode-opts" id="opsModeOpts">
-          <div class="mopt" data-mode="single"><b data-i18n="sheet.single">和 MOV 一对一</b><span data-i18n="sheet.singleDesc">快速问答、设备指令、简单记录</span></div>
-          <div class="mopt" data-mode="council"><b data-i18n="sheet.council">拉 AI 团队一起讨论</b><span data-i18n="sheet.councilDesc">多角色给不同视角, 投票决策</span></div>
-        </div>
         <div id="opsModels"></div>
         <div class="mpick-empty" id="opsModelsEmpty" style="display:none"><span data-i18n="sheet.modelsEmpty">还没有配置模型</span> · <span id="btnOpsGotoModels" style="color:var(--acc-strong);cursor:pointer" data-i18n="sheet.modelsAdd">去添加 →</span></div>
         <div style="display:flex;gap:8px;margin-top:var(--sp-2)">

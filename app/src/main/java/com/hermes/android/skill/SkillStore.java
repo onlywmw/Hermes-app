@@ -83,7 +83,7 @@ public class SkillStore {
             }
             return "{\"ok\":false,\"error\":\"技能不存在\"}";
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return errJson(e);
         }
     }
 
@@ -105,7 +105,17 @@ public class SkillStore {
             prefs.edit().putString(KEY_SKILLS, filtered.toString()).apply();
             return new JSONObject().put("ok", true).toString();
         } catch (Exception e) {
-            return "{\"ok\":false,\"error\":\"" + e.getMessage() + "\"}";
+            return errJson(e);
+        }
+    }
+
+    /** JSONObject 构造错误 JSON (自动转义), 与 StorageManager.errJson 同模式 */
+    private String errJson(Exception e) {
+        try {
+            return new JSONObject().put("ok", false)
+                    .put("error", e.getMessage() != null ? e.getMessage() : "未知错误").toString();
+        } catch (Exception ex) {
+            return "{\"ok\":false}";
         }
     }
 }

@@ -114,6 +114,7 @@ public class AgentLoop implements Runnable {
     private volatile Boolean planApproved;
     private volatile String planNote;
     private volatile String userAnswer;
+    private volatile Boolean fileWriteApproved;
 
     private final Set<String> allowedPaths;   // 组装方共享 (注册表 file.write 直接读它)
     private final StringBuilder transcript = new StringBuilder();
@@ -168,6 +169,12 @@ public class AgentLoop implements Runnable {
     public void respondPlan(boolean approved, String note) {
         planApproved = approved;
         planNote = note;
+        synchronized (gateLock) { gateLock.notifyAll(); }
+    }
+
+    /** P1 文件写入预览闸: 确认/驳回 (与计划闸共用唤醒锁) */
+    public void respondFileWrite(boolean approved) {
+        fileWriteApproved = approved;
         synchronized (gateLock) { gateLock.notifyAll(); }
     }
 
@@ -346,6 +353,19 @@ public class AgentLoop implements Runnable {
                     return true;
                 }
                 String arg = a.optString("path", a.optString("text", ""));
+                /* P1: file.write 落盘前强制预览 — 挂起等用户确认 (计划外路径仍走注册表硬拒绝, 不弹预览) */
+                if ("file.write".equals(action) && allowedPaths.contains(arg)) {
+                    log(j("type", "filePreview", "loopId", loopId,
+                            "path", arg, "content", a.optString("content")));
+                    boolean writeOk = parkForFileWrite();
+                    if (stopRequested) { stopped(); return false; }
+                    if (!writeOk) {
+                        stepLog(step, action, arg, false, "用户驳回写入", t0);
+                        transcript.append("[").append(action).append(" ").append(arg)
+                                .append("] → 用户驳回写入, 请修改内容重试或调整方案。\n");
+                        return true;
+                    }
+                }
                 try {
                     ToolRegistry.Result res = tool.handler.run(a);
                     stepLog(step, action, arg, res.ok, res.text, t0);
@@ -413,6 +433,23 @@ public class AgentLoop implements Runnable {
         }
         parkedMs += System.currentTimeMillis() - t0; // 计划闸停留与 ask_user 一样不计入纯执行时长
         return ok;
+    }
+
+    /** P1: 写入预览挂起 (复用计划闸 wait/notify 模式); true=用户确认写入 */
+    private boolean parkForFileWrite() {
+        fileWriteApproved = null;
+        long t0 = System.currentTimeMillis();
+        synchronized (gateLock) {
+            while (fileWriteApproved == null && !stopRequested) {
+                if (System.currentTimeMillis() - t0 > PLAN_GATE_TIMEOUT_MS) {
+                    note("写入确认超时, 视为驳回");
+                    break;
+                }
+                try { gateLock.wait(1000); } catch (InterruptedException e) { break; }
+            }
+        }
+        parkedMs += System.currentTimeMillis() - t0; // 与计划闸一样不计入纯执行时长
+        return Boolean.TRUE.equals(fileWriteApproved);
     }
 
     private String parkForAnswer() {

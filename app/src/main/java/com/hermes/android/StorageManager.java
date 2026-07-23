@@ -79,8 +79,8 @@ public class StorageManager {
 
     // ==================== 目录初始化 ====================
 
-    /** 初始化房间存储目录结构 */
-    public void initRoomStorage(String roomId) {
+    /** 初始化房间存储目录结构 (synchronized: 可能创建 index.json, 与 updateMeta 互斥) */
+    public synchronized void initRoomStorage(String roomId) {
         if (!isValidId(roomId)) {
             Log.w(TAG, "initRoomStorage: 非法房间ID " + roomId);
             return;
@@ -114,7 +114,8 @@ public class StorageManager {
         }
     }
 
-    public String saveWorkFile(String roomId, String path, String content, String author) {
+    /* synchronized: 内部调用 updateMeta 读-改-写 index.json, 需与 AgentLoop 线程互斥 */
+    public synchronized String saveWorkFile(String roomId, String path, String content, String author) {
         try {
             if (!isValidId(roomId)) return errJson("非法房间ID");
             File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
@@ -369,7 +370,8 @@ public class StorageManager {
 
     // ==================== 通用工具 ====================
 
-    public String getRoomMeta(String roomId) {
+    /* synchronized: 读 index.json 与 updateMeta 互斥, 避免读到写一半的内容 */
+    public synchronized String getRoomMeta(String roomId) {
         try {
             if (!isValidId(roomId)) return errJson("非法房间ID");
             File metaFile = new File(baseDir, "rooms/" + roomId + "/files/.meta/index.json");
@@ -547,8 +549,9 @@ public class StorageManager {
         return arr;
     }
 
-    private void updateMeta(String roomId, String path, String type,
-                            String author, long size) {
+    /* synchronized: index.json 读-改-写需与 JavaBridge 线程互斥 (实例方法级, 全类统一) */
+    private synchronized void updateMeta(String roomId, String path, String type,
+                                         String author, long size) {
         try {
             File metaFile = new File(baseDir, "rooms/" + roomId + "/files/.meta/index.json");
             JSONObject meta;

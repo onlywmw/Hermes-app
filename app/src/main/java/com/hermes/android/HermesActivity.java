@@ -98,7 +98,7 @@ public class HermesActivity extends AppCompatActivity {
         getWindow().setNavigationBarColor(0xFF0f172a);
 
         aiConfig = new AiProviderConfig(this);
-        modelRegistry = new com.hermes.android.model.ModelRegistry(this);
+        modelRegistry = com.hermes.android.model.ModelRegistry.getInstance(this);
         storageManager = new StorageManager(this);
         capabilityExecutor.init(this);
         cronManager = new CronManager(this);
@@ -425,6 +425,18 @@ public class HermesActivity extends AppCompatActivity {
     public void setRoomOpenPublic(boolean open) { roomOpen = open; }
     public void pickFilePublic(String cbId, String roomId) {
         runOnUiThread(() -> {
+            // Fix: 单槽位 — 已有未完成的选择时直接回错误回调, 不覆盖前一个回调
+            if (pendingFileCallbackId != null) {
+                try {
+                    String errJson = new JSONObject()
+                            .put("ok", false).put("error", "已有文件选择操作进行中").toString();
+                    evalJs("window._hermesCb('" + cbId + "'," + errJson + ")");
+                } catch (Exception ex) {
+                    evalJs("window._hermesCb('" + cbId
+                            + "',{\"ok\":false,\"error\":\"已有文件选择操作进行中\"})");
+                }
+                return;
+            }
             try {
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -433,7 +445,15 @@ public class HermesActivity extends AppCompatActivity {
                 pendingFileRoomId = roomId;
                 filePickerLauncher.launch(intent);
             } catch (Exception e) {
-                evalJs("window._hermesCb('" + cbId + "',{\"ok\":false,\"error\":\"" + e.getMessage() + "\"})");
+                try {
+                    /* JSONObject 构造错误 JSON, 防 e.getMessage() 含引号注入 JS 字符串 */
+                    String errJson = new JSONObject()
+                            .put("ok", false).put("error", e.getMessage()).toString();
+                    evalJs("window._hermesCb('" + cbId + "'," + errJson + ")");
+                } catch (Exception ex) {
+                    evalJs("window._hermesCb('" + cbId
+                            + "',{\"ok\":false,\"error\":\"文件选择失败\"})");
+                }
             }
         });
     }

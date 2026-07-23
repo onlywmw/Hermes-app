@@ -8,7 +8,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutorCompletionService;
@@ -134,14 +136,17 @@ public class CouncilClient {
             });
         }
 
-        // 谁先返回先回调 (CompletionService)
+        // 谁先返回先回调 (CompletionService); poll 带超时, 30s 真实生效
         StringBuilder councilContext = new StringBuilder(
                 "以下是各专家对「" + topic + "」的讨论:\n\n");
 
+        Set<String> replied = new HashSet<>();
         for (int i = 0; i < models.size(); i++) {
             try {
-                Future<ModelReply> f = cs.take(); // 阻塞等下一个完成的
-                ModelReply reply = f.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                Future<ModelReply> f = cs.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                if (f == null) break; // 超时: 剩余模型按超时失败处理
+                ModelReply reply = f.get();
+                replied.add(reply.modelId);
                 JSONObject msg = new JSONObject();
                 msg.put("type", "model");
                 msg.put("who", reply.modelId);
@@ -156,16 +161,25 @@ public class CouncilClient {
                         .append("(").append(reply.role).append("): ")
                         .append(reply.content).append("\n\n");
             } catch (Exception e) {
-                try {
-                    callback.onReply(new JSONObject()
-                            .put("type", "model")
-                            .put("who", "?")
-                            .put("name", "调用超时")
-                            .put("content", "模型超时未响应"));
-                } catch (Exception ignored) {}
+                break; // 中断/执行异常: 剩余模型按超时失败处理
             }
         }
-        exec.shutdown();
+        exec.shutdownNow(); // 取消剩余任务
+
+        // 超时/异常未回复的模型: 记录为超时失败
+        for (ModelConfig mc : models) {
+            if (replied.contains(mc.id)) continue;
+            try {
+                callback.onReply(new JSONObject()
+                        .put("type", "model")
+                        .put("who", mc.id)
+                        .put("name", mc.name.isEmpty() ? mc.getProviderDisplayName() : mc.name)
+                        .put("role", mc.role)
+                        .put("color", mc.color)
+                        .put("content", "模型超时未响应")
+                        .put("success", false));
+            } catch (Exception ignored) {}
+        }
 
         // 全部收齐 → 汇总
         ModelConfig defaultModel = registry.getDefault();

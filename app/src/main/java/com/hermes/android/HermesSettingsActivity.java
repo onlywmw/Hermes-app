@@ -63,7 +63,7 @@ public class HermesSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_hermes_settings);
 
-        registry = new ModelRegistry(this);
+        registry = ModelRegistry.getInstance(this);
         aiConfig = new AiProviderConfig(this);
 
         modelListContainer = findViewById(R.id.modelListContainer);

@@ -34,20 +34,24 @@ public class AiProviderConfig {
 
     private final SharedPreferences prefs;
 
-    public AiProviderConfig(Context context) {
-        SharedPreferences encrypted = null;
+    /** 创建旧版加密 prefs 实例; Keystore 异常时返回 null (不崩, 调用方自行兜底) */
+    public static SharedPreferences openEncryptedPrefs(Context context) {
         try {
             MasterKey masterKey = new MasterKey.Builder(context)
                     .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                     .build();
-            encrypted = EncryptedSharedPreferences.create(
+            return EncryptedSharedPreferences.create(
                     context, PREFS_ENC, masterKey,
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
         } catch (Exception e) {
             Log.w(TAG, "EncryptedSharedPreferences 不可用, 降级明文存储: " + e.getMessage());
-            encrypted = null;
+            return null;
         }
+    }
+
+    public AiProviderConfig(Context context) {
+        SharedPreferences encrypted = openEncryptedPrefs(context);
 
         if (encrypted != null) {
             migrateIfNeeded(context, encrypted);

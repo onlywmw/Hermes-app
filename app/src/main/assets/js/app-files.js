@@ -66,6 +66,6 @@ $('btnFileNewCreate').addEventListener('click',function(){
     B.toast(name+' '+t('files.created'));
     renderStorageView();
   }else{
-    B.toast(res.message||'');
+    B.toast(res.error||res.message||'');
   }
 });

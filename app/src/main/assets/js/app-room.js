@@ -13,17 +13,22 @@ function openSheetExclusive(maskId,sheetId){
   $(sheetId).classList.add('open');
 }
 
-/* ============ 新建房间: 底部 Sheet (DESIGN_NEW_ROOM v2) ============ */
-var _nrMode='single',_nrSel=[];
+/* ============ 新建房间: 底部 Sheet (无协作方式 · agent 必选, 其余 AI 为可选评审) ============ */
+var _nrSel=[];
 
 /* 模型勾选组件 (创建 sheet 与成员编辑共用)
-   containerId 的兄弟元素 containerId+'Empty' 为空态提示;
-   sel 为调用方持有的已选 id 数组 (原地修改); multi=true 多选(团队) */
+   首行固定 mov agent 锁定行 (必选, 不可取消);
+   sel 为调用方持有的已选评审模型 id 数组 (原地修改); 恒为多选 */
 function renderModelPicker(containerId,sel,multi,onChange){
   var models=B.listModels();
   var box=$(containerId),empty=$(containerId+'Empty');
+  /* agent 锁定行: 永远在最前, 勾选且禁用 */
+  var agentRow='<div class="mpick sel" data-mid="__agent" style="opacity:.85">'
+    +'<i class="av" style="background:var(--acc-live);color:#fff">MO</i>'
+    +'<div class="mpick-info"><b>mov agent</b><span>'+t('sheet.agentLock')+'</span></div>'
+    +'<span class="mcheck">✓</span></div>';
   if(!models.length){
-    box.innerHTML='';if(empty)empty.style.display='';
+    box.innerHTML=agentRow;if(empty)empty.style.display='';
     if(onChange)onChange();
     return;
   }
@@ -31,12 +36,7 @@ function renderModelPicker(containerId,sel,multi,onChange){
   /* 清理已被删除的模型 id */
   var kept=sel.filter(function(id){return models.some(function(m){return m.id===id;});});
   sel.length=0;kept.forEach(function(id){sel.push(id);});
-  /* 单选且无选择 → 默认勾注册表默认模型 */
-  if(!multi&&sel.length===0){
-    var def=models.find(function(m){return m.isDefault;})||models[0];
-    sel.push(def.id);
-  }
-  var h='';
+  var h=agentRow;
   models.forEach(function(m){
     var on=sel.indexOf(m.id)>=0;
     var col=m.color||providerColor(m.provider);
@@ -47,28 +47,25 @@ function renderModelPicker(containerId,sel,multi,onChange){
   });
   box.innerHTML=h;
   box.querySelectorAll('.mpick').forEach(function(el){
+    if(el.getAttribute('data-mid')==='__agent')return; /* agent 锁定不可点 */
     el.addEventListener('click',function(){
       var mid=el.getAttribute('data-mid');
       var i=sel.indexOf(mid);
-      if(multi){if(i>=0)sel.splice(i,1);else sel.push(mid);}
-      else{sel.length=0;sel.push(mid);}
+      if(i>=0)sel.splice(i,1);else sel.push(mid);
       renderModelPicker(containerId,sel,multi,onChange);
     });
   });
   if(onChange)onChange();
 }
 
-function syncModeOpts(container,mode){
-  container.querySelectorAll('.mopt').forEach(function(el){
-    el.classList.toggle('sel',el.getAttribute('data-mode')===mode);
-  });
-}
-
 $('fabNew').addEventListener('click',function(){
-  _nrMode='single';_nrSel=[];
+  _nrSel=[];
   $('newRoomName').value='';
-  syncModeOpts($('newRoomModeOpts'),_nrMode);
-  renderModelPicker('newRoomModels',_nrSel,false,updateCreateBtn);
+  /* 默认勾注册表默认模型当评审 (用户可自行取消; agent 恒在) */
+  var models=B.listModels();
+  var def=models.find(function(m){return m.isDefault;});
+  if(def)_nrSel.push(def.id);
+  renderModelPicker('newRoomModels',_nrSel,true,updateCreateBtn);
   openSheetExclusive('newRoomMask','newRoomSheet');
   $('newRoomName').focus();
 });
@@ -77,19 +74,10 @@ function closeNewRoomDialog(){closeAllSheets();}
 $('newRoomMask').addEventListener('click',closeNewRoomDialog);
 $('btnSheetClose').addEventListener('click',closeNewRoomDialog);
 
-$('newRoomModeOpts').querySelectorAll('.mopt').forEach(function(el){
-  el.addEventListener('click',function(){
-    _nrMode=el.getAttribute('data-mode');
-    syncModeOpts($('newRoomModeOpts'),_nrMode);
-    renderModelPicker('newRoomModels',_nrSel,_nrMode==='council',updateCreateBtn);
-  });
-});
-
-/* 团队模式且有模型可选时, 至少选 1 个才能创建; 无模型 → 允许跳过 ( DESIGN_NEW_ROOM 边界表 ) */
+/* agent 恒在, 评审随意 → 创建键常开 */
 function updateCreateBtn(){
-  var blocked=_nrMode==='council'&&B.listModels().length>0&&_nrSel.length===0;
-  $('btnCreate').disabled=blocked;
-  $('btnCreate').style.opacity=blocked?'.45':'';
+  $('btnCreate').disabled=false;
+  $('btnCreate').style.opacity='';
 }
 
 $('btnGotoModels').addEventListener('click',function(){closeAllSheets();setTab('run');});
@@ -98,21 +86,18 @@ $('btnCreate').addEventListener('click',function(){
   var name=$('newRoomName').value.trim()||t('sheet.defaultName');
   var id='r'+Date.now();
   var ai=_nrSel.slice();
-  var seed=_nrMode==='council'
-    ?[{t:'sys',h:'COUNCIL 已召开 · 多模型 AI 团队 · MOV 主持'},{t:'agent',who:'mov',h:t('sheet.councilFirst')}]
-    :[{t:'agent',who:'mov',h:'我是 MOV。直接下达指令或提问即可。'}];
   ROOMS.splice(1,0,{
-    id:id, name:name, mode:_nrMode,
+    id:id, name:name, mode:'council',
     members:{human:[{who:'you',role:'owner'}],ai:ai},
-    phase:_nrMode==='council'?'讨论中':'已交付',
-    last:_nrMode==='council'?t('sheet.councilReady'):'MOV 已就绪',
-    time:'现在', unread:0, played:false, msgs:[], seed:seed
+    phase:'已交付', last:'MOV 已就绪',
+    time:'现在', unread:0, played:false, msgs:[],
+    seed:[{t:'agent',who:'mov',h:'我是 MOV。直接下达任务, 我会拆解计划给你确认, 然后执行并交付结果。'}]
   });
   closeAllSheets();
   B.initRoomStorage(id);
   B.initRoom(id,name,'',ai); /* 激活死桥: 落盘 room.json 元数据 */
   renderRooms();persistRooms();enterRoom(id);
-  ev('新建房间 '+name+' · '+_nrMode+' · '+ai.length+' AI');
+  ev('新建房间 '+name+' · agent + '+ai.length+' 评审');
 });
 
 /* ============ 房间操作 sheet ============ */
@@ -203,6 +188,7 @@ $('opsClear').addEventListener('click',function(){
 
 $('opsDelete').addEventListener('click',function(){
   showOpsConfirm('确定删除此房间？不可撤销。',function(){
+    if(_opsRoomId==='desk')return; /* 纵深防御: desk 不可删 */
     var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
     if(room){
       var idx=ROOMS.indexOf(room);
@@ -224,28 +210,19 @@ $('opsConfirmOk').addEventListener('click',function(){
   if(_opsConfirmAction)_opsConfirmAction();
 });
 
-/* ============ AI 成员编辑 (DESIGN_NEW_ROOM v2: 创建后可改模式与成员) ============ */
-var _opsMode='single',_opsSel=[];
+/* ============ AI 成员编辑 (agent 锁定必选, 评审团可增减) ============ */
+var _opsSel=[];
 
 $('opsMembers').addEventListener('click',function(){
   var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
   if(!room)return;
-  _opsMode=room.mode==='council'?'council':'single';
-  _opsSel=roomAiMembers(room);
+  /* 拷贝一份再编辑: roomAiMembers 返回原数组引用, 直接改会导致点取消也生效 */
+  _opsSel=roomAiMembers(room).slice();
   $('roomOpsMenu').style.display='none';
   $('roomOpsConfirm').style.display='none';
   $('roomOpsRename').style.display='none';
   $('roomOpsMembers').style.display='';
-  syncModeOpts($('opsModeOpts'),_opsMode);
-  renderModelPicker('opsModels',_opsSel,_opsMode==='council',null);
-});
-
-$('opsModeOpts').querySelectorAll('.mopt').forEach(function(el){
-  el.addEventListener('click',function(){
-    _opsMode=el.getAttribute('data-mode');
-    syncModeOpts($('opsModeOpts'),_opsMode);
-    renderModelPicker('opsModels',_opsSel,_opsMode==='council',null);
-  });
+  renderModelPicker('opsModels',_opsSel,true,null);
 });
 
 $('btnOpsGotoModels').addEventListener('click',function(){closeRoomOpsSheet();setTab('run');});
@@ -259,16 +236,14 @@ $('opsMembersOk').addEventListener('click',function(){
   var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
   if(room){
     var ids=_opsSel.slice();
-    var mode=_opsMode;
-    if(ids.length===0)mode='single'; /* 0 成员团队 → 降级单聊 (DESIGN_NEW_ROOM 边界表) */
-    room.mode=mode;
-    /* 旧数组格式 ['mov'] 在此迁移为新对象格式 */
+    /* 房间恒为 agent 房: agent 必选, mode 统一 council; 评审可空 */
+    room.mode='council';
     room.members={human:[{who:'you',role:'owner'}],ai:ids};
-    genCounter++; /* 进行中的 council 讨论作废 (复用房间切换守卫) */
+    genCounter++; /* 进行中的 agent 任务作废 (复用房间切换守卫) */
     if(curRoomId===room.id)$('roomSub').textContent=roomSubtitle(room);
     renderRooms();persistRooms();
     B.toast(t('ops.membersSaved'));
-    ev('编辑成员 '+room.name+' → '+mode+' · '+ids.length+' AI');
+    ev('编辑成员 '+room.name+' → agent + '+ids.length+' 评审');
   }
   closeRoomOpsSheet();
 });

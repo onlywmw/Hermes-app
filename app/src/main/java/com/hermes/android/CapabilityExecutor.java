@@ -339,7 +339,9 @@ public class CapabilityExecutor {
             }
             WifiInfo info = wm.getConnectionInfo();
             StringBuilder sb = new StringBuilder("📶 WiFi 状态\n\n");
-            sb.append("SSID: ").append(info.getSSID().replace("\"", "")).append("\n");
+            // Fix: getSSID() 在无连接/无位置权限时可能返回 null
+            String ssid = info.getSSID();
+            sb.append("SSID: ").append(ssid != null ? ssid.replace("\"", "") : "(未知)").append("\n");
             sb.append("BSSID: ").append(info.getBSSID()).append("\n");
             sb.append("IP: ").append(intToIp(info.getIpAddress())).append("\n");
             sb.append("信号: ").append(WifiManager.calculateSignalLevel(info.getRssi(), 5)).append("/4\n");
@@ -484,25 +486,30 @@ public class CapabilityExecutor {
     // ==================== SMS ====================
     @SuppressLint("Range")
     private CommandResult doSmsRecent(Context ctx, int limit) {
-        try {
-            android.database.Cursor cursor = ctx.getContentResolver().query(
+        // Fix: cursor 改 try-with-resources; getColumnIndex 返回值判 -1
+        try (android.database.Cursor cursor = ctx.getContentResolver().query(
                 android.net.Uri.parse("content://sms/inbox"),
                 new String[]{"address", "body", "date"},
-                null, null, "date DESC LIMIT " + Math.min(limit, 20));
+                null, null, "date DESC LIMIT " + Math.min(limit, 20))) {
             if (cursor == null) return CommandResult.fail("无法访问短信");
+            int addrIdx = cursor.getColumnIndex("address");
+            int bodyIdx = cursor.getColumnIndex("body");
+            int dateIdx = cursor.getColumnIndex("date");
+            if (addrIdx < 0 || bodyIdx < 0 || dateIdx < 0) {
+                return CommandResult.fail("短信字段缺失");
+            }
 
             StringBuilder sb = new StringBuilder("📩 最近 " + limit + " 条短信\n\n");
             int count = 0;
             while (cursor.moveToNext() && count < limit) {
-                String addr = cursor.getString(cursor.getColumnIndex("address"));
-                String body = cursor.getString(cursor.getColumnIndex("body"));
-                long date = cursor.getLong(cursor.getColumnIndex("date"));
+                String addr = cursor.getString(addrIdx);
+                String body = cursor.getString(bodyIdx);
+                long date = cursor.getLong(dateIdx);
                 String dateStr = new java.text.SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(new java.util.Date(date));
                 sb.append("[").append(dateStr).append("] ").append(addr).append("\n");
                 sb.append(body != null && body.length() > 100 ? body.substring(0, 100) + "…" : body).append("\n\n");
                 count++;
             }
-            cursor.close();
             if (count == 0) sb.append("(无短信)");
             return CommandResult.ok(sb.toString().trim());
         } catch (SecurityException e) {
@@ -515,28 +522,32 @@ public class CapabilityExecutor {
     // ==================== CONTACTS ====================
     @SuppressLint("Range")
     private CommandResult doContacts(Context ctx) {
-        try {
-            android.database.Cursor cursor = ctx.getContentResolver().query(
+        // Fix: cursor 改 try-with-resources; getColumnIndex 返回值判 -1
+        try (android.database.Cursor cursor = ctx.getContentResolver().query(
                 android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 new String[]{
                     android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
                     android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER
                 },
                 null, null,
-                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC LIMIT 20");
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC LIMIT 20")) {
             if (cursor == null) return CommandResult.fail("无法访问联系人");
+            int nameIdx = cursor.getColumnIndex(
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
+            int numberIdx = cursor.getColumnIndex(
+                android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER);
+            if (nameIdx < 0 || numberIdx < 0) {
+                return CommandResult.fail("联系人字段缺失");
+            }
 
             StringBuilder sb = new StringBuilder("👤 联系人 (前20条)\n\n");
             int count = 0;
             while (cursor.moveToNext() && count < 20) {
-                String name = cursor.getString(cursor.getColumnIndex(
-                    android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME));
-                String number = cursor.getString(cursor.getColumnIndex(
-                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER));
+                String name = cursor.getString(nameIdx);
+                String number = cursor.getString(numberIdx);
                 sb.append(name).append(": ").append(number).append("\n");
                 count++;
             }
-            cursor.close();
             if (count == 0) sb.append("(无联系人)");
             return CommandResult.ok(sb.toString().trim());
         } catch (SecurityException e) {

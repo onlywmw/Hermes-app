@@ -22,6 +22,10 @@ function renderStorageView(){
 /* ---------- 产出视图: 按时间分组 ---------- */
 function renderWorkFiles(){
   var res=B.listWorkFiles(curRoomId);
+  if(!res.ok){
+    $('storageList').innerHTML='<div class="sysline">'+esc(res.error||t('files.loadFail'))+'</div>';
+    return;
+  }
   var files=(res.files||[]).filter(function(f){return !f.isDir;});
   var h='';
   if(files.length===0){
@@ -59,6 +63,10 @@ function renderWorkFiles(){
 /* ---------- 资料视图: 网格 ---------- */
 function renderInboxFiles(){
   var res=B.listInboxFiles(curRoomId);
+  if(!res.ok){
+    $('storageList').innerHTML='<div class="sysline">'+esc(res.error||t('files.loadFail'))+'</div>';
+    return;
+  }
   var files=(res.files||[]).filter(function(f){return !f.isDir;});
   var h='';
   if(files.length===0){
@@ -84,6 +92,10 @@ function renderInboxFiles(){
 /* ---------- 归档视图: 按来源分组 ---------- */
 function renderArchiveFiles(){
   var res=B.listArchiveFiles(curRoomId);
+  if(!res.ok){
+    $('storageList').innerHTML='<div class="sysline">'+esc(res.error||t('files.loadFail'))+'</div>';
+    return;
+  }
   var sources=res.sources||[];
   var h='';
   if(sources.length===0){
@@ -112,10 +124,10 @@ function bindStorageCards(){
   document.querySelectorAll('#storageList .st-card, #storageList .st-gcard').forEach(function(el){
     var fname=el.getAttribute('data-file');
     var ftype=el.getAttribute('data-type');
-    el.addEventListener('click',function(){
+    el.addEventListener('click',function(e){
       if(lpSuppressClick())return;
       /* 点版本按钮 */
-      if(event.target.getAttribute('data-act')==='versions'){
+      if(e.target.getAttribute('data-act')==='versions'){
         openVersionOverlay(fname);
         return;
       }
@@ -193,10 +205,10 @@ $('fopsDelete').addEventListener('click',function(){
   closeAllSheets();
   /* 删除保持长按确认条语义 (危险操作二次确认) */
   showMsgActions(t('files.delete'),function(){
-    var path=(ftype==='work'?'work/':'inbox/')+fname;
-    var r=B.deleteFile(curRoomId,path);
+    /* 改用专用桥方法 (内部已定位 files/work|inbox 目录, 避免手拼路径缺 files/ 前缀) */
+    var r=(ftype==='work'?B.deleteWorkFile(curRoomId,fname):B.deleteInboxFile(curRoomId,fname));
     if(r.ok){B.toast(t('files.deleted'));renderStorageView();}
-    else B.toast(r.message||'');
+    else B.toast(r.error||r.message||'删除失败');
   });
 });
 

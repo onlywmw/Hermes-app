@@ -3,15 +3,40 @@
    P0-3: XSS 修复 — sanitize + textContent 优先
    ============================================================ */
 
-/* P0-3: HTML 消毒 — 去 script/事件处理器/javascript: 协议 */
+/* P0-3: HTML 消毒 — 白名单实现: DOMParser 解析后递归重建, 只放行安全标签与 class 属性 */
 function sanitize(html){
   if(!html)return '';
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi,'')
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi,'')
-    .replace(/\son\w+\s*=\s*'[^']*'/gi,'')
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi,'')
-    .replace(/javascript\s*:/gi,'');
+  /* 标签白名单: 仅允许纯展示类标签 */
+  var ALLOWED={b:1,i:1,em:1,strong:1,code:1,pre:1,span:1,div:1,br:1,p:1,ul:1,ol:1,li:1,small:1,sub:1,sup:1};
+  /* 危险标签: 连同其内容整棵丢弃(不解包) */
+  var DROP={script:1,style:1,iframe:1,object:1,embed:1,form:1,base:1,meta:1,link:1};
+  /* DOMParser 以 text/html 解析, 解析出的文档不执行脚本 */
+  var doc=new DOMParser().parseFromString(String(html),'text/html');
+  var out=document.createElement('div');
+  /* 递归遍历: 文本原样保留; 白名单标签重建; 其余标签解包(只保留子节点) */
+  function walk(src,dst){
+    var nodes=src.childNodes;
+    for(var k=0;k<nodes.length;k++){
+      var n=nodes[k];
+      if(n.nodeType===3){dst.appendChild(document.createTextNode(n.nodeValue));}
+      else if(n.nodeType===1){
+        var tag=n.tagName.toLowerCase();
+        if(DROP[tag])continue;
+        if(ALLOWED[tag]){
+          var el=document.createElement(tag);
+          /* 属性白名单: 只放行 class, 且值只允许字母数字/空格/下划线/连字符 */
+          var cls=n.getAttribute('class');
+          if(cls&&/^[a-zA-Z0-9 _-]+$/.test(cls))el.setAttribute('class',cls);
+          walk(n,el);
+          dst.appendChild(el);
+        }else{
+          walk(n,dst);
+        }
+      }
+    }
+  }
+  walk(doc.body,out);
+  return out.innerHTML;
 }
 /* P0-3: 安全气泡 — 只保留 <code> 标签，其余走 textContent */
 function safeBubble(html){
@@ -39,7 +64,7 @@ function roomCard(r){
   return '<div class="room" data-room="'+r.id+'">'
     +'<span class="udot'+(r.unread?' show':'')+'"></span>'
     +'<div class="r1">'+avstack(r)+'<b>'+esc(r.name)+'</b><time>'+esc(r.time)+'</time></div>'
-    +'<div class="r2"><span class="mini-tag '+(r.mode==='council'?'council':'')+'">'+(r.mode==='council'?'council · '+roomAiMembers(r).length+' AI':'单聊 · mov')+'</span><span class="badge '+bc+'"><span class="dot"></span>'+esc(r.phase)+'</span></div>'
+    +'<div class="r2"><span class="mini-tag '+(r.mode==='council'?'council':'')+'">'+(r.id==='desk'?'单聊 · mov':'agent'+(roomAiMembers(r).length?' · '+roomAiMembers(r).length+' 评审':''))+'</span><span class="badge '+bc+'"><span class="dot"></span>'+esc(r.phase)+'</span></div>'
     +'<div class="r3">'+esc(r.last)+'</div></div>';
 }
 function renderRooms(){
