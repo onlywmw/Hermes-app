@@ -30,9 +30,9 @@
 |------|------|---------|
 | **联网 fetch/XHR/WebSocket（仅 HTTPS）** | 模板已声明 INTERNET (aapt dump)；shouldOverrideUrlLoading 只拦页面导航不拦 XHR | 连云服务器的 C/S 应用（类微信） |
 | **相机预览/扫一扫 getUserMedia** | 模板 v2：manifest CAMERA + 运行时申请 + onPermissionRequest 授权，2026-07-24 真机验证（权限弹窗→授权→实时预览） | 扫码点单、拍照上传 |
-| **录音 getUserMedia({audio})** | 模板 v2：RECORD_AUDIO 同通道 | 语音输入、录音笔记 |
-| **通知 MovShell.notify(title,text)** | 模板 v2 JS 桥：POST_NOTIFICATIONS 懒申请，2026-07-24 真机验证 | 新消息提醒、订单提醒 |
-| **震动 MovShell.vibrate(ms)** | 模板 v2 JS 桥（VIBRATE 声明即可），真机验证 | 按键反馈、提醒 |
+| **录音 MovShell.recordAudio(秒)+recordResult()** | 2026-07-24 真机：录到 4225 字节真实 AAC。**注意：本机 MIUI 的 WebView getUserMedia 音频通道 NotReadableError（系统层限制，权限已授予仍失败），必须走原生桥** | 语音输入、录音笔记 |
+| **通知 MovShell.notify(title,text)** | 模板 v2 JS 桥：POST_NOTIFICATIONS 懒申请，2026-07-24 真机验证（系统 NotificationRecord 证据）。返回 ok/no-permission | 新消息提醒、订单提醒 |
+| **震动 MovShell.vibrate(ms)** | 返回布尔——false=本机无马达（如 Redmi Pad 无 vibrator 服务），hasVibrator() 自检后如实反馈，禁止盲报成功 | 按键反馈、提醒 |
 | **传感器 DeviceMotion/DeviceOrientation** | Android WebView 无需权限（与 iOS 不同） | 体感游戏：平衡球、赛车转向 |
 | **音频播放 `<audio>`/Web Audio** | 播放无需权限；单文件可内联 base64 音效 | 游戏音效、提示音 |
 | **WebGL/Canvas/游戏引擎** | WebView 自带 GPU 加速 | 3D/复杂游戏 |

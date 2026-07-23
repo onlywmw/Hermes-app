@@ -35,6 +35,8 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private PermissionRequest pendingWebReq;
+    private android.media.MediaRecorder rec;
+    private String recResult;
     private String pendingNotifyTitle, pendingNotifyText;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -174,26 +176,82 @@ public class MainActivity extends Activity {
     }
 
     class ShellBridge {
-        /** 发系统通知 (Android 13+ 懒申请 POST_NOTIFICATIONS, 批准后补发) */
+        /** 发系统通知 (Android 13+ 懒申请 POST_NOTIFICATIONS, 批准后补发);
+           返回 "ok" / "no-permission" — JS 侧禁止盲目报成功 (防假性通畅) */
         @JavascriptInterface
-        public void notify(String title, String text) {
-            runOnUiThread(() -> {
-                if (Build.VERSION.SDK_INT >= 33
-                        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                                != PackageManager.PERMISSION_GRANTED) {
+        public String notify(String title, String text) {
+            if (Build.VERSION.SDK_INT >= 33
+                    && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                            != PackageManager.PERMISSION_GRANTED) {
+                runOnUiThread(() -> {
                     pendingNotifyTitle = title; pendingNotifyText = text;
                     requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
-                    return;
-                }
-                postNotification(title, text);
-            });
+                });
+                return "no-permission";
+            }
+            postNotification(title, text);
+            return "ok";
         }
 
-        /** 震动 (VIBRATE 声明即可, 无需运行时权限; 无马达设备静默跳过) */
+        /** 震动; 返回 false = 无马达/未震 (部分平板无震动服务, 必须如实上报) */
         @JavascriptInterface
-        public void vibrate(long ms) {
+        public boolean vibrate(long ms) {
             Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-            if (v != null && v.hasVibrator()) v.vibrate(Math.max(0, Math.min(ms, 3000)));
+            if (v == null || !v.hasVibrator()) return false;
+            v.vibrate(Math.max(0, Math.min(ms, 3000)));
+            return true;
+        }
+
+        /** 能力自检: JS 启动时查一次, 按返回值显示/隐藏硬件入口 */
+        @JavascriptInterface
+        public boolean hasVibrator() {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            return v != null && v.hasVibrator();
+        }
+
+        /** 原生录音 (绕开 MIUI WebView getUserMedia 音频通道 NotReadableError);
+           返回 "recording:秒数" 或 "err:原因"; 到点自动停, 用 recordResult() 取结果 */
+        @JavascriptInterface
+        public String recordAudio(int seconds) {
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                    != PackageManager.PERMISSION_GRANTED) return "err:no-permission";
+            if (rec != null) return "err:busy";
+            try {
+                final java.io.File out = new java.io.File(getCacheDir(),
+                        "rec_" + System.currentTimeMillis() + ".m4a");
+                rec = new android.media.MediaRecorder();
+                rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+                rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4);
+                rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC);
+                rec.setOutputFile(out.getAbsolutePath());
+                rec.prepare();
+                rec.start();
+                recResult = null;
+                int secs = Math.min(Math.max(seconds, 1), 30);
+                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                    try {
+                        rec.stop();
+                        recResult = out.exists() && out.length() > 44
+                                ? "ok:" + out.length() + "字节:" + out.getAbsolutePath()
+                                : "err:无数据";
+                    } catch (Exception e) {
+                        recResult = "err:" + e.getMessage();
+                    }
+                    try { rec.release(); } catch (Exception ignored) {}
+                    rec = null;
+                }, secs * 1000L);
+                return "recording:" + secs;
+            } catch (Exception e) {
+                try { if (rec != null) rec.release(); } catch (Exception ignored) {}
+                rec = null;
+                return "err:" + e.getMessage();
+            }
+        }
+
+        /** 取录音结果: "ok:字节数:路径" / "err:原因" / null=还在录 */
+        @JavascriptInterface
+        public String recordResult() {
+            return recResult;
         }
     }
 
