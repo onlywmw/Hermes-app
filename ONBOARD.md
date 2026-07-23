@@ -87,13 +87,13 @@ app/src/test/             测试
 
 ---
 
-## 从哪开始
+## 当前任务
 
-按优先级：
+P0（存储根目录）和 P2（看板删除）已完成。剩余：
 
-1. **P0** — 存储根目录修正 (`CONTRACT_STORAGE.md` + `CONTRACT_ARCH.md` 第 2 条边界)。约 20 行 Java。
-2. **P1** — AI 写文件前强制预览 (`CONTRACT_SECURITY.md` 第 5 条)。约 40 行 JS。
-3. **P2** — 看板彻底删除 (`CONTRACT_ARCH.md` 两栏结构)。约删除 6 个文件 + 清理 HTML/CSS。
+1. **P1** — AI 写文件前强制预览 (`CONTRACT_SECURITY.md` 约束 5)。约 40 行 JS。
+2. **层级清理** — 删除 shell.css 中 `#sheetMask{z-index:11}` / `#sheetNew{z-index:12}` / `.dialog-mask` 三行死代码 (`CONTRACT_ZINDEX.md`)。
+3. **合同交叉引用** — 每份 CONTRACT 末尾加"关联合同"。
 
 ---
 

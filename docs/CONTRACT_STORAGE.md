@@ -166,3 +166,9 @@ Then:
 5. **所有磁盘 IO 在调用线程执行。** `saveWorkFile`/`restoreVersion` 是同步方法，调用方负责放到子线程。
 6. **index.json 读写不是原子的。** 并发写同一个文件时，后写的覆盖先写的。代码不需要处理并发——JS 单线程，不存在并发写同一房间的场景。
 7. **`listDir` 必须过滤 `.` 开头的隐藏文件和目录。** `.meta`、`.mov` 不对外暴露。
+
+---
+
+## 关联合同
+
+- [CONTRACT_ARCH.md](CONTRACT_ARCH.md)

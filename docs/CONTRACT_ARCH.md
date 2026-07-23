@@ -101,3 +101,14 @@ HermesActivity.onCreate
 | `CONTRACT_RUNTIME.md` | 运行页 | 前端 |
 | `CONTRACT_SECURITY.md` | 安全 | 后端 + 前端 |
 | `CONTRACT_ARCH.md` | 架构总纲（本文档） | 全体 |
+
+---
+
+## E2E 自动化测试
+
+`tools/e2e/` 目录包含基于 Chrome DevTools Protocol 的自动化测试脚本 (node + ws)。
+
+- `driver*.js` — 页面按钮遍历 + 状态断言
+- `mov-models-verify.js` — 多模型链路验证
+- 测试报告在 `tools/e2e/reports/`
+- 新增用例: 复制现有 driver 脚本, 修改测试步骤

@@ -187,3 +187,11 @@ Then:
 4. **API Key 必须用 `EncryptedSharedPreferences` 存储，降级时（加密不可用）弹 toast 警告、不静默降级。**
 5. **`listModels()` 返回给 JS 时必须脱敏 apiKey。** 内部 `listJsonFull()` 才返回完整 Key（仅 Java 内部使用）。
 6. **`discussAsync` 回调在 `aiExecutor` 线程中执行，JS 回调通过 `evalJs` 抛回主线程。** 禁止在 `doInBackground` 中直接操作 UI。
+
+---
+
+## 关联合同
+
+- [CONTRACT_ARCH.md](CONTRACT_ARCH.md)
+- [CONTRACT_SECURITY.md](CONTRACT_SECURITY.md) — Cron 白名单
+- [CONTRACT_ROOM.md](CONTRACT_ROOM.md) — 单聊模型路由

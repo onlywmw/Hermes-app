@@ -100,3 +100,10 @@ Then:
 3. **Cron 白名单硬编码在 `cron/CronPolicy.ALLOWED_ACTIONS`。** 只允许查询类/轻量设备操作，且必须同时是 `IntentParser` 可产出的 capability（file.write/file.read/file.delete/file.mkdir/http.get 已随 P2 移除，对应不可达分支已删除）。创建任务时先过白名单校验，Worker 运行时保留兜底 BLOCKED。修改白名单 = 改这个常量 + 更新本 CONTRACT 的 TC-SEC05/06。
 4. **Widget receiver 必须声明 `android:permission`。** 且 `executeCommand()` 必须过白名单检查。
 5. **`render.js` 的 `mkMsg()` 必须用 `textContent` 设置用户输入文本。** 禁止 `innerHTML` 拼接用户输入。需要保留 `<code>` 标签时用 `createElement('code')` + `textContent`，不可拼接字符串。
+
+---
+
+## 关联合同
+
+- [CONTRACT_ARCH.md](CONTRACT_ARCH.md)
+- [CONTRACT_STORAGE.md](CONTRACT_STORAGE.md) — 文件写入安全

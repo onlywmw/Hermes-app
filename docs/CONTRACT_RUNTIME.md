@@ -116,3 +116,11 @@ Then:
 3. **Cron 创建时 `parseCronToMinutes` 返回的最小间隔是 15 分钟（WorkManager 限制）。** 如果小于 15，返回结果中必须含 `notice` 字段告知用户。
 4. **权限全部授权时 `rowPerms` 必须 `display:none`。** 不在 DOM 中占位。
 5. **个人信息行的 `≡` 按钮调用 `B.openSettings()` 跳转到原生设置 Activity。** 不跳 WebView 内页面。
+
+---
+
+## 关联合同
+
+- [CONTRACT_ARCH.md](CONTRACT_ARCH.md)
+- [CONTRACT_SECURITY.md](CONTRACT_SECURITY.md) — Cron 白名单
+- [CONTRACT_MODEL.md](CONTRACT_MODEL.md) — 模型列表数据源
