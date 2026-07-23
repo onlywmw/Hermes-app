@@ -1,6 +1,7 @@
 package com.hermes.android.bridge;
 
 import com.hermes.android.HermesActivity;
+import com.hermes.android.agent.AgentLoop;
 import com.hermes.android.ai.AiClient;
 import com.hermes.android.ai.AiProviderConfig;
 import com.hermes.android.council.CouncilClient;
@@ -136,6 +137,127 @@ public class BridgeAi extends BaseBridge {
             }
             evalJs("window._hermesCb('" + callbackId + "'," + resultJson + ")");
         });
+    }
+
+    // ==================== AgentLoop (DESIGN_AGENT_LOOP v1) ====================
+
+    /** 排队中的任务 (全局单 loop, 第二个任务内部排队) */
+    private String queuedGoal, queuedRoomId, queuedCbId;
+
+    /** 启动 agentic 循环; 有活跃 loop 时排队并提示 */
+    public void agentStart(String goal, String roomId, String callbackId) {
+        if (goal == null || goal.trim().isEmpty()) {
+            evalJs("window._hermesCb('" + callbackId + "',{\"ok\":false,\"error\":\"目标为空\"})");
+            return;
+        }
+        AgentLoop.Brain brain = (sysPrompt, userText) -> {
+            com.hermes.android.model.ModelConfig mc = modelRegistry.getDefault();
+            if (mc == null) {
+                return new AiClient.AiResponse(false, "未配置默认模型, 请在运行页添加");
+            }
+            return new AiClient(mc, sysPrompt).chat(userText);
+        };
+        AgentLoop.Tools tools = new AgentLoop.Tools() {
+            private final com.hermes.android.StorageManager sm = activity.getStorageManager();
+
+            @Override
+            public String fileList(String roomId) {
+                return sm.listRoomFiles(roomId, "files/work");
+            }
+
+            @Override
+            public String fileRead(String roomId, String path) {
+                try {
+                    JSONObject r = new JSONObject(sm.readFile(roomId, "files/work/" + path));
+                    return r.optBoolean("ok") ? r.optString("content") : "ERROR: " + r.optString("error");
+                } catch (Exception e) {
+                    return "ERROR: " + e.getMessage();
+                }
+            }
+
+            @Override
+            public String fileWrite(String roomId, String path, String content) {
+                try {
+                    JSONObject r = new JSONObject(sm.writeFile(roomId, "files/work/" + path, content));
+                    return r.optBoolean("ok") ? "OK: 已写入" : "ERR: " + r.optString("error");
+                } catch (Exception e) {
+                    return "ERR: " + e.getMessage();
+                }
+            }
+
+            @Override
+            public String capabilityOf(String text) {
+                try {
+                    com.hermes.android.ParsedCommand cmd =
+                            new com.hermes.android.IntentParser().parse(text);
+                    return cmd == null || cmd.isError() ? "" : cmd.getCapability();
+                } catch (Exception e) {
+                    return "";
+                }
+            }
+
+            @Override
+            public String deviceCmd(String text) {
+                try {
+                    com.hermes.android.ParsedCommand cmd =
+                            new com.hermes.android.IntentParser().parse(text);
+                    com.hermes.android.CommandResult r =
+                            activity.getCapabilityExecutor().execute(activity, cmd);
+                    return r.getMessage();
+                } catch (Exception e) {
+                    return "执行失败: " + e.getMessage();
+                }
+            }
+        };
+        AgentLoop.LogSink sink = log -> {
+            try {
+                evalJs("window._agentLog(" + log.toString() + ")");
+            } catch (Exception ignored) {}
+        };
+        AgentLoop loop = AgentLoop.startNew(roomId, goal, brain, tools, wrapSinkWithQueue(sink));
+        if (loop == null) {
+            queuedGoal = goal; queuedRoomId = roomId; queuedCbId = callbackId;
+            evalJs("window._hermesCb('" + callbackId
+                    + "',{\"ok\":true,\"queued\":true,\"note\":\"上一个任务还在执行, 已排队\"})");
+            return;
+        }
+        evalJs("window._hermesCb('" + callbackId
+                + "',{\"ok\":true,\"loopId\":\"" + loop.getLoopId() + "\"})");
+    }
+
+    /** 在日志出口外包一层: 终态时自动启动排队任务 */
+    private AgentLoop.LogSink wrapSinkWithQueue(AgentLoop.LogSink inner) {
+        return log -> {
+            inner.onLog(log);
+            String type = log.optString("type");
+            if ("deliver".equals(type) || "fail".equals(type) || "stopped".equals(type)) {
+                maybeStartQueued();
+            }
+        };
+    }
+
+    private synchronized void maybeStartQueued() {
+        if (queuedGoal == null) return;
+        String g = queuedGoal, r = queuedRoomId, cb = queuedCbId;
+        queuedGoal = null; queuedRoomId = null; queuedCbId = null;
+        // 递归启动 (若仍繁忙会重新排队, 但正常路径下当前 loop 已终态)
+        evalJs("window._agentLog({\"type\":\"note\",\"text\":\"开始执行排队任务\"})");
+        agentStart(g, r, cb);
+    }
+
+    public void agentStop(String loopId) {
+        AgentLoop l = AgentLoop.current();
+        if (l != null && l.getLoopId().equals(loopId)) l.requestStop();
+    }
+
+    public void agentAnswer(String loopId, String text) {
+        AgentLoop l = AgentLoop.current();
+        if (l != null && l.getLoopId().equals(loopId)) l.answer(text);
+    }
+
+    public void agentPlanRespond(String loopId, boolean approved, String note) {
+        AgentLoop l = AgentLoop.current();
+        if (l != null && l.getLoopId().equals(loopId)) l.respondPlan(approved, note);
     }
 
     public void councilAsync(String topic, String callbackId) {

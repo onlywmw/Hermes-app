@@ -31,10 +31,22 @@ public class AiClient {
     public static class AiResponse {
         public final boolean success;
         public final String content;
+        /** DESIGN_AGENT_LOOP 计量: prompt/completion tokens; 无 usage 时为字符数÷4 估算 */
+        public final int promptTokens;
+        public final int completionTokens;
+        public final boolean tokensEstimated;
 
         public AiResponse(boolean success, String content) {
+            this(success, content, -1, -1, false);
+        }
+
+        public AiResponse(boolean success, String content,
+                          int promptTokens, int completionTokens, boolean tokensEstimated) {
             this.success = success;
             this.content = content;
+            this.promptTokens = promptTokens;
+            this.completionTokens = completionTokens;
+            this.tokensEstimated = tokensEstimated;
         }
     }
 
@@ -170,7 +182,17 @@ public class AiClient {
                 content = msgObj.optString("reasoning_content", "").trim();
             }
             if (content.isEmpty()) return new AiResponse(false, "AI 没有返回内容");
-            return new AiResponse(true, content);
+            // DESIGN_AGENT_LOOP: 计量 — 优先 usage 字段, 缺失按字符数÷4 估算
+            int pt = -1, ct = -1;
+            boolean estimated = false;
+            JSONObject usage = json.optJSONObject("usage");
+            if (usage != null) {
+                pt = usage.optInt("prompt_tokens", -1);
+                ct = usage.optInt("completion_tokens", -1);
+            }
+            if (pt < 0) { pt = body.toString().length() / 4; estimated = true; }
+            if (ct < 0) { ct = content.length() / 4; estimated = true; }
+            return new AiResponse(true, content, pt, ct, estimated);
         } catch (java.net.SocketTimeoutException e) {
             return new AiResponse(false, "AI 请求超时，请检查网络或 API 地址");
         } catch (Exception e) {

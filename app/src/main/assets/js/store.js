@@ -83,7 +83,7 @@ function roomAiNames(r){
     return m?m.name:id;
   });
 }
-var PHASE_BADGE={'讨论中':'run','收敛中':'run','待确认':'aw','执行中':'run','已交付':'ok','已归档':'off','待评审':'run'};
+var PHASE_BADGE={'讨论中':'run','收敛中':'run','待确认':'aw','执行中':'run','已交付':'ok','已归档':'off','待评审':'run','失败':'err','已停止':'off'};
 
 var curTab='chat', curRoomId=null, pending=[], trayOpen=false;
 var genCounter=0; /* 房间切换守卫 (HANDOFF §5) */

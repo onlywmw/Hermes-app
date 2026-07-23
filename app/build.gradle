@@ -35,6 +35,8 @@ dependencies {
     implementation "com.android.tools.build:apksig:8.7.3"
 
     testImplementation "junit:junit:4.13.2"
+    // 本地单测可用的 org.json 实现 (android.jar 中的 org.json 是不可调用的 stub)
+    testImplementation "org.json:json:20231013"
     /* org.json 的 JVM 实现: 让 AiClient 等使用 org.json 的类可在本地单测中真实解析 JSON
        (android.jar 的 org.json 是 stub, 单测中会抛异常) */
     testImplementation "org.json:json:20231013"

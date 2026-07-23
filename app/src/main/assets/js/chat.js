@@ -112,6 +112,10 @@ function closeTray(){trayOpen=false;$('attTray').classList.remove('open');$('plu
 /* ---------- 发送 ---------- */
 function sendMsg(){
   if(!curRoomId)return;
+  /* agent 执行中 (非挂起): 发送键是 ■ 停止 */
+  if(_agentExecuting&&_agentLoop&&_agentLoop.roomId===curRoomId&&!_agentLoop.awaiting){
+    B.agentStop(_agentLoop.loopId);ev('喊停 agent');return;
+  }
   var v=$('msgInput').value.trim();
   if(!v&&pending.length===0)return;
   var room=ROOMS.find(function(r){return r.id===curRoomId;});
@@ -122,71 +126,82 @@ function sendMsg(){
   ev('发送消息'+(v?'':'(纯附件)'));
   if(!v)return;
   if(room.mode==='council'){
-    /* P1-5: 真实 Council 多角色讨论 */
-    runCouncil(id,v,gen);
+    /* DESIGN_AGENT_LOOP: ask_user 答案 / 计划闸意见 优先回灌 */
+    if(_agentLoop&&_agentLoop.roomId===id&&_agentLoop.awaiting){
+      var aw=_agentLoop.awaiting;
+      _agentLoop.awaiting=null;restoreAgentInput();
+      if(aw==='ask'){B.agentAnswer(_agentLoop.loopId,v);}
+      else{B.agentPlanRespond(_agentLoop.loopId,false,v);push(id,mkMsg({t:'sys',h:'已驳回并补充, 重新规划中'}));}
+    }else{
+      runAgentTask(id,v,gen);
+    }
   }else{
     routeMessage(id,v);
   }
 }
 
-/* 多模型: 真实 Council 讨论 (伪流式: 先到先显, DESIGN_HYBRID v2.0) */
-function runCouncil(id,topic,gen){
-  var alive=function(){return genCounter===gen&&curRoomId===id;};
-  var room=ROOMS.find(function(r){return r.id===id;});
-  var modelIds=room?roomAiMembers(room):[];
+/* ---------- Agentic 任务 (DESIGN_AGENT_LOOP v1: 1 驱动 + 工作日志) ---------- */
+var _agentLoop=null;   /* {loopId, roomId, gen, awaiting: null|'plan'|'ask'} */
+var _agentExecuting=false;
+
+function runAgentTask(id,goal,gen){
   setPhase(id,'讨论中');
   var typing=mkMsg({t:'agent',who:'mov',caret:true});
   showTyping(id,typing);
-  var replyCount=0;
-  var allReplies=[];
-  /* 注册全局回调: 每个模型完成就推一条消息 (先到先显) */
-  window._councilReply=function(callbackId,data){
-    if(!alive())return;
-    try{if(typeof data==='string')data=JSON.parse(data);}catch(e){return;}
-
-    if(data.type==='error'){
-      killTyping(typing);
-      push(id,mkMsg({t:'agent',who:'mov',h:t('council.fail')+(data.content||'未知错误')}));
-      setPhase(id,'讨论中');return;
-    }
-    if(data.type==='summary'){
-      killTyping(typing);
-      setPhase(id,'收敛中');
-      push(id,mkMsg({t:'sys',h:t('council.converge')}));
-      push(id,mkMsg({t:'agent',who:'mov',h:data.summary||'(无汇总)'}));
-      var steps;try{steps=JSON.parse(data.nextSteps||'[]');}catch(e){steps=[];}
-      if(Array.isArray(steps)&&steps.length){
-        renderCouncilPlan(id,steps,gen);setPhase(id,'待确认');
-      }else{setPhase(id,'待评审');}
-      var room2=ROOMS.find(function(r){return r.id===id;});
-      if(room2){room2.last=t('council.done');renderRooms();persistRooms();}
-      ev('Council 完成 · '+replyCount+' 个模型回复');
-      return;
-    }
-    /* 单个模型回复 — 先到先显, 逐条追加 */
-    replyCount++;
+  B.agentStart(goal,id,function(resp){
     killTyping(typing);
-    push(id,mkMsg({t:'agent',who:data.who,role:data.role,h:data.content||''}));
-    /* 如果还有没到的, 显示等待 */
-    typing=mkMsg({t:'agent',who:'mov',caret:true});
-    if(alive())showTyping(id,typing);
-    ev('Council 收到 #'+replyCount+' '+data.name);
-  };
-  /* 发起异步讨论 */
-  B.councilAsync(topic,modelIds,function(resp){/* 旧回调不再触发, 流式走 _councilReply */});
+    if(curRoomId!==id)return;
+    if(!resp.ok){push(id,mkMsg({t:'agent',who:'mov',h:resp.error||'任务启动失败'}));return;}
+    if(resp.queued){push(id,mkMsg({t:'sys',h:'mov 还在执行上一个任务, 此任务已排队'}));}
+    _agentLoop={loopId:resp.loopId,roomId:id,gen:gen,awaiting:null};
+  });
 }
 
-/* ---------- 执行计划卡片 (审批 → 执行 → 交付) ---------- */
-function renderCouncilPlan(id,steps,gen){
-  var room=ROOMS.find(function(r){return r.id===id;});
-  var autoExec=room&&room.autoExec;
+/* 工作日志入口 (原生 BridgeAi → window._agentLog) */
+window._agentLog=function(data){
+  try{if(typeof data==='string')data=JSON.parse(data);}catch(e){return;}
+  if(!_agentLoop||data.loopId!==_agentLoop.loopId)return;
+  var id=_agentLoop.roomId;
+  if(data.type==='phase'){setPhase(id,data.phase);return;}
+  if(curRoomId!==id||genCounter!==_agentLoop.gen)return; /* 切房守卫 (v1 接受丢弃) */
+  switch(data.type){
+    case 'plan': renderAgentPlan(id,data);break;
+    case 'step':
+      push(id,toolNode(data.name,data.arg||'',((data.durMs||0)/1000).toFixed(2)+'s',
+        esc(data.result||'')+'\n<span class="'+(data.ok?'ok-line':'err-line')+'">'+(data.ok?'exit 0':'exit 1')+'</span>'));
+      setAgentStatus(id,data);
+      break;
+    case 'ask':
+      _agentLoop.awaiting='ask';
+      push(id,mkMsg({t:'agent',who:'mov',h:data.question}));
+      setAgentInputHint('回答问题后发送…');
+      break;
+    case 'note':
+      push(id,mkMsg({t:'sys',h:data.text}));break;
+    case 'deliver':
+      renderDeliverCard(id,data.files||[]);
+      push(id,mkMsg({t:'sys',h:'实际 '+(data.promptTokens+data.completionTokens)+' tokens · '+fmtSec(data.elapsedSec)+' (预估 ~'+Math.round(data.estTokens/1000)+'k · '+fmtSec(data.estSeconds)+')'}));
+      endAgentTask(id);break;
+    case 'fail':
+      push(id,mkMsg({t:'agent',who:'mov',h:'任务失败: '+(data.reason||'未知原因')}));
+      endAgentTask(id);break;
+    case 'stopped':
+      push(id,mkMsg({t:'sys',h:'任务已停止'}));
+      endAgentTask(id);break;
+  }
+};
+
+function renderAgentPlan(id,data){
+  _agentLoop.awaiting='plan';
   var p=document.createElement('div');p.className='msg wide';
   var pc=document.createElement('div');pc.className='plan-card';
-  var phd=document.createElement('div');phd.className='ph';phd.textContent='PLAN · '+steps.length+' 步';pc.appendChild(phd);
+  var phd=document.createElement('div');phd.className='ph';
+  phd.textContent='PLAN · '+data.steps.length+' 步 · 预计 ~'+Math.round(data.estTokens/1000)+'k tokens · ~'+fmtSec(data.estSeconds)+(data.revised?' · 修订':'');
+  pc.appendChild(phd);
   var pb=document.createElement('div');pb.className='pb';
-  steps.forEach(function(s){
+  data.steps.forEach(function(s){
     var li=document.createElement('li');
-    li.textContent=(typeof s==='string')?s:(s.desc||s.action||JSON.stringify(s));
+    li.textContent=s.desc||((s.action||'')+' '+(s.path||''));
     pb.appendChild(li);
   });
   pc.appendChild(pb);
@@ -195,111 +210,35 @@ function renderCouncilPlan(id,steps,gen){
   var bRj=document.createElement('button');bRj.className='btn btn-ghost';bRj.textContent=t('plan.reject');
   bAp.addEventListener('click',function(){
     bAp.disabled=true;bRj.disabled=true;bAp.textContent=t('plan.approved');
-    ev('批准方案 → 移交执行');
-    executeCouncilSteps(id,steps,gen);
+    _agentLoop.awaiting=null;
+    B.agentPlanRespond(data.loopId,true,'');
+    ev('批准计划 → agent 开工');
   });
   bRj.addEventListener('click',function(){
-    bAp.disabled=true;bRj.disabled=true;bRj.textContent=t('plan.rejected');
-    ev('驳回方案 → 议会重新讨论');setPhase(id,'讨论中');
+    bRj.disabled=true;
+    setAgentInputHint('输入驳回意见后发送…');
   });
   pf.appendChild(bAp);pf.appendChild(bRj);pc.appendChild(pf);
   p.appendChild(pc);
   push(id,p);
-  /* 自动执行模式: 直接跑 */
-  if(autoExec){bAp.click();}
 }
 
-/* ---------- 逐步执行 (复用 toolNode) ---------- */
-function executeCouncilSteps(id,steps,gen){
-  var alive=function(){return genCounter===gen&&curRoomId===id;};
-  setPhase(id,'执行中');
-  push(id,mkMsg({t:'sys',h:t('plan.executing')}));
-  var produced=[];
-  var i=0;
-  function next(){
-    if(!alive())return;
-    if(i>=steps.length){
-      /* 全部完成 → 交付物卡片 */
-      renderDeliverCard(id,produced);
-      setPhase(id,'已交付');
-      var room=ROOMS.find(function(r){return r.id===id;});
-      if(room){room.last=t('plan.delivered');renderRooms();persistRooms();}
-      ev('方案执行完毕 · '+produced.length+' 个产出');
-      return;
-    }
-    var step=steps[i];i++;
-    var t0=Date.now();
-    /* 单步异常不中断整体: 记错误节点后继续 (修复: 步骤格式不兼容曾致执行静默卡死) */
-    try{
-    /* 字符串步骤 → 当作设备指令/AI 提示; 对象步骤 → 按 action 分发 */
-    if(typeof step==='string'){
-      var out=B.cmd(step);
-      var dur=((Date.now()-t0)/1000).toFixed(2)+'s';
-      var ok=out.indexOf('❌')!==0&&out.indexOf('⚠')!==0;
-      push(id,toolNode('exec',step,dur,esc(out)+'\n<span class="'+(ok?'ok-line':'err-line')+'">'+(ok?'exit 0':'exit 1')+'</span>'));
-      setTimeout(next,300);
-    }else if(step.action==='file.write'){
-          /* P1: AI 写文件前强制预览，用户确认才落盘 (CONTRACT_ARCH §5) */
-          /* 兼容两种步骤格式: {action,args:{path,content}} 与 {action,target|path,detail|content} (Council 汇总提示词产出) */
-          var sargs=step.args||step;
-          var fpath=sargs.path||sargs.target||'untitled';
-          var fcontent=sargs.content||sargs.detail||'';
-          var card=document.createElement('div');card.className='msg wide';
-          var wrap=document.createElement('div');wrap.className='deliver-card';
-          wrap.style.borderLeftColor='var(--acc-line)';
-          var ic=document.createElement('span');ic.className='ic';ic.textContent='W';
-          var info=document.createElement('div');info.style.flex='1';info.style.minWidth='0';
-          var tt=document.createElement('div');tt.className='tt';tt.textContent=fpath;
-          var ss=document.createElement('div');ss.className='ss';
-          ss.textContent=fcontent.length+' 字符 · 待确认';
-          info.appendChild(tt);info.appendChild(ss);
-          var pre=document.createElement('pre');
-          pre.style.cssText='margin:8px 0 0;padding:8px;background:var(--code-bg);border-radius:8px;font-size:10px;line-height:1.6;max-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-word;width:100%;';
-          pre.textContent=fcontent.length>2000?fcontent.slice(0,2000)+'\n…(截断预览)':fcontent;
-          var btnRow=document.createElement('div');
-          btnRow.style.cssText='display:flex;gap:8px;margin-top:8px;';
-          var bOk=document.createElement('button');bOk.className='btn btn-acc';bOk.textContent='确认写入';
-          var bSkip=document.createElement('button');bSkip.className='btn btn-ghost';bSkip.textContent='跳过';
-          btnRow.appendChild(bOk);btnRow.appendChild(bSkip);
-          wrap.appendChild(ic);wrap.appendChild(info);
-          card.appendChild(wrap);card.appendChild(pre);card.appendChild(btnRow);
-          push(id,card);
-          var settled=false;
-          function settle(action){
-            if(settled)return;settled=true;
-            bOk.disabled=true;bSkip.disabled=true;
-            var dur2=((Date.now()-t0)/1000).toFixed(2)+'s';
-            if(action==='write'){
-              var res=B.saveWorkFile(id,fpath,fcontent,'mov');
-              ss.textContent=fcontent.length+' 字符 · '+(res.ok?'已写入':'写入失败');
-              wrap.style.borderLeftColor=res.ok?'var(--ok-dot)':'var(--err-dot)';
-              push(id,toolNode('file.write',fpath,dur2,esc(res.ok?('已写入 '+fpath):(res.error||'写入失败'))+'\n<span class="'+(res.ok?'ok-line':'err-line')+'">'+(res.ok?'exit 0':'exit 1')+'</span>'));
-              if(res.ok)produced.push(fpath);
-            }else{
-              ss.textContent=fcontent.length+' 字符 · 已跳过';
-              wrap.style.borderLeftColor='var(--ink-4)';
-            }
-            setTimeout(next,300);
-          }
-          bOk.addEventListener('click',function(){settle('write');});
-          bSkip.addEventListener('click',function(){settle('skip');});
-    }else{
-      /* 其他 action → 走设备指令通道 */
-      var cmdText=step.action+(step.args&&step.args.text?' '+step.args.text:'');
-      var out2=B.cmd(cmdText);
-      var dur3=((Date.now()-t0)/1000).toFixed(2)+'s';
-      var ok2=out2.indexOf('❌')!==0&&out2.indexOf('⚠')!==0;
-      push(id,toolNode(step.action,JSON.stringify(step.args||step),dur3,esc(out2)+'\n<span class="'+(ok2?'ok-line':'err-line')+'">'+(ok2?'exit 0':'exit 1')+'</span>'));
-      setTimeout(next,300);
-    }
-    }catch(stepErr){
-      /* 步骤格式不符/字段缺失等异常: 记录后继续后续步骤, 不再静默卡死 */
-      push(id,toolNode('exec',(step&&step.action)||'step','0s',esc('步骤异常: '+((stepErr&&stepErr.message)||stepErr))+'\n<span class="err-line">exit 1</span>'));
-      setTimeout(next,300);
-    }
-  }
-  next();
+/* 执行中状态: 发送键变 ■ 停止, 副标题实时计量 */
+function setAgentStatus(id,data){
+  _agentExecuting=true;
+  $('btnSend').textContent='■';
+  $('roomSub').textContent='执行中 · 已用 '+(((data.promptTokens+data.completionTokens)||0)/1000).toFixed(1)+'k tokens · '+fmtSec(data.elapsedSec)+' · 点 ■ 停止';
 }
+function endAgentTask(id){
+  _agentExecuting=false;
+  $('btnSend').textContent=t('room.send');
+  var r=ROOMS.find(function(x){return x.id===id;});
+  if(r&&curRoomId===id)$('roomSub').textContent=roomSubtitle(r);
+  _agentLoop=null;
+}
+function setAgentInputHint(h){$('msgInput').placeholder=h;}
+function restoreAgentInput(){$('msgInput').placeholder=t('room.input');}
+function fmtSec(s){s=Math.round(s||0);return s>=60?Math.floor(s/60)+'分'+(s%60)+'秒':s+'秒';}
 
 /* ---------- 交付物卡片 ---------- */
 function renderDeliverCard(id,produced){
@@ -319,7 +258,6 @@ function renderDeliverCard(id,produced){
   dc.appendChild(ic);dc.appendChild(info);dc.appendChild(btn);
   d.appendChild(dc);
   push(id,d);
-  push(id,mkMsg({t:'sys',h:t('plan.reviewHint')}));
 }
 
 /* ============ 长按基础设施 (消息 + 技能共用) ============ */

@@ -18,8 +18,11 @@ var B=(function(){
     aiAsync:function(t,cb){if(!b){cb({ok:false,content:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.aiChatAsync(t,id);},
     /* DESIGN_NEW_ROOM v2: 单聊房按绑定模型对话 */
     aiChatWithModel:function(t,modelId,cb){if(!b){cb({ok:false,content:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.aiChatWithModel(t,modelId||'',id);},
-    /* P1-5: 异步 Council (伪流式: 通过 window._councilReply 回调, DESIGN_HYBRID v2.0) */
-    councilAsync:function(topic,modelIds,cb){if(!b){cb({ok:false,error:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.councilAsync(topic,JSON.stringify(modelIds||[]),'',id);},
+    /* DESIGN_AGENT_LOOP: agentic 循环 */
+    agentStart:function(goal,roomId,cb){if(!b){cb({ok:false,error:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.agentStart(goal,roomId,id);},
+    agentStop:function(loopId){try{if(b)b.agentStop(loopId);}catch(e){}},
+    agentAnswer:function(loopId,text){try{if(b)b.agentAnswer(loopId,text);}catch(e){}},
+    agentPlanRespond:function(loopId,approved,note){try{if(b)b.agentPlanRespond(loopId,approved,note||'');}catch(e){}},
     aiInfo:function(){try{return b?JSON.parse(b.getAiInfo()):{enabled:false,configured:false};}catch(e){return {enabled:false,configured:false};}},
     device:function(){try{return b?JSON.parse(b.getDeviceInfo()):{};}catch(e){return {};}},
     toast:function(m){try{if(b)b.toast(m);}catch(e){}},
