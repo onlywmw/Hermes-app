@@ -26,6 +26,8 @@ button,input,textarea{font-family:inherit;}
   transition:opacity .28s ease,transform .34s var(--spring),visibility 0s .34s;
 }
 .view.act{opacity:1;visibility:visible;transform:none;transition:opacity .28s ease,transform .34s var(--spring);}
+/* 房间视图整体上抬: 输入区/文件列表底部避开悬浮 bnav (V4 规则, V5 补回) */
+#view-room{padding-bottom:var(--bnav-h);}
 .sbody{flex:1;overflow-y:auto;scrollbar-width:none;padding-bottom:calc(var(--bnav-h) + var(--sp-4));}
 .sbody::-webkit-scrollbar{width:0;}
 
