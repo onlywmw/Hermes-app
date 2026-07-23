@@ -332,9 +332,16 @@ function renderDeliverCard(id,produced){
   var ss=document.createElement('div');ss.className='ss';
   ss.textContent=produced.length?produced.join(' · '):t('plan.noOutput');
   info.appendChild(tt);info.appendChild(ss);
-  var btn=document.createElement('button');btn.className='btn btn-acc';btn.textContent=t('files.view');
+  /* APK 产出 → 主按钮变「安装」直调系统安装器 */
+  var apk=null;
+  for(var i=0;i<produced.length;i++){if(/\.apk$/i.test(produced[i])){apk=produced[i];break;}}
+  var btn=document.createElement('button');btn.className='btn btn-acc';
+  btn.textContent=apk?'安装':t('files.view');
   btn.addEventListener('click',function(){
-    if(produced.length&&curRoomId===id){setSubtab('files');}
+    if(apk){
+      var r=B.installApk(id,apk);
+      if(!r.ok)B.toast(r.error||'安装失败');
+    }else if(produced.length&&curRoomId===id){setSubtab('files');}
     else{B.toast(t('plan.deliverTitle'));}
   });
   dc.appendChild(ic);dc.appendChild(info);dc.appendChild(btn);

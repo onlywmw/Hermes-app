@@ -2,4 +2,6 @@
 <paths>
     <!-- 打包器输出目录: files/packager/*.apk -->
     <files-path name="packager" path="packager/" />
+    <!-- 房间工作区: external-files/mov/rooms/<rid>/files/work/*.apk -->
+    <external-files-path name="mov" path="." />
 </paths>

@@ -67,6 +67,8 @@ var B=(function(){
     pinFileShortcut:function(rid,path,label){try{return b&&b.pinFileShortcut?JSON.parse(b.pinFileShortcut(rid,path,label||'')):{ok:false,error:'桥不可用'};}catch(e){return {ok:false,error:String(e)};}},
     /* 打包成应用: HTML → 签名 APK 并调起系统安装器 (CONTRACT_STORAGE 打包成应用 §); 异步回调 */
     buildApk:function(rid,path,appName,cb){if(!b||!b.buildApk){cb({ok:false,error:'桥不可用'});return;}var id=nextCbId();_cbMap[id]=cb;b.buildApk(rid,path,appName||'',id);},
+    /* 一键安装: 房间产出 APK → 系统安装器 */
+    installApk:function(rid,path){try{return b?JSON.parse(b.installApk(rid,path)):{ok:false};}catch(e){return {ok:false};}},
     /* RUNTIME 真数据 */
     runtimeStats:function(){try{return b?JSON.parse(b.getRuntimeStats()):{};}catch(e){return {};}},
     permState:function(){try{return b?JSON.parse(b.getPermissionState()):{};}catch(e){return {};}},

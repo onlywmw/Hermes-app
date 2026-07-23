@@ -50,7 +50,9 @@ function renderWorkFiles(){
           +'<span class="fic">'+esc(ext||'F')+'</span>'
           +'<div class="st-info"><b>'+esc(f.name)+'</b>'
           +'<span>'+formatFileSize(f.size)+' · '+timeAgo(f.modified)+'</span></div>'
-          +'<span class="st-ver" data-act="versions">'+t('st.versions')+'</span>'
+          +(/\.apk$/i.test(f.name)
+            ? '<span class="st-ver" data-act="install">安装</span>'
+            : '<span class="st-ver" data-act="versions">'+t('st.versions')+'</span>')
           +'</div>';
       });
     });
@@ -129,6 +131,12 @@ function bindStorageCards(){
       /* 点版本按钮 */
       if(e.target.getAttribute('data-act')==='versions'){
         openVersionOverlay(fname);
+        return;
+      }
+      /* APK: 点「安装」直调系统安装器; 点卡片其他位置同样进安装 (不走文本预览) */
+      if(/\.apk$/i.test(fname)){
+        var ir=B.installApk(curRoomId,fname);
+        if(!ir.ok)B.toast(ir.error||'安装失败');
         return;
       }
       /* 预览文件 (Fix: 补 files/ 前缀 — 磁盘布局为 rooms/<id>/files/<type>/) */

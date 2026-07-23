@@ -199,6 +199,18 @@ public class BridgeFile extends BaseBridge {
     }
 
     /** 调起系统安装器; MIUI 首次会引导开启「未知来源安装」授权 (正常行为) */
+    /** 一键安装: 房间产出 APK → 直调系统安装器 (FileProvider) */
+    public String installApk(String roomId, String path) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkPath(path); if (e != null) return e;
+        java.io.File apk = sm.resolveWorkFile(roomId, path);
+        if (apk == null || !apk.exists()) {
+            return "{\"ok\":false,\"error\":\"APK 不存在: " + path + "\"}";
+        }
+        activity.runOnUiThread(() -> launchInstaller(apk));
+        return "{\"ok\":true}";
+    }
+
     private void launchInstaller(java.io.File apk) {
         try {
             android.net.Uri uri = androidx.core.content.FileProvider.getUriForFile(

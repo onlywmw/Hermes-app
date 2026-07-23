@@ -86,6 +86,8 @@ public class BridgeFactory {
             activity.evalJsPublic("window._hermesCb('" + cbId + "'," + r + ")");
         });
     }
+    /* 一键安装: 房间产出 APK → 系统安装器 */
+    @JavascriptInterface public String installApk(String roomId, String path) { return file.installApk(roomId, path); }
 
     // ==================== Cron ====================
     @JavascriptInterface public String listCronJobs() { return cron.listCronJobs(); }
