@@ -33,7 +33,8 @@ adb -s 21770d7d logcat -s MOV:D
 
 ```
 app/src/main/java/com/hermes/android/   ← Java 后端
-  HermesActivity.java     WebView 壳 + JS 桥 (38 个 @JavascriptInterface)
+  HermesActivity.java     WebView 壳 + JS 桥注册 (桥实现见 bridge/)
+  bridge/                 BridgeFactory 聚合 6 个子桥 (68 个 @JavascriptInterface)
   CapabilityExecutor.java 34 个设备+文件能力
   StorageManager.java     文件存储核心
   ModelRegistry.java      多模型注册中心
@@ -49,10 +50,12 @@ app/src/main/java/com/hermes/android/   ← Java 后端
 app/src/main/assets/      ← 前端 (WebView 内运行)
   hermes-shell.html       UI 骨架 (单文件)
   css/shell.css           设计系统
+  js/i18n.js              中英双语 (只维护中文)
   js/store.js             数据层 + 持久化
   js/bridge.js            Java 桥 JS 封装 (50+ 方法)
   js/render.js            DOM 渲染
   js/chat.js              消息路由 + 长按设施
+  js/skills.js            技能列表 + 搜索
   js/files.js             文件树 + 预览 + 版本
   js/runtime.js           运行页仪表
   js/app.js               入口初始化
@@ -89,11 +92,9 @@ app/src/test/             测试
 
 ## 当前任务
 
-P0（存储根目录）和 P2（看板删除）已完成。剩余：
+P0（存储根目录）、P1（AI 写文件计划闸）、P2（看板删除）均已完成。剩余：
 
-1. **P1** — AI 写文件前强制预览 (`CONTRACT_SECURITY.md` 约束 5)。约 40 行 JS。
-2. **层级清理** — 删除 shell.css 中 `#sheetMask{z-index:11}` / `#sheetNew{z-index:12}` / `.dialog-mask` 三行死代码 (`CONTRACT_ZINDEX.md`)。
-3. **合同交叉引用** — 每份 CONTRACT 末尾加"关联合同"。
+1. **合同交叉引用** — 每份 CONTRACT 末尾加"关联合同"（仅 `CONTRACT_ARCH.md` 缺）。
 
 ---
 

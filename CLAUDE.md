@@ -20,10 +20,10 @@ AI 协作│系统 & 模型
 ## 核心架构
 
 ```
-MOVActivity (WebView 壳)
+HermesActivity (WebView 壳)
   └─ hermes-shell.html (全 UI, 3 个 view + sheets)
-       ├─ MOVBridge (30+ 个 @JavascriptInterface)
-       │   ├─ IntentParser → CapabilityExecutor (34 个能力)
+       ├─ HermesBridge (68 个 @JavascriptInterface, BridgeFactory 聚合 6 个子桥)
+       │   ├─ IntentParser → CapabilityExecutor (30 个能力)
        │   ├─ AiClient (OpenAI 兼容)
        │   ├─ CouncilClient (多角色讨论)
        │   ├─ CronManager (WorkManager)
@@ -51,7 +51,7 @@ MOVActivity (WebView 壳)
 
 ## 文件清单
 
-[Java 17 文件] [JS 12 文件] [HTML 1] [CSS 1] — 详见 MASTER.md §10
+[Java 39 文件] [JS 13 文件] [HTML 1] [CSS 1]
 
 ## 语言
 
@@ -69,6 +69,6 @@ MOVActivity (WebView 壳)
 | ✅ | 运行页个人信息 + 精简 (DESIGN_OPTIMIZE §1) |
 | ✅ | i18n 旧名字清理 |
 | ✅ | 安全加固 (allowBackup/false + 加密警告 + 文件大小限制) |
-| 🔵 | SQLite 存储升级 (DESIGN_SQLITE.md, draft) |
-| 🔵 | 伪流式 Council (DESIGN_HYBRID.md) |
-| 🔵 | 遥测移除 (StatsCollector) |
+| ✅ | 遥测移除 (StatsCollector) |
+| 🔵 | SQLite 存储升级 (draft, 未写设计文档) |
+| 🔵 | 伪流式 Council (draft, 未写设计文档) |
