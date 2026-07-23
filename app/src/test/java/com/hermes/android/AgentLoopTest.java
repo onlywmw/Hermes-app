@@ -90,6 +90,10 @@ public class AgentLoopTest {
             deviceCalls.add(text);
             return "电量 100%";
         }
+        @Override public String packageApk(String roomId, String path, String appName) {
+            if (!writes.contains(path)) return "ERR: 文件不存在: " + path;
+            return "OK: snake.apk · 24KB · com.mov.test";
+        }
     }
 
     private static class FakeSink implements AgentLoop.LogSink {
@@ -409,5 +413,23 @@ public class AgentLoopTest {
         assertEquals(AgentLoop.State.DONE, loop.getState());
         JSONObject deliver = sink.firstOfType("deliver");
         assertEquals(2, deliver.optInt("reworkRounds"));
+    }
+
+    @Test
+    public void appPackage_producesApk() throws Exception {
+        FakeBrain brain = new FakeBrain(
+                "{\"plan\":[{\"action\":\"file.write\",\"path\":\"snake.html\",\"desc\":\"写游戏\"}]}",
+                "{\"action\":\"file.write\",\"path\":\"snake.html\",\"content\":\"<html>蛇</html>\"}",
+                "{\"action\":\"app.package\",\"path\":\"snake.html\"}",
+                "{\"action\":\"finish\",\"summary\":\"游戏+APK 交付\"}");
+        FakeTools tools = new FakeTools();
+        FakeSink sink = new FakeSink();
+        AgentLoop loop = startAndApprove("room12", brain, tools, sink);
+        waitTerminal(loop);
+        assertEquals(AgentLoop.State.DONE, loop.getState());
+        JSONObject deliver = sink.firstOfType("deliver");
+        String files = deliver.optJSONArray("files").toString();
+        assertTrue("产出含 html", files.contains("snake.html"));
+        assertTrue("产出含 apk", files.contains("snake.apk"));
     }
 }

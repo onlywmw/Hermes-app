@@ -148,11 +148,14 @@ public class ToolRegistry {
     public String promptText() {
         StringBuilder sb = new StringBuilder();
         for (Tool t : tools.values()) {
-            sb.append("{\"action\":\"").append(t.name).append("\"")
-                    .append(t.name.startsWith("file.")
-                            ? ",\"path\":\"f\"" + ("file.write".equals(t.name) ? ",\"content\":\"完整内容\"" : "")
-                            : "")
-                    .append("} — ").append(t.desc).append("\n");
+            sb.append("{\"action\":\"").append(t.name).append("\"");
+            if (t.name.startsWith("file.")) {
+                sb.append(",\"path\":\"f\"");
+                if ("file.write".equals(t.name)) sb.append(",\"content\":\"完整内容\"");
+            } else if ("app.package".equals(t.name)) {
+                sb.append(",\"path\":\"game.html\",\"appName\":\"可选\"");
+            }
+            sb.append("} — ").append(t.desc).append("\n");
         }
         sb.append(devicePolicy.promptText());
         return sb.toString();
@@ -191,6 +194,16 @@ public class ToolRegistry {
             String deny = policy.check(cap);
             if (deny != null) return new Result(false, deny);
             return new Result(true, tools.deviceCmd(a.optString("text")));
+        }));
+        r.register(new Tool("app.package", "把房间里的 HTML 打包成签名 APK (path=html文件, appName 可选)", a -> {
+            String path = a.optString("path");
+            if (!path.toLowerCase().endsWith(".html") && !path.toLowerCase().endsWith(".htm")) {
+                return new Result(false, "app.package 只支持 HTML 文件");
+            }
+            String res = tools.packageApk(roomId, path, a.optString("appName", ""));
+            if (!res.startsWith("OK:")) return new Result(false, res);
+            String produced = res.substring(4, res.indexOf(" · "));
+            return new Result(true, res.substring(4), produced);
         }));
         return r;
     }

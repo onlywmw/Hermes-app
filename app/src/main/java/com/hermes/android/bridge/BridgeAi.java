@@ -178,7 +178,8 @@ public class BridgeAi extends BaseBridge {
             @Override
             public String fileWrite(String roomId, String path, String content) {
                 try {
-                    JSONObject r = new JSONObject(sm.writeFile(roomId, "files/work/" + path, content));
+                    /* 走 saveWorkFile: 覆盖已存在文件前先快照 (与 JS 用户保存路径一致) */
+                    JSONObject r = new JSONObject(sm.saveWorkFile(roomId, path, content, "AI"));
                     return r.optBoolean("ok") ? "OK: 已写入" : "ERR: " + r.optString("error");
                 } catch (Exception e) {
                     return "ERR: " + e.getMessage();
@@ -206,6 +207,32 @@ public class BridgeAi extends BaseBridge {
                     return r.getMessage();
                 } catch (Exception e) {
                     return "执行失败: " + e.getMessage();
+                }
+            }
+
+            @Override
+            public String packageApk(String roomId, String path, String appName) {
+                try {
+                    com.hermes.android.packager.PackageBuilder.Result r =
+                            com.hermes.android.packager.PackageBuilder.build(
+                                    activity, sm, roomId, path, appName);
+                    if (!r.ok) return "ERR: " + (r.error != null ? r.error : "打包失败");
+                    /* APK 落到房间产出目录, 文件列表可见 */
+                    String label = new java.io.File(path).getName()
+                            .replaceAll("\\.[^.]+$", "") + ".apk";
+                    java.io.File workDir = new java.io.File(
+                            sm.getRoomsDir(), roomId + "/files/work");
+                    workDir.mkdirs();
+                    java.io.File dst = new java.io.File(workDir, label).getCanonicalFile();
+                    if (!dst.getPath().startsWith(workDir.getCanonicalFile().getPath()
+                            + java.io.File.separator)) {
+                        return "ERR: 路径越界";
+                    }
+                    java.nio.file.Files.copy(r.apkFile.toPath(), dst.toPath(),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    return "OK: " + label + " · " + (r.sizeBytes / 1024) + "KB · " + r.packageName;
+                } catch (Exception e) {
+                    return "ERR: " + e.getMessage();
                 }
             }
         };
@@ -308,8 +335,16 @@ public class BridgeAi extends BaseBridge {
                         evalJs("window._councilReply('" + callbackId + "'," + reply.toString() + ")");
                     });
             } catch (Exception e) {
-                evalJs("window._councilReply('" + callbackId +
-                        "',{\"type\":\"error\",\"content\":\"" + e.getMessage() + "\"})");
+                try {
+                    /* JSONObject 构造错误 JSON, 与上方 reply.toString() 一样作为 JS 对象字面量拼接 */
+                    String errJson = new JSONObject()
+                            .put("type", "error")
+                            .put("content", e.getMessage()).toString();
+                    evalJs("window._councilReply('" + callbackId + "'," + errJson + ")");
+                } catch (Exception ex) {
+                    evalJs("window._councilReply('" + callbackId
+                            + "',{\"type\":\"error\",\"content\":\"讨论失败\"})");
+                }
             }
         });
     }
@@ -341,6 +376,19 @@ public class BridgeAi extends BaseBridge {
         }
     }
 
-    public String getLanguage() { return aiConfig.getLanguage(); }
-    public void setLanguage(String lang) { aiConfig.setLanguage(lang); }
+    public String getLanguage() {
+        /* EncryptedSharedPreferences Keystore 失败会抛 RuntimeException, 兜底默认中文, 不向 JS 抛 */
+        try {
+            return aiConfig.getLanguage();
+        } catch (Exception e) {
+            return "zh";
+        }
+    }
+
+    public void setLanguage(String lang) {
+        /* 同上: 写失败静默降级, 保持现状 */
+        try {
+            aiConfig.setLanguage(lang);
+        } catch (Exception ignored) {}
+    }
 }

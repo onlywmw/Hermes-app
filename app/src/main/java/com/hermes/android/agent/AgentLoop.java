@@ -27,7 +27,7 @@ public class AgentLoop implements Runnable {
         AiClient.AiResponse chat(String systemPrompt, String userText);
     }
 
-    /** 双手: 文件与设备能力 (生产实现走 StorageManager/IntentParser/CapabilityExecutor) */
+    /** 双手: 文件与设备能力 (生产实现走 StorageManager/IntentParser/CapabilityExecutor/PackageBuilder) */
     public interface Tools {
         /** 房间工作区文件列表 (文本) */
         String fileList(String roomId);
@@ -39,6 +39,8 @@ public class AgentLoop implements Runnable {
         String capabilityOf(String text);
         /** 执行设备指令, 返回结果文本 */
         String deviceCmd(String text);
+        /** HTML → 签名 APK 并落到房间工作区; "OK: <file>.apk · <size> · <pkg>" 或 "ERR: ..." */
+        String packageApk(String roomId, String path, String appName);
     }
 
     /** 工作日志出口: 每条日志一个 JSONObject (type: phase/plan/step/ask/note/review/deliver/fail/stopped) */
@@ -173,6 +175,7 @@ public class AgentLoop implements Runnable {
 
     @Override
     public void run() {
+        execStartMs = System.currentTimeMillis(); // PLANNING 阶段 fail/stopped 也需要有效起点
         try {
             int planCycles = 0;
             // ---- PLANNING + PLAN_GATE (可经驳回/revise_plan 重入) ----
@@ -212,7 +215,6 @@ public class AgentLoop implements Runnable {
             // ---- EXECUTING (含 v2 交付评审返工轮) ----
             state = State.EXECUTING;
             phase("执行中");
-            execStartMs = System.currentTimeMillis();
             String summary = executeSteps(MAX_STEPS);
             if (summary == null) return; // fail/stopped 已处理
 
@@ -398,16 +400,19 @@ public class AgentLoop implements Runnable {
     private boolean parkForPlan() {
         planApproved = null; planNote = null;
         long t0 = System.currentTimeMillis();
+        boolean ok = false;
         synchronized (gateLock) {
             while (planApproved == null && !stopRequested) {
                 if (System.currentTimeMillis() - t0 > PLAN_GATE_TIMEOUT_MS) {
                     note("计划超时未批准, 自动停止");
-                    return false;
+                    break;
                 }
-                try { gateLock.wait(1000); } catch (InterruptedException e) { return false; }
+                try { gateLock.wait(1000); } catch (InterruptedException e) { break; }
             }
+            ok = planApproved != null && !stopRequested;
         }
-        return !stopRequested;
+        parkedMs += System.currentTimeMillis() - t0; // 计划闸停留与 ask_user 一样不计入纯执行时长
+        return ok;
     }
 
     private String parkForAnswer() {
