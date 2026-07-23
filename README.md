@@ -58,7 +58,7 @@ adb logcat -s MOV:D
 ```
 HermesActivity (WebView 壳)
   └─ hermes-shell.html (单 HTML 入口)
-       ├─ 13 个 JS 模块: chat / render / files / runtime / skills / store / bridge / i18n / app / app-chat / app-files / app-room / app-run
+       ├─ 12 个 JS 模块: chat / render / files / runtime / store / bridge / i18n / app / app-chat / app-files / app-room / app-run
        │
        ├─ BridgeFactory (70 个 @JavascriptInterface, 聚合 6 个子 Bridge)
        │   ├─ IntentParser → CapabilityExecutor (30 个设备 & 文件能力)

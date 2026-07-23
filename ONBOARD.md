@@ -55,7 +55,6 @@ app/src/main/assets/      ← 前端 (WebView 内运行)
   js/bridge.js            Java 桥 JS 封装 (50+ 方法)
   js/render.js            DOM 渲染
   js/chat.js              消息路由 + 长按设施
-  js/skills.js            技能列表 + 搜索
   js/files.js             文件树 + 预览 + 版本
   js/runtime.js           运行页仪表
   js/app.js               入口初始化

@@ -4,6 +4,14 @@
    ============================================================ */
 var _storageType='work'; /* work | inbox | archive */
 
+/* 相对时间 (原 skills.js — 技能系统下线后仅剩此函数, 并入唯一调用方) */
+function timeAgo(ts){
+  var diff=Date.now()-ts;
+  if(diff<3600000)return Math.max(1,Math.floor(diff/60000))+t('ago.m');
+  if(diff<86400000)return Math.floor(diff/3600000)+t('ago.h');
+  return Math.floor(diff/86400000)+t('ago.d');
+}
+
 /* ---------- 子类型切换 ---------- */
 function setStorageType(type){
   _storageType=type;

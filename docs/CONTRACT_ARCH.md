@@ -23,7 +23,7 @@ Android 手机上，拉多个 AI 模型进房间一起干活。
 4. **所有桥方法参数必须过 `BridgeValidator`。** 无例外。
 5. **所有 AI 文件写入必须经用户确认，无例外。确认粒度 = 计划闸（DESIGN_AGENT_LOOP）：批准计划即授权计划内列出的文件路径；执行段计划外路径由代码硬拒绝；每次写入记录工作日志。**
 6. **Cron 只能执行白名单 action。** 无例外。
-7. **JS 文件加载顺序 = 依赖顺序。** `i18n → store → bridge → render → chat → skills → files → runtime → app-chat → app-room → app-files → app-run → app`。
+7. **JS 文件加载顺序 = 依赖顺序。** `i18n → store → bridge → render → chat → files → runtime → app-chat → app-room → app-files → app-run → app`。
 8. **两个 view（view-rooms, view-room）在会话 tab 中切换，view-run 独立。** 切换通过 CSS `.act` class，不销毁重建。
 
 ---
@@ -62,7 +62,6 @@ Android 手机上，拉多个 AI 模型进房间一起干活。
 | `js/bridge.js` | HermesBridge 封装 |
 | `js/render.js` | DOM 渲染 |
 | `js/chat.js` | 消息路由 + 长按设施 |
-| `js/skills.js` | 技能列表 + 搜索 |
 | `js/files.js` | 文件树 + 预览 + 版本 |
 | `js/runtime.js` | 运行页仪表 |
 | `js/app.js` | 入口初始化 |
@@ -110,3 +109,14 @@ HermesActivity.onCreate
 - `mov-models-verify.js` — 多模型链路验证
 - 测试报告在 `tools/e2e/reports/`
 - 新增用例: 复制现有 driver 脚本, 修改测试步骤
+
+---
+
+## 关联合同
+
+- [CONTRACT_STORAGE.md](CONTRACT_STORAGE.md)
+- [CONTRACT_SECURITY.md](CONTRACT_SECURITY.md)
+- [CONTRACT_MODEL.md](CONTRACT_MODEL.md)
+- [CONTRACT_ROOM.md](CONTRACT_ROOM.md)
+- [CONTRACT_RUNTIME.md](CONTRACT_RUNTIME.md)
+- [CONTRACT_ZINDEX.md](CONTRACT_ZINDEX.md)
