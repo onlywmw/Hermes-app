@@ -14,7 +14,7 @@ AI 协作│系统 & 模型
 ```
 
 - **会话**：项目房间。讨论区 + 文件仓库。多个 AI 模型参与讨论，产出代码和文档。
-- **运行**：设备状态、AI 模型监控、Cron 定时任务、技能管理。
+- **运行**：个人信息、Token 消耗、AI 模型管理、Cron 定时任务。
 
 ---
 
@@ -44,17 +44,17 @@ adb logcat -s MOV:D
 ```
 HermesActivity (WebView 壳)
   └─ hermes-shell.html (单 HTML 入口)
-       ├─ 14 个 JS 模块: chat / render / files / runtime / skills / council / store / bridge / i18n / app / app-chat / app-files / app-room / app-run
+       ├─ 13 个 JS 模块: chat / render / files / runtime / skills / store / bridge / i18n / app / app-chat / app-files / app-room / app-run
        │
-       ├─ HermesBridge (60+ @JavascriptInterface, BridgeFactory 聚合 6 个子 Bridge)
-       │   ├─ IntentParser → CapabilityExecutor (30+ 个设备 & 文件能力)
+       ├─ BridgeFactory (70 个 @JavascriptInterface, 聚合 6 个子 Bridge)
+       │   ├─ IntentParser → CapabilityExecutor (30 个设备 & 文件能力)
        │   ├─ AiClient (OpenAI 兼容: DeepSeek / Qwen / OpenAI / Ollama)
        │   ├─ ModelRegistry (多模型注册 & 加密存储)
        │   ├─ CouncilClient (多模型并行讨论 → 汇总 → 结构化输出)
+       │   ├─ AgentLoop (agentic 循环: 计划→评审→执行→验证→交付)
        │   ├─ StorageManager (四种存储: 产出/资料/归档/个人)
        │   ├─ CronManager (WorkManager 定时调度)
        │   ├─ SkillStore (技能 CRUD)
-       │   └─ StatsCollector (匿名使用统计)
        │
        └─ B (JS 桥封装, 50+ 方法)
 ```
@@ -66,7 +66,7 @@ HermesActivity (WebView 壳)
 - Java 11 · Android API 26+ · targetSdk 36
 - WebView 壳 + 纯 HTML/CSS/JS（无前端框架）
 - Gradle 8.13 · appcompat 1.6.1
-- JUnit 4 · 87 测试用例
+- JUnit 4 · 158 测试用例
 
 ---
 
@@ -81,6 +81,7 @@ HermesActivity (WebView 壳)
 | [CONTRACT_RUNTIME.md](docs/CONTRACT_RUNTIME.md) | 运行页契约 |
 | [CONTRACT_SECURITY.md](docs/CONTRACT_SECURITY.md) | 安全契约 |
 | [CONTRACT_STORAGE.md](docs/CONTRACT_STORAGE.md) | 存储系统契约 |
+| [DESIGN_AGENT_LOOP.md](docs/DESIGN_AGENT_LOOP.md) | AgentLoop 设计文档 |
 | [MOV_DESIGN_SPEC_V2.html](docs/MOV_DESIGN_SPEC_V2.html) | 视觉设计规范 |
 
 ---
