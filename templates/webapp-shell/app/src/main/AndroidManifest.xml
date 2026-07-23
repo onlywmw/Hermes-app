@@ -4,6 +4,14 @@
     android:versionName="1.0">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- v2 权限三件套 + 近赢: 相机(扫一扫/getUserMedia) / 录音 / 通知 / 震动 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 无摄像头的设备(部分平板/电视)也能安装, 运行时降级 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
         android:label="MOVAPPPLACEHOLDR"

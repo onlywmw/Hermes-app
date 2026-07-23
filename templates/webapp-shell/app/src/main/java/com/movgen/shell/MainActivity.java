@@ -2,10 +2,19 @@ package com.movgen.shell;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Vibrator;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -14,10 +23,19 @@ import android.webkit.WebViewClient;
 /**
  * WebView 壳 — 全屏加载 assets/app.html (MOV 打包器注入的房间产出 HTML)。
  * 零 androidx 依赖, 纯 framework API, 保证模板 APK 最小化。
+ *
+ * v2 权限桥: 相机/录音(getUserMedia 经 onPermissionRequest 申请并授权) /
+ *            通知与震动 (MovShell JS 桥: notify/vibrate)。
  */
 public class MainActivity extends Activity {
 
+    private static final int REQ_MEDIA = 41;
+    private static final int REQ_NOTIFY = 42;
+    private static final String CHANNEL_ID = "mov_shell_default";
+
     private WebView web;
+    private PermissionRequest pendingWebReq;
+    private String pendingNotifyTitle, pendingNotifyText;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -39,6 +57,8 @@ public class MainActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_FULLSCREEN);
 
+        createNotificationChannel();
+
         web = new WebView(this);
         web.setBackgroundColor(Color.BLACK);
         WebSettings s = web.getSettings();
@@ -47,6 +67,8 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);   /* file:///android_asset 在 false 下仍可加载 */
         s.setAllowContentAccess(false);
         s.setTextZoom(100);
+        s.setMediaPlaybackRequiresUserGesture(false); /* 相机预览/录音可自动起 */
+        web.addJavascriptInterface(new ShellBridge(), "MovShell");
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -85,10 +107,94 @@ public class MainActivity extends Activity {
                         .show();
                 return true;
             }
+
+            /* getUserMedia 授权闸: WebView 资源请求 → Android 运行时权限 → grant */
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                boolean needCam = false, needMic = false;
+                for (String res : request.getResources()) {
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(res)) needCam = true;
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(res)) needMic = true;
+                }
+                java.util.List<String> need = new java.util.ArrayList<>();
+                if (needCam) need.add(android.Manifest.permission.CAMERA);
+                if (needMic) need.add(android.Manifest.permission.RECORD_AUDIO);
+                if (need.isEmpty()) { request.deny(); return; }
+                java.util.List<String> missing = new java.util.ArrayList<>();
+                for (String p : need) {
+                    if (checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
+                }
+                if (missing.isEmpty()) {
+                    request.grant(request.getResources());
+                } else {
+                    /* 持有 PermissionRequest 跨过异步申请, 回调里再 grant/deny */
+                    pendingWebReq = request;
+                    requestPermissions(missing.toArray(new String[0]), REQ_MEDIA);
+                }
+            }
         });
         setContentView(web, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         web.loadUrl("file:///android_asset/app.html");
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        boolean granted = grantResults.length > 0;
+        for (int r : grantResults) granted = granted && r == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQ_MEDIA && pendingWebReq != null) {
+            if (granted) pendingWebReq.grant(pendingWebReq.getResources());
+            else pendingWebReq.deny();
+            pendingWebReq = null;
+        } else if (requestCode == REQ_NOTIFY && pendingNotifyTitle != null) {
+            if (granted) postNotification(pendingNotifyTitle, pendingNotifyText);
+            pendingNotifyTitle = null; pendingNotifyText = null;
+        }
+    }
+
+    // ==================== MovShell JS 桥 ====================
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            nm.createNotificationChannel(new NotificationChannel(
+                    CHANNEL_ID, "应用通知", NotificationManager.IMPORTANCE_DEFAULT));
+        }
+    }
+
+    private void postNotification(String title, String text) {
+        Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
+        Notification n = b.setContentTitle(title).setContentText(text)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setAutoCancel(true).build();
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        nm.notify((int) (System.currentTimeMillis() % 100000), n);
+    }
+
+    class ShellBridge {
+        /** 发系统通知 (Android 13+ 懒申请 POST_NOTIFICATIONS, 批准后补发) */
+        @JavascriptInterface
+        public void notify(String title, String text) {
+            runOnUiThread(() -> {
+                if (Build.VERSION.SDK_INT >= 33
+                        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                                != PackageManager.PERMISSION_GRANTED) {
+                    pendingNotifyTitle = title; pendingNotifyText = text;
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQ_NOTIFY);
+                    return;
+                }
+                postNotification(title, text);
+            });
+        }
+
+        /** 震动 (VIBRATE 声明即可, 无需运行时权限; 无马达设备静默跳过) */
+        @JavascriptInterface
+        public void vibrate(long ms) {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null && v.hasVibrator()) v.vibrate(Math.max(0, Math.min(ms, 3000)));
+        }
     }
 
     @Override

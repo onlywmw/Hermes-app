@@ -24,11 +24,15 @@
 | Cron 定时任务 | CronManager 白名单 | 产出落房间 + 通知 |
 | HTML → 签名 APK（稳定包名覆盖升级） | PackageBuilder 链路真机已验证 | 安装/启动/杀进程数据在 |
 
-### B. 打包 APK 内（WebView 浏览器能力，无需任何权限）
+### B. 打包 APK 内（WebView 浏览器能力 + MovShell 桥）
 
 | 能力 | 依据 | 解锁场景 |
 |------|------|---------|
 | **联网 fetch/XHR/WebSocket（仅 HTTPS）** | 模板已声明 INTERNET (aapt dump)；shouldOverrideUrlLoading 只拦页面导航不拦 XHR | 连云服务器的 C/S 应用（类微信） |
+| **相机预览/扫一扫 getUserMedia** | 模板 v2：manifest CAMERA + 运行时申请 + onPermissionRequest 授权，2026-07-24 真机验证（权限弹窗→授权→实时预览） | 扫码点单、拍照上传 |
+| **录音 getUserMedia({audio})** | 模板 v2：RECORD_AUDIO 同通道 | 语音输入、录音笔记 |
+| **通知 MovShell.notify(title,text)** | 模板 v2 JS 桥：POST_NOTIFICATIONS 懒申请，2026-07-24 真机验证 | 新消息提醒、订单提醒 |
+| **震动 MovShell.vibrate(ms)** | 模板 v2 JS 桥（VIBRATE 声明即可），真机验证 | 按键反馈、提醒 |
 | **传感器 DeviceMotion/DeviceOrientation** | Android WebView 无需权限（与 iOS 不同） | 体感游戏：平衡球、赛车转向 |
 | **音频播放 `<audio>`/Web Audio** | 播放无需权限；单文件可内联 base64 音效 | 游戏音效、提示音 |
 | **WebGL/Canvas/游戏引擎** | WebView 自带 GPU 加速 | 3D/复杂游戏 |
@@ -54,7 +58,6 @@
 
 | 需求 | 缺什么 | 解锁成本 |
 |------|--------|---------|
-| APK 内震动 navigator.vibrate | manifest 一行 VIBRATE（无需运行时权限） | 模板改 1 行 |
 | APK 内明文 HTTP | manifest 一行 usesCleartextTraffic（或按域 networkSecurityConfig） | 模板改 1 行 |
 | APK 内选文件/上传照片 `<input type="file">` | 模板重写 WebChromeClient.onShowFileChooser | ~20 行（收款码图片上传需要） |
 
@@ -62,14 +65,13 @@
 
 | 需求 | 缺什么 | 替代方案 |
 |------|--------|---------|
-| APK 内扫一扫/相机预览/录音 | 权限三件套：manifest 声明 + 运行时申请 + WebView onPermissionRequest 授权（模板源码在 templates/webapp-shell/） | ~半天模板升级；现在用宿主 camera.photo 代拍 |
-| APK 内定位 Geolocation API | ACCESS_FINE_LOCATION + onGeolocationPermissionsShowPrompt | 模板升级；现在宿主 location.get 代查 |
+| APK 内定位 Geolocation API | ACCESS_FINE_LOCATION + onGeolocationPermissionsShowPrompt | 模板再升级；现在宿主 location.get 代查 |
 | agent 联网抓取 http.get | 工具未建（prompt 注入 + token 爆炸风险，需域名白名单设计） | 路线图 P2；现在用户手动贴内容 |
 | 真后端（账号/消息同步/多人实时） | agent 无服务器部署能力 | 交付 server.js + 部署说明（用户有云服务器可自部署，APK 内 HTTPS fetch 已通） |
 | 支付接口 | 资质 + 后端 | 展示收款码图片（烧烤摊模式） |
-| 应用级推送 | 推送 SDK + 后端 | 宿主 notification.post 本机通知 |
+| 应用级推送 | 推送 SDK + 后端 | MovShell.notify 本机通知 |
 | PWA/Service Worker | file:// origin 不支持 | 不需要——本地 assets 本身就是离线 |
-| Web Share/Clipboard/Notification API | file:// 非 secure context | 宿主 device.cmd 同类能力替代 |
+| Web Share/Clipboard/Notification API | file:// 非 secure context | MovShell.notify / 宿主 device.cmd 替代 |
 | 图片理解（拍照解题/票据识别） | AiClient 不支持图片消息 | 路线图 P2 |
 
 ## 四、执行规则（写进 prompt 的压缩版依据）
@@ -79,9 +81,7 @@
 3. 评审/验收以本表为准：✅ 项出现占位符 = 交付缺陷（返工）；⚠️ 项未明示边界 = 交付缺陷。
 4. **本表每行结论必须可复核**：修改任何一行，在 commit 里附上验证方法（aapt dump / 源码行 / 真机实测截图）。
 
-## 五、v1.1 修订记录
+## 五、修订记录
 
-- 联网行纠错：模板有 INTERNET（v1.0 误判 ❌）；补 cleartext 限制（targetSdk 36 明文被拦）
-- 新增 ✅ 五行：传感器/音频播放/WebGL/Gamepad/IndexedDB（全部无需权限，v1.0 遗漏）
-- 新增"近赢解锁"档：vibrate/cleartext/file input（一行到一个回调的事，不该和真做不了混排）
-- 每行补验证依据列
+- **v1.2 (2026-07-24)**：模板权限三件套落地 — 相机(getUserMedia)/录音/通知(MovShell.notify)/震动(MovShell.vibrate) 真机验证升 ✅；近赢档清零 vibrate（已交付）
+- v1.1：联网行纠错（模板有 INTERNET，v1.0 误判 ❌）；补 cleartext 限制；新增 ✅ 五行（传感器/音频/WebGL/Gamepad/IndexedDB）；新增"近赢解锁"档；每行补验证依据
