@@ -251,9 +251,9 @@ public class AgentLoop implements Runnable {
         }
     }
 
-    /** v2 计划评审; reviewer 为空或评审异常返回 null (静默跳过) */
+    /** v2 计划评审; reviewer 为空/评审异常/计划 ≤2 步 (小事不开会) 返回 null (静默跳过) */
     private JSONArray doPlanReview(JSONArray plan) {
-        if (reviewer == null) return null;
+        if (reviewer == null || plan.length() <= 2) return null;
         try {
             JSONObject r = reviewer.planReview(goal, plan);
             trackReview(r);
@@ -611,5 +611,7 @@ public class AgentLoop implements Runnable {
             + "5. 目标完成就输出 finish。\n"
             + "6. ask_user 仅限真正卡住(缺信息且无法自行判断)时使用; 用户发来的修改/反馈意见"
             + "本身就是指令, 直接照做, 禁止反问「是否需要我修改」这类确认问题。\n"
-            + "7. .apk 是 .html 的打包产物 — 改游戏永远改源 .html 再重新打包, 不要问用户玩的是哪个文件。";
+            + "7. .apk 是 .html 的打包产物 — 改游戏永远改源 .html 再重新打包, 不要问用户玩的是哪个文件。\n"
+            + "8. 工具纪律: 已读过的文件内容就在上方工作日志里, 禁止重复 file.read 同一文件;"
+            + "每个疑问最多 2-3 次工具调用, 没有明确下一步就立即 finish, 不要边缘试探。";
 }

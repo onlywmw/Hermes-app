@@ -351,7 +351,9 @@ public class AgentLoopTest {
         pr.put("items", new org.json.JSONArray().put(
                 new JSONObject().put("name", "R1").put("role", "技术").put("comment", "注意性能")));
         FakeBrain brain = new FakeBrain(
-                "{\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"x\"}]}",
+                "{\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"x\"},"
+                        + "{\"action\":\"file.write\",\"path\":\"b.html\",\"desc\":\"y\"},"
+                        + "{\"action\":\"app.package\",\"path\":\"a.html\",\"desc\":\"z\"}]}",
                 "{\"action\":\"finish\",\"summary\":\"完\"}");
         FakeSink sink = new FakeSink();
         AgentLoop loop = startAndApprove("room7", brain, new FakeTools(), new FakeReviewer(pr), sink);
@@ -360,6 +362,24 @@ public class AgentLoopTest {
         assertNotNull(plan);
         assertEquals(1, plan.optJSONArray("reviews").length());
         assertEquals("注意性能", plan.optJSONArray("reviews").getJSONObject(0).optString("comment"));
+    }
+
+    @Test
+    public void planReview_skippedForSmallPlan() throws Exception {
+        /* ≤2 步的小事不开评审会 (借鉴 OpenCodeReview: 小变更跳 PLAN 省钱) */
+        JSONObject pr = new JSONObject();
+        pr.put("pt", 10).put("ct", 5);
+        pr.put("items", new org.json.JSONArray().put(
+                new JSONObject().put("name", "R1").put("role", "技术").put("comment", "注意性能")));
+        FakeBrain brain = new FakeBrain(
+                "{\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"x\"}]}",
+                "{\"action\":\"finish\",\"summary\":\"完\"}");
+        FakeSink sink = new FakeSink();
+        AgentLoop loop = startAndApprove("room7b", brain, new FakeTools(), new FakeReviewer(pr), sink);
+        waitTerminal(loop);
+        JSONObject plan = sink.firstOfType("plan");
+        assertNotNull(plan);
+        assertFalse("1 步计划不应附带评审", plan.has("reviews"));
     }
 
     @Test

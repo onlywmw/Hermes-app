@@ -80,9 +80,15 @@ public class AgentReview implements AgentLoop.Reviewer {
                 return out.put("pass", 1).put("fail", 0).put("comments", comments)
                         .put("pt", 0).put("ct", 0);
             }
-            String prompt = "你是评审团专家, 对 agent 的交付投票。\n" + logDigest
-                    + "\n只输出 JSON: {\"pass\":true或false,\"reason\":\"一句理由\"}。"
-                    + "目标基本达成且产出可用 → true; 有明显缺陷/未完成 → false。";
+            String prompt = "你是交付评审员, 对 agent 的交付投票。你只能看到目标和工作日志摘要,"
+                    + "执行者接触过你看不到的完整上下文 (文件全文/工具结果)。\n"
+                    + "核心原则: 证伪而非证实 — 只有当日志/文件清单里有直接证据表明交付有缺陷时才投 false;"
+                    + "怀疑但无法证实的, 一律投 true (借鉴 OpenCodeReview 的 veto rule, 防误报返工白烧 token)。\n"
+                    + "验收清单 (逐项对照): 1.承诺的产出文件都在清单里 2.单文件应用自洽(不引用不存在的本地资源) "
+                    + "3.交互元素真绑定了事件(按钮/方向键不是摆设) 4.要求持久化的数据用了 localStorage。\n"
+                    + "不要报: 缺后端/缺美术资源/文件该拆分/代码风格 — 这些不是交付缺陷。\n"
+                    + logDigest
+                    + "\n只输出 JSON: {\"pass\":true或false,\"reason\":\"一句理由, false 时必须引用日志中的证据\"}。";
             // 并行收集 (需要可变计数, 用数组)
             int[] votes = {0, 0};
             parallelCollect(prompt, (name, role, resp) -> {

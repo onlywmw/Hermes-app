@@ -174,7 +174,8 @@ public class ToolRegistry {
         ToolRegistry r = new ToolRegistry(policy);
         r.register(new Tool("file.list", "列房间文件",
                 a -> new Result(true, tools.fileList(roomId))));
-        r.register(new Tool("file.read", "读房间文件 (分页: offset=起始字符默认0, length=本次长度默认32k, 单次上限32k)", a -> {
+        r.register(new Tool("file.read", "读房间文件 (分页: offset=起始字符默认0, length=本次长度默认32k, 单次上限32k;"
+                + " 结果尾部写『用 offset=N 继续读』就再调一次传 offset=N, 写『文件读完』则禁止再读)", a -> {
             String res = tools.fileRead(roomId, a.optString("path"));
             if (res.startsWith("ERROR:")) return new Result(false, res);
             /* 底层 StorageManager 100k 截断标记: 分页天花板 */
