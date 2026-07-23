@@ -63,6 +63,11 @@ public class BridgeModel extends BaseBridge {
                 ModelConfig old = registry.get(mc.id);
                 if (old != null) mc.apiKey = old.apiKey;
             }
+            /* 掩码 key 回写防护: 脱敏 key (sk-****5678) 被当真 key 写回会静默毁掉配置 */
+            if (mc.apiKey != null && mc.apiKey.contains("*")) {
+                ModelConfig old = registry.get(mc.id);
+                if (old != null) mc.apiKey = old.apiKey;
+            }
             boolean ok = registry.update(mc);
             return "{\"ok\":" + ok + "}";
         } catch (Exception e) {
