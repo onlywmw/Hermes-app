@@ -102,6 +102,61 @@ Then:
 
 ---
 
+## 发送到桌面（产出物一键上桌面，点开全屏即玩）
+
+### 链路
+
+```
+文件 tab 长按产出卡 → 操作菜单「发送到桌面」
+→ BridgeFile.pinFileShortcut(roomId, path, label)
+→ ShortcutManagerCompat.requestPinShortcut (系统弹窗确认, 正常行为)
+→ 桌面图标 → 点击 → HtmlViewerActivity (singleTask, exported=true)
+→ StorageManager.resolveWorkFile 校验 → 全屏 WebView 加载
+  rooms/<roomId>/files/work/<path>
+```
+
+### 安全约束
+
+1. **roomId/path 全过 `BridgeValidator`；`resolveWorkFile` canonical 后必须在 work 目录内**，文件不存在显示错误页，不崩溃。
+2. **label 消毒：去控制字符 + 限 20 字**（`BridgeValidator.sanitizeLabel`），空则回退文件名。
+3. **HtmlViewerActivity 不注册 HermesBridge**（纯展示）；URL 白名单只放行 work 目录内 `file://` 导航，http/https/其他 file 一律拦截。WebView 开 JS + DOM storage（游戏需要），关 content 访问。
+4. **「发送到桌面」仅产出 (work) 文件可见**；资料/归档不提供（查看器只读 work 目录）。
+5. **MIUI 需「桌面快捷方式」权限**：`requestPinShortcut` 返回 false 时桥返回含引导的错误文案（设置→应用管理→MOV→权限管理→桌面快捷方式）。**实测 MIUI 陷阱（2026-07-23, MIUI Pad）**：未授权时 `requestPinShortcut` 仍返回 `true` 但静默不添加（`appops get` 可见 `MIUIOP(10017): ignore` + rejectTime）；`appops set <pkg> 10017 allow` 或用户手动授权后直接添加成功，且不再弹系统确认框。
+6. **HtmlViewerActivity 必须显式 `setWebChromeClient(new WebChromeClient())`**：不设置时 WebView 静默吞掉 JS `alert()`（游戏"游戏结束"提示会丢）；且 alert 弹窗期间 `Runtime.evaluate` 阻塞（CDP 验证脚本需先 dismiss）。
+
+### TC-S09：发送到桌面 → 全屏打开
+
+```
+Given: 房间 r1 work 目录有 snake.html
+When: 文件 tab 长按 snake.html → 发送到桌面 → 系统弹窗确认添加
+Then:
+  1. 桌面出现以文件名命名的图标
+  2. 点击图标 → HtmlViewerActivity 全屏打开 snake.html, JS/localStorage 可用, 游戏可玩
+  3. 返回键退出查看器
+```
+
+### TC-S10：路径遍历被拒绝
+
+```
+Given: pinFileShortcut("desk", "../../x", "t")
+When: 调桥
+Then:
+  1. BridgeValidator.checkPath 返回错误
+  2. 不创建任何快捷方式
+```
+
+### TC-S11：快捷方式指向已删除文件
+
+```
+Given: 桌面图标已添加, 之后 snake.html 被删除
+When: 点击桌面图标
+Then:
+  1. HtmlViewerActivity 显示错误页 (文件不存在或已被删除)
+  2. 不崩溃, 返回键正常退出
+```
+
+---
+
 ## 实现约束（不可违反）
 
 1. **存储根路径：`context.getExternalFilesDir(null) + "/mov/"`。** 禁止硬编码 `/sdcard/mov/`。`StorageManager.BASE` 由 `init(Context)` 运行时设置。

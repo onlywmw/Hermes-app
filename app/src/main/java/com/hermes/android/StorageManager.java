@@ -223,6 +223,17 @@ public class StorageManager {
         return dir;
     }
 
+    /** 解析产出目录内的文件 (canonical 防越界): 合法且存在返回 File, 否则 null (HtmlViewer/桌面快捷方式用) */
+    public File resolveWorkFile(String roomId, String path) {
+        if (!isValidId(roomId)) return null;
+        if (path == null || path.isEmpty()) return null;
+        File dir = new File(baseDir, "rooms/" + roomId + "/files/work");
+        File target = new File(dir, path);
+        if (!isSafe(dir, target)) return null;
+        if (!target.exists() || !target.isFile()) return null;
+        return target;
+    }
+
     // ==================== 归档 (archive) ====================
 
     public String listArchiveFiles(String roomId) {

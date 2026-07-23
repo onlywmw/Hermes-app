@@ -271,6 +271,17 @@
       </div>
     </div>
 
+    <!-- 文件操作 sheet (文件 tab 长按产出/资料卡: 发送到桌面 / 删除) -->
+    <div class="sheet-mask" id="fileOpsMask"></div>
+    <div class="sheet" id="fileOpsSheet">
+      <div style="display:flex;align-items:center;justify-content:space-between"><h5 data-i18n="files.opsTitle">文件操作</h5><span class="sheet-close" id="btnFileOpsClose">✕</span></div>
+      <div class="sh-sub" id="fileOpsName">—</div>
+      <div id="fileOpsMenu">
+        <div class="sheet-row" id="fopsPin" data-i18n="files.pin">发送到桌面</div>
+        <div class="sheet-row danger" id="fopsDelete" data-i18n="files.delete">删除文件</div>
+      </div>
+    </div>
+
     <!-- 消息/技能长按操作条 -->
     <div class="msg-actions" id="msgActions">
       <span id="msgActionText"></span>

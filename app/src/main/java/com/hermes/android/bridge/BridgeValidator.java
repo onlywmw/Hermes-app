@@ -80,6 +80,16 @@ public final class BridgeValidator {
         return null;
     }
 
+    /** 标签消毒 (桌面快捷方式等 UI 展示用): 去控制字符 + trim + 限长; null → "" */
+    public static String sanitizeLabel(String label, int maxLen) {
+        if (label == null) return "";
+        String cleaned = label.replaceAll("\\p{Cntrl}", "").trim();
+        if (maxLen > 0 && cleaned.length() > maxLen) {
+            cleaned = cleaned.substring(0, maxLen);
+        }
+        return cleaned;
+    }
+
     private static String err(String msg) {
         try {
             return new org.json.JSONObject().put("ok", false).put("error", msg).toString();

@@ -127,20 +127,47 @@ function bindStorageCards(){
       if(res2.ok)showFilePreview(fname,res2.content);
       else B.toast(res2.error||t('files.loadFail'));
     });
-    /* 长按删除 (产出/资料) */
+    /* 长按 → 操作菜单 (发送到桌面 / 删除; 产出/资料) */
     if(ftype==='work'||ftype==='inbox'){
       bindLongPress(el,{
-        text:t('files.delete'),
-        exec:function(){
-          var path=(ftype==='work'?'work/':'inbox/')+fname;
-          var r=B.deleteFile(curRoomId,path);
-          if(r.ok){B.toast(t('files.deleted'));renderStorageView();}
-          else B.toast(r.message||'');
-        }
+        text:'', /* 操作菜单非危险确认: 直接弹 sheet, 不走 msgActions 确认条 */
+        exec:function(){openFileOpsSheet(fname,ftype);}
       });
     }
   });
 }
+
+/* ---------- 文件操作 sheet (发送到桌面 / 删除) ---------- */
+var _fileOpsTarget=null;
+function openFileOpsSheet(fname,ftype){
+  _fileOpsTarget={name:fname,type:ftype};
+  $('fileOpsName').textContent=fname;
+  /* 发送到桌面仅产出 (HtmlViewerActivity 只读 files/work 目录) */
+  $('fopsPin').style.display=ftype==='work'?'':'none';
+  openSheetExclusive('fileOpsMask','fileOpsSheet');
+}
+$('btnFileOpsClose').addEventListener('click',function(){closeAllSheets();});
+$('fileOpsMask').addEventListener('click',function(){closeAllSheets();});
+$('fopsPin').addEventListener('click',function(){
+  if(!_fileOpsTarget)return;
+  var fname=_fileOpsTarget.name;
+  closeAllSheets();
+  var r=B.pinFileShortcut(curRoomId,fname,fname);
+  if(r.ok)B.toast(t('files.pinRequested'));
+  else B.toast(r.error||t('files.pinFail'));
+});
+$('fopsDelete').addEventListener('click',function(){
+  if(!_fileOpsTarget)return;
+  var fname=_fileOpsTarget.name,ftype=_fileOpsTarget.type;
+  closeAllSheets();
+  /* 删除保持长按确认条语义 (危险操作二次确认) */
+  showMsgActions(t('files.delete'),function(){
+    var path=(ftype==='work'?'work/':'inbox/')+fname;
+    var r=B.deleteFile(curRoomId,path);
+    if(r.ok){B.toast(t('files.deleted'));renderStorageView();}
+    else B.toast(r.message||'');
+  });
+});
 
 /* ---------- 版本历史 overlay ---------- */
 function openVersionOverlay(fname){

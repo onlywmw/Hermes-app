@@ -136,4 +136,70 @@ public class BridgeFile extends BaseBridge {
         String safeRoomId = BridgeValidator.checkRoomId(roomId) == null ? roomId : null;
         activity.pickFilePublic(cbId, safeRoomId);
     }
+
+    /**
+     * 发送到桌面 (CONTRACT_STORAGE 发送到桌面 §): 为产出文件固定桌面快捷方式,
+     * 点击经 HtmlViewerActivity 全屏打开。requestPinShortcut 会弹系统确认框 (正常行为);
+     * MIUI 需「桌面快捷方式」权限, 拒绝时返回含引导的错误。
+     */
+    public String pinFileShortcut(String roomId, String path, String label) {
+        String e = BridgeValidator.checkRoomId(roomId); if (e != null) return e;
+        e = BridgeValidator.checkPath(path); if (e != null) return e;
+        final java.io.File target = sm.resolveWorkFile(roomId, path);
+        if (target == null) {
+            return "{\"ok\":false,\"error\":\"文件不存在: " + path + "\"}";
+        }
+        String clean = BridgeValidator.sanitizeLabel(label, 20);
+        if (clean.isEmpty()) clean = target.getName();
+        final String fLabel = clean;
+        /* ShortcutManagerCompat 需在主线程调用; JS 桥在 binder 线程, 闩锁同步等结果 */
+        final String[] result = new String[1];
+        final java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
+        activity.runOnUiThread(() -> {
+            try {
+                result[0] = doPinShortcut(roomId, path, fLabel);
+            } finally {
+                latch.countDown();
+            }
+        });
+        try {
+            if (!latch.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                return "{\"ok\":false,\"error\":\"请求超时\"}";
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            return "{\"ok\":false,\"error\":\"请求被中断\"}";
+        }
+        return result[0] != null ? result[0] : "{\"ok\":false,\"error\":\"未知错误\"}";
+    }
+
+    private String doPinShortcut(String roomId, String path, String label) {
+        try {
+            if (!androidx.core.content.pm.ShortcutManagerCompat
+                    .isRequestPinShortcutSupported(activity)) {
+                return "{\"ok\":false,\"error\":\"当前桌面不支持固定快捷方式\"}";
+            }
+            android.content.Intent intent = new android.content.Intent(
+                    activity, com.hermes.android.HtmlViewerActivity.class);
+            intent.setAction(android.content.Intent.ACTION_VIEW);
+            intent.putExtra(com.hermes.android.HtmlViewerActivity.EXTRA_ROOM_ID, roomId);
+            intent.putExtra(com.hermes.android.HtmlViewerActivity.EXTRA_PATH, path);
+            /* 快捷方式 id 稳定唯一: 同房间同路径重复添加时系统复用/更新 */
+            String id = "movfile_" + roomId + "_" + Integer.toHexString(path.hashCode());
+            androidx.core.content.pm.ShortcutInfoCompat shortcut =
+                    new androidx.core.content.pm.ShortcutInfoCompat.Builder(activity, id)
+                            .setShortLabel(label)
+                            .setIcon(androidx.core.graphics.drawable.IconCompat
+                                    .createWithResource(activity, com.hermes.android.R.drawable.ic_launcher))
+                            .setIntent(intent)
+                            .build();
+            boolean requested = androidx.core.content.pm.ShortcutManagerCompat
+                    .requestPinShortcut(activity, shortcut, null);
+            if (requested) return "{\"ok\":true}";
+            return "{\"ok\":false,\"error\":\"桌面拒绝了请求 — MIUI 请在 设置→应用管理→MOV→权限管理 开启「桌面快捷方式」后重试\"}";
+        } catch (Exception ex) {
+            return "{\"ok\":false,\"error\":\"添加快捷方式失败: "
+                    + (ex.getMessage() != null ? ex.getMessage().replace("\"", "'") : "未知") + "\"}";
+        }
+    }
 }

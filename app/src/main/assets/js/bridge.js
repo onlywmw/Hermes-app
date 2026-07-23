@@ -60,6 +60,8 @@ var B=(function(){
     loadChat:function(rid,date){try{return b?JSON.parse(b.loadChatMessages(rid,date)):{ok:true,messages:[]};}catch(e){return {ok:true,messages:[]};}},
     /* P1-8: 文件选择 */
     pickFile:function(cb,roomId){if(!b){cb(null);return;}var id=nextCbId();_cbMap[id]=cb;b.pickFile(id,roomId||'');},
+    /* 发送到桌面: 产出文件固定桌面快捷方式 (CONTRACT_STORAGE 发送到桌面 §) */
+    pinFileShortcut:function(rid,path,label){try{return b&&b.pinFileShortcut?JSON.parse(b.pinFileShortcut(rid,path,label||'')):{ok:false,error:'桥不可用'};}catch(e){return {ok:false,error:String(e)};}},
     /* RUNTIME 真数据 */
     runtimeStats:function(){try{return b?JSON.parse(b.getRuntimeStats()):{};}catch(e){return {};}},
     permState:function(){try{return b?JSON.parse(b.getPermissionState()):{};}catch(e){return {};}},

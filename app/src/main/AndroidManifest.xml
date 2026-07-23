@@ -53,6 +53,14 @@
             android:label="AI 设置"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- 产出物全屏查看器: 桌面快捷方式拉起 (发送到桌面 §CONTRACT_STORAGE) -->
+        <activity
+            android:name=".HtmlViewerActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:label="@string/app_name" />
+
         <!-- Hermes Widget -->
         <receiver
             android:name=".widget.HermesWidgetProvider"

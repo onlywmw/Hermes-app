@@ -74,6 +74,7 @@ public class BridgeFactory {
     @JavascriptInterface public String listRoomFiles(String roomId, String subPath) { return file.listRoomFiles(roomId, subPath); }
     @JavascriptInterface public String initRoom(String roomId, String name, String description, String membersJson) { return file.initRoom(roomId, name, description, membersJson); }
     @JavascriptInterface public void pickFile(String cbId, String roomId) { file.pickFile(cbId, roomId); }
+    @JavascriptInterface public String pinFileShortcut(String roomId, String path, String label) { return file.pinFileShortcut(roomId, path, label); }
 
     // ==================== Cron ====================
     @JavascriptInterface public String listCronJobs() { return cron.listCronJobs(); }
