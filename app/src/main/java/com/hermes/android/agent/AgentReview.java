@@ -23,16 +23,26 @@ import java.util.concurrent.TimeUnit;
  * - deliveryVote: 每个评审模型对交付投票 {pass, reason}
  * 返回均含 pt/ct (token 消耗, 供循环单独计量)。
  * 单个评审超时/失败静默跳过, 不阻塞主循环。
+ *
+ * 解耦: 不直接 new AiClient — 大脑由 BrainFactory 注入 (与 AgentLoop 同一接口),
+ * 生产环境在 BridgeAi 组装, 测试可注入假脑。
  */
 public class AgentReview implements AgentLoop.Reviewer {
+
+    /** 按模型造大脑 (与 AgentLoop.Brain 同一签名) */
+    public interface BrainFactory {
+        AgentLoop.Brain of(ModelConfig mc);
+    }
 
     private static final int MAX_PARALLEL = 3;
     private static final int TIMEOUT_SECONDS = 30;
 
     private final List<ModelConfig> reviewers;
+    private final BrainFactory brainOf;
 
-    public AgentReview(List<ModelConfig> reviewers) {
+    public AgentReview(List<ModelConfig> reviewers, BrainFactory brainOf) {
         this.reviewers = reviewers;
+        this.brainOf = brainOf;
     }
 
     @Override
@@ -129,12 +139,13 @@ public class AgentReview implements AgentLoop.Reviewer {
         for (ModelConfig mc : reviewers) {
             if (mc == null || !mc.isConfigured()) continue;
             submitted++;
+            final AgentLoop.Brain brain = brainOf.of(mc);
             final String name = mc.name.isEmpty() ? mc.getProviderDisplayName() : mc.name;
             final String role = mc.role;
             cs.submit(new Callable<Named>() {
                 @Override
                 public Named call() {
-                    return new Named(name, role, new AiClient(mc, sp).chat(prompt));
+                    return new Named(name, role, brain.chat(sp, prompt));
                 }
             });
         }

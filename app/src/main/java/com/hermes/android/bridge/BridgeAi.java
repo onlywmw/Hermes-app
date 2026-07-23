@@ -241,7 +241,9 @@ public class BridgeAi extends BaseBridge {
                     reviewers.add(mc);
                 }
             }
-            return reviewers.isEmpty() ? null : new com.hermes.android.agent.AgentReview(reviewers);
+            return reviewers.isEmpty() ? null : new com.hermes.android.agent.AgentReview(
+                    reviewers,
+                    mc -> (sp, text) -> new AiClient(mc, sp).chat(text));
         } catch (Exception e) {
             return null;
         }
