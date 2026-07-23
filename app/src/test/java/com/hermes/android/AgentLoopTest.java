@@ -452,4 +452,44 @@ public class AgentLoopTest {
         assertTrue("产出含 html", files.contains("snake.html"));
         assertTrue("产出含 apk", files.contains("snake.apk"));
     }
+    @Test
+    public void revisePlan_cappedAtTwo() throws Exception {
+        /* revise_plan 全任务封顶 2 次: 第 3 次被代码拒绝且不挂计划闸
+           (2026-07-23 咖啡点单现场: 大脑连出 8 张修订卡烧干 12 步, 零执行) */
+        FakeBrain brain = new FakeBrain(
+                "{\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"x\"}]}",
+                "{\"action\":\"revise_plan\",\"reason\":\"r1\",\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"y\"}]}",
+                "{\"action\":\"revise_plan\",\"reason\":\"r2\",\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"z\"}]}",
+                "{\"action\":\"revise_plan\",\"reason\":\"r3\",\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"w\"}]}",
+                "{\"action\":\"finish\",\"summary\":\"完\"}");
+        FakeSink sink = new FakeSink();
+        AgentLoop loop = startAndApprove("roomRevise", brain, new FakeTools(), sink);
+        /* 后台批准器: 按新出现的修订计划卡逐一批准 (初始卡已被 startAndApprove 批准,
+           从 1 计起; 不能对同一闸重复 respondPlan — 挂起循环最长 1s 才醒,
+           等待期间 state 一直是 PLAN_GATE, 重复响应会被下一闸的复位吞掉, 循环挂死 10 分钟) */
+        Thread approver = new Thread(() -> {
+            int approved = 1;
+            long t0 = System.currentTimeMillis();
+            while (loop.isActive() && System.currentTimeMillis() - t0 < 10000) {
+                int planCards = 0;
+                synchronized (sink) {
+                    for (JSONObject l : sink.logs) if ("plan".equals(l.optString("type"))) planCards++;
+                }
+                if (planCards > approved && loop.getState() == AgentLoop.State.PLAN_GATE) {
+                    approved = planCards;
+                    loop.respondPlan(true, null);
+                }
+                try { Thread.sleep(50); } catch (InterruptedException e) { return; }
+            }
+        });
+        approver.setDaemon(true);
+        approver.start();
+        /* 修订 3 被拒绝, 不再挂闸, 循环直接走到 finish */
+        waitTerminal(loop);
+        assertEquals(AgentLoop.State.DONE, loop.getState());
+        int planCards = 0;
+        for (JSONObject l : sink.logs) if ("plan".equals(l.optString("type"))) planCards++;
+        assertEquals("计划卡 = 初始 1 + 修订 2, 第 3 次修订不发卡", 3, planCards);
+    }
+
 }

@@ -65,6 +65,7 @@ public class AgentLoop implements Runnable {
     public static final int REWORK_STEPS = 6;
     public static final int MAX_REWORK_ROUNDS = 2;
     public static final int MAX_PARSE_FAILS = 2;
+    public static final int MAX_REVISE_PLANS = 2;   // revise_plan 全任务封顶 (防规划死循环)
     public static final long MAX_EXEC_MS = 10 * 60_000;
     public static final long ASK_TIMEOUT_MS = 10 * 60_000;
     /** 计划闸超时: 用户长时间不批准 → 自动停止, 防僵尸 loop 堵死全局队列 */
@@ -124,6 +125,7 @@ public class AgentLoop implements Runnable {
     private int estTokens = 0, estSeconds = 0;
     private long execStartMs = 0, parkedMs = 0;
     private int stepCounter = 0;
+    private int reviseCount = 0;   // revise_plan 计数 (封顶 MAX_REVISE_PLANS)
     private String finishSummary = null;
 
     public enum State { PLANNING, PLAN_GATE, EXECUTING, DONE, FAILED, STOPPED }
@@ -210,6 +212,7 @@ public class AgentLoop implements Runnable {
                     try { planLog.put("reviews", planReviews); } catch (Exception ignored) {}
                 }
                 log(planLog);
+                planApproved = null; planNote = null; // 闸前复位 (先于开闸, 防批准被 park 窗口吞掉)
                 state = State.PLAN_GATE;
                 phase("待确认");
                 if (!parkForPlan()) { stopped(); return; }
@@ -314,6 +317,15 @@ public class AgentLoop implements Runnable {
                     transcript.append("[revise_plan] → 拒绝: plan 为空\n");
                     return true;
                 }
+                /* 修订封顶: 大脑会把 revise_plan 当"再想一下"按钮连按, 烧干步数预算零执行
+                   (2026-07-23 咖啡点单现场: 8 张修订卡烧掉 12 步 + 40k tokens) */
+                if (reviseCount >= MAX_REVISE_PLANS) {
+                    transcript.append("[revise_plan] → 拒绝: 修订次数已用完 (上限 ")
+                            .append(MAX_REVISE_PLANS)
+                            .append("), 请按当前已批准计划执行, 或输出 finish。\n");
+                    return true;
+                }
+                reviseCount++;
                 allowedPaths.clear();
                 for (int i = 0; i < newPlan.length(); i++) {
                     JSONObject s = newPlan.optJSONObject(i);
@@ -326,6 +338,7 @@ public class AgentLoop implements Runnable {
                 log(j("type", "plan", "loopId", loopId,
                         "steps", newPlan, "revised", true,
                         "estTokens", estTokens, "estSeconds", estSeconds));
+                planApproved = null; planNote = null; // 闸前复位 (同初始闸, 防批准被吞)
                 state = State.PLAN_GATE;
                 phase("待确认");
                 if (!parkForPlan()) { stopped(); return false; }
@@ -422,7 +435,8 @@ public class AgentLoop implements Runnable {
     // ==================== 暂停 (挂起暂停总时长计时) ====================
 
     private boolean parkForPlan() {
-        planApproved = null; planNote = null;
+        /* 注意: planApproved/planNote 的复位必须在 state=PLAN_GATE 之前由调用方完成 —
+           在这里复位会吞掉"闸已开但 park 尚未进入"窗口内到达的批准 (真机等 10 分钟超时) */
         long t0 = System.currentTimeMillis();
         boolean ok = false;
         synchronized (gateLock) {
@@ -603,7 +617,7 @@ public class AgentLoop implements Runnable {
             "你是 MOV agent 的大脑, 正在驱动一个 agentic 循环。规则:\n"
             + "1. 每轮只输出一个 JSON 动作, 不要输出其他文字。\n"
             + "2. 流程控制动作: {\"action\":\"ask_user\",\"question\":\"问用户的问题\"} | "
-            + "{\"action\":\"revise_plan\",\"reason\":\"原因\",\"plan\":[...]} | "
+            + "{\"action\":\"revise_plan\",\"reason\":\"原因\",\"plan\":[...]}(全任务最多 2 次, 用完只能执行或 finish) | "
             + "{\"action\":\"finish\",\"summary\":\"交付说明\"}\n"
             + "3. file.write 只能写已批准计划中的文件, content 必须是完整最终内容。\n"
             + "4. 工具结果在工作日志里, 根据结果决定下一步; 需要回看文件内容用 file.read;"
