@@ -214,8 +214,13 @@ public class BridgeAi extends BaseBridge {
                 evalJs("window._agentLog(" + log.toString() + ")");
             } catch (Exception ignored) {}
         };
-        AgentLoop loop = AgentLoop.startNew(roomId, goal, brain, tools,
-                buildReviewer(modelIdsJson), wrapSinkWithQueue(sink));
+        /* 工具注册表: 探测本机硬件/权限生成 (agent 与硬件控制的分割层) */
+        java.util.Set<String> sharedPaths = new java.util.HashSet<>();
+        com.hermes.android.agent.ToolRegistry registry = com.hermes.android.agent.ToolRegistry.build(
+                tools, roomId, () -> sharedPaths,
+                com.hermes.android.agent.ToolRegistry.DevicePolicy.probe(activity));
+        AgentLoop loop = AgentLoop.startNew(roomId, goal, brain, tools, registry,
+                sharedPaths, buildReviewer(modelIdsJson), wrapSinkWithQueue(sink));
         if (loop == null) {
             queuedGoal = goal; queuedRoomId = roomId;
             queuedModelIds = modelIdsJson; queuedCbId = callbackId;

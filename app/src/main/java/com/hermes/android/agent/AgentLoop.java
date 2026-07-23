@@ -5,7 +5,6 @@ import com.hermes.android.ai.AiClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -66,16 +65,12 @@ public class AgentLoop implements Runnable {
     public static final int MAX_PARSE_FAILS = 2;
     public static final long MAX_EXEC_MS = 10 * 60_000;
     public static final long ASK_TIMEOUT_MS = 10 * 60_000;
+    /** 计划闸超时: 用户长时间不批准 → 自动停止, 防僵尸 loop 堵死全局队列 */
+    public static final long PLAN_GATE_TIMEOUT_MS = 10 * 60_000;
     private static final int MAX_PLAN_CYCLES = 3;
-    private static final int READ_TRUNCATE = 2000;
     private static final int EST_TOKENS_PER_STEP = 2500;
     private static final int EST_BASE_TOKENS = 4000;
     private static final int EST_SEC_PER_STEP = 20;
-
-    /** device.cmd 白名单 — 挂在解析后的 capability 上 (不含 file.ls; 文件操作只走 file.*) */
-    private static final Set<String> DEVICE_WHITELIST = new HashSet<>(Arrays.asList(
-            "battery.status", "system.info", "network.info", "process.list",
-            "volume.get", "brightness.get", "wifi.status"));
 
     // ==================== 全局单 loop 互斥 ====================
 
@@ -83,12 +78,16 @@ public class AgentLoop implements Runnable {
 
     public static synchronized AgentLoop current() { return current; }
 
-    /** 有活跃 loop 返回 null (调用方负责排队/提示); reviewer 可空 (跳过评审点) */
+    /** 有活跃 loop 返回 null (调用方负责排队/提示); reviewer 可空 (跳过评审点)
+     *  allowedPaths 由组装方创建并共享给注册表 (revise_plan 时循环写入, 注册表即时可见) */
     public static synchronized AgentLoop startNew(String roomId, String goal,
                                                   Brain brain, Tools tools,
+                                                  ToolRegistry registry,
+                                                  Set<String> allowedPaths,
                                                   Reviewer reviewer, LogSink sink) {
         if (current != null && current.isActive()) return null;
-        AgentLoop l = new AgentLoop(roomId, goal, brain, tools, reviewer, sink);
+        AgentLoop l = new AgentLoop(roomId, goal, brain, tools, registry,
+                allowedPaths != null ? allowedPaths : new HashSet<>(), reviewer, sink);
         current = l;
         new Thread(l, "agent-loop").start();
         return l;
@@ -101,8 +100,11 @@ public class AgentLoop implements Runnable {
     private final String goal;
     private final Brain brain;
     private final Tools tools;
+    private final ToolRegistry registry;   // 工具唯一入口: agent 与硬件控制的分割层
     private final Reviewer reviewer; // 可空 → 跳过评审点
     private final LogSink sink;
+    private final String stepPrompt;   // 由注册表动态生成 (工具随设备而变)
+    private final String planPrompt;   // 同上: 规划阶段就知道本机能力
 
     private volatile State state = State.PLANNING;
     private volatile boolean stopRequested = false;
@@ -111,7 +113,7 @@ public class AgentLoop implements Runnable {
     private volatile String planNote;
     private volatile String userAnswer;
 
-    private final Set<String> allowedPaths = new HashSet<>();
+    private final Set<String> allowedPaths;   // 组装方共享 (注册表 file.write 直接读它)
     private final StringBuilder transcript = new StringBuilder();
     private final JSONArray producedFiles = new JSONArray();
     private int totalPrompt = 0, totalCompletion = 0;
@@ -124,14 +126,20 @@ public class AgentLoop implements Runnable {
     public enum State { PLANNING, PLAN_GATE, EXECUTING, DONE, FAILED, STOPPED }
 
     private AgentLoop(String roomId, String goal, Brain brain, Tools tools,
+                      ToolRegistry registry, Set<String> allowedPaths,
                       Reviewer reviewer, LogSink sink) {
         this.loopId = "loop" + System.currentTimeMillis();
         this.roomId = roomId;
         this.goal = goal;
         this.brain = brain;
         this.tools = tools;
+        this.registry = registry;
+        this.allowedPaths = allowedPaths;
         this.reviewer = reviewer;
         this.sink = sink;
+        // 工具说明由注册表生成: 换设备/换工具, prompt 自动跟随
+        this.stepPrompt = STEP_RULES + "\n工具协议:\n" + registry.promptText();
+        this.planPrompt = PLAN_RULES + "\n可用手段:\n" + registry.promptText();
     }
 
     public String getLoopId() { return loopId; }
@@ -256,7 +264,7 @@ public class AgentLoop implements Runnable {
             if (pureExecMs() > MAX_EXEC_MS) { fail("执行超时 (10 分钟)"); return null; }
 
             stepCounter++;
-            AiClient.AiResponse resp = brain.chat(STEP_PROMPT, buildStepInput(stepCounter));
+            AiClient.AiResponse resp = brain.chat(stepPrompt, buildStepInput(stepCounter));
             track(resp);
             if (!resp.success) { fail("大脑调用失败: " + resp.content); return null; }
 
@@ -281,56 +289,6 @@ public class AgentLoop implements Runnable {
         String action = a.optString("action");
         long t0 = System.currentTimeMillis();
         switch (action) {
-            case "file.list": {
-                String res = tools.fileList(roomId);
-                stepLog(step, "file.list", "", true, res, t0);
-                transcript.append("[file.list] → ").append(oneLine(res)).append("\n");
-                return true;
-            }
-            case "file.read": {
-                String path = a.optString("path");
-                String res = tools.fileRead(roomId, path);
-                boolean ok = !res.startsWith("ERROR:");
-                String shown = ok && res.length() > READ_TRUNCATE
-                        ? res.substring(0, READ_TRUNCATE) + "\n…(截断)" : res;
-                stepLog(step, "file.read", path, ok, shown, t0);
-                transcript.append("[file.read ").append(path).append("] → ")
-                        .append(oneLine(shown)).append("\n");
-                return true;
-            }
-            case "file.write": {
-                String path = a.optString("path");
-                String content = a.optString("content");
-                // 安全红线: 计划外路径硬拒绝
-                if (!allowedPaths.contains(path)) {
-                    stepLog(step, "file.write", path, false, "此文件不在批准计划内", t0);
-                    transcript.append("[file.write ").append(path)
-                            .append("] → 拒绝: 此文件不在批准计划内。如需新增文件, 请输出 revise_plan。\n");
-                    return true;
-                }
-                String res = tools.fileWrite(roomId, path, content);
-                boolean ok = res.startsWith("OK:");
-                String record = path + " → " + content.length() + " 字符已写入";
-                stepLog(step, "file.write", path, ok, ok ? record : res, t0);
-                if (ok) producedFiles.put(path);
-                // transcript 纪律: content 不进上下文
-                transcript.append("[file.write ").append(path).append("] → ").append(record).append("\n");
-                return true;
-            }
-            case "device.cmd": {
-                String text = a.optString("text");
-                String cap = tools.capabilityOf(text);
-                if (!DEVICE_WHITELIST.contains(cap)) {
-                    stepLog(step, "device.cmd", text, false,
-                            "循环内禁止该能力 (" + (cap.isEmpty() ? "无法解析" : cap) + ")", t0);
-                    transcript.append("[device.cmd] → 拒绝: 仅允许只读设备能力, 文件操作请用 file.*\n");
-                    return true;
-                }
-                String res = tools.deviceCmd(text);
-                stepLog(step, "device.cmd", text, true, res, t0);
-                transcript.append("[device.cmd ").append(text).append("] → ").append(oneLine(res)).append("\n");
-                return true;
-            }
             case "ask_user": {
                 String q = a.optString("question");
                 log(j("type", "ask", "loopId", loopId, "question", q));
@@ -376,10 +334,29 @@ public class AgentLoop implements Runnable {
                 finishSummary = a.optString("summary");
                 return false;
             }
-            default:
-                stepLog(step, action, "", false, "未知动作", t0);
-                transcript.append("[").append(action).append("] → 未知动作, 请使用协议内动作。\n");
+            default: {
+                /* 通用执行器: 查注册表执行 (agent 不认识任何具体工具) */
+                ToolRegistry.Tool tool = registry.find(action);
+                if (tool == null) {
+                    stepLog(step, action, "", false, "没有此工具或未放行", t0);
+                    transcript.append("[").append(action)
+                            .append("] → 没有此工具或未放行, 请使用协议内动作。\n");
+                    return true;
+                }
+                String arg = a.optString("path", a.optString("text", ""));
+                try {
+                    ToolRegistry.Result res = tool.handler.run(a);
+                    stepLog(step, action, arg, res.ok, res.text, t0);
+                    if (res.produced != null) producedFiles.put(res.produced);
+                    transcript.append("[").append(action).append(arg.isEmpty() ? "" : " " + arg)
+                            .append("] → ").append(oneLine(res.text)).append("\n");
+                } catch (Exception e) {
+                    stepLog(step, action, arg, false, "执行异常: " + e.getMessage(), t0);
+                    transcript.append("[").append(action).append("] → 执行异常: ")
+                            .append(oneLine(e.getMessage())).append("\n");
+                }
                 return true;
+            }
         }
     }
 
@@ -389,7 +366,7 @@ public class AgentLoop implements Runnable {
         String input = "用户目标: " + goal + "\n\n房间工作区现有文件:\n" + tools.fileList(roomId)
                 + (transcript.length() > 0 ? "\n\n补充信息:\n" + transcript : "");
         for (int attempt = 1; attempt <= MAX_PARSE_FAILS; attempt++) {
-            AiClient.AiResponse resp = brain.chat(PLAN_PROMPT, input);
+            AiClient.AiResponse resp = brain.chat(planPrompt, input);
             track(resp);
             if (!resp.success) { fail("大脑调用失败: " + resp.content); return null; }
             try {
@@ -420,8 +397,13 @@ public class AgentLoop implements Runnable {
 
     private boolean parkForPlan() {
         planApproved = null; planNote = null;
+        long t0 = System.currentTimeMillis();
         synchronized (gateLock) {
             while (planApproved == null && !stopRequested) {
+                if (System.currentTimeMillis() - t0 > PLAN_GATE_TIMEOUT_MS) {
+                    note("计划超时未批准, 自动停止");
+                    return false;
+                }
                 try { gateLock.wait(1000); } catch (InterruptedException e) { return false; }
             }
         }
@@ -558,20 +540,19 @@ public class AgentLoop implements Runnable {
 
     // ==================== Prompt ====================
 
-    private static final String PLAN_PROMPT =
+    private static final String PLAN_RULES =
             "你是 MOV agent 的大脑, 运行在一个 Android 房间的 agentic 循环里。"
             + "把用户目标拆成执行计划, 只输出 JSON, 不要输出其他任何文字:\n"
             + "{\"plan\":[{\"action\":\"file.write\",\"path\":\"文件名\",\"desc\":\"这一步做什么\"}]}\n"
             + "规则: file.write 的 path 是你计划创建/修改的文件, 后续执行只允许写这些文件;"
-            + "小游戏/网页类需求规划为一个可运行的单文件 HTML; 不规划图片等二进制文件。";
+            + "小游戏/网页类需求规划为一个可运行的单文件 HTML; 不规划图片等二进制文件;"
+            + "涉及手机硬件操作(手电/音量/亮度/震动/语音/通知/启动应用/查询状态)时,"
+            + "直接计划 device.cmd 真做, 禁止写成 HTML 模拟。";
 
-    private static final String STEP_PROMPT =
+    private static final String STEP_RULES =
             "你是 MOV agent 的大脑, 正在驱动一个 agentic 循环。规则:\n"
             + "1. 每轮只输出一个 JSON 动作, 不要输出其他文字。\n"
-            + "2. 可用动作: {\"action\":\"file.list\"} | {\"action\":\"file.read\",\"path\":\"f\"} | "
-            + "{\"action\":\"file.write\",\"path\":\"f\",\"content\":\"完整内容\"} | "
-            + "{\"action\":\"device.cmd\",\"text\":\"只读设备指令\"} | "
-            + "{\"action\":\"ask_user\",\"question\":\"问用户的问题\"} | "
+            + "2. 流程控制动作: {\"action\":\"ask_user\",\"question\":\"问用户的问题\"} | "
             + "{\"action\":\"revise_plan\",\"reason\":\"原因\",\"plan\":[...]} | "
             + "{\"action\":\"finish\",\"summary\":\"交付说明\"}\n"
             + "3. file.write 只能写已批准计划中的文件, content 必须是完整最终内容。\n"

@@ -128,7 +128,12 @@ public class AgentLoopTest {
 
     private static AgentLoop startAndApprove(String roomId, FakeBrain brain, FakeTools tools,
                                              AgentLoop.Reviewer reviewer, FakeSink sink) throws Exception {
-        AgentLoop loop = AgentLoop.startNew(roomId, "测试目标", brain, tools, reviewer, sink);
+        java.util.Set<String> paths = new java.util.HashSet<>();
+        com.hermes.android.agent.ToolRegistry registry = com.hermes.android.agent.ToolRegistry.build(
+                tools, roomId, () -> paths,
+                com.hermes.android.agent.ToolRegistry.policyForTest(java.util.Collections.emptySet()));
+        AgentLoop loop = AgentLoop.startNew(roomId, "测试目标", brain, tools, registry,
+                paths, reviewer, sink);
         assertNotNull("应能启动 loop", loop);
         assertTrue("应到达计划闸", waitState(loop, AgentLoop.State.PLAN_GATE));
         loop.respondPlan(true, null);
@@ -248,13 +253,61 @@ public class AgentLoopTest {
         FakeBrain brain = new FakeBrain(
                 "{\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"x\"}]}");
         FakeSink sink = new FakeSink();
-        AgentLoop first = AgentLoop.startNew("room6", "任务1", brain, new FakeTools(), null, sink);
+        java.util.Set<String> p1 = new java.util.HashSet<>();
+        AgentLoop first = AgentLoop.startNew("room6", "任务1", brain, new FakeTools(),
+                com.hermes.android.agent.ToolRegistry.build(new FakeTools(), "room6", () -> p1,
+                        com.hermes.android.agent.ToolRegistry.policyForTest(java.util.Collections.emptySet())),
+                p1, null, sink);
         assertNotNull(first);
-        AgentLoop second = AgentLoop.startNew("room6", "任务2", brain, new FakeTools(), null, sink);
+        AgentLoop second = AgentLoop.startNew("room6", "任务2", brain, new FakeTools(), null, null, null, sink);
         assertNull("活跃 loop 存在时不应启动第二个", second);
         assertTrue(waitState(first, AgentLoop.State.PLAN_GATE));
         first.respondPlan(true, null);
         waitTerminal(first);
+    }
+
+    // ==================== ToolRegistry / DevicePolicy ====================
+
+    @Test
+    public void devicePolicy_tiers() {
+        com.hermes.android.agent.ToolRegistry.DevicePolicy policy =
+                com.hermes.android.agent.ToolRegistry.policyForTest(java.util.Collections.emptySet());
+        assertNull("只读能力放行", policy.check("battery.status"));
+        assertNull("动作类能力放行 (torch.on)", policy.check("torch.on"));
+        assertNull("动作类能力放行 (tts.speak)", policy.check("tts.speak"));
+        assertNotNull("电话拒绝", policy.check("telephony.call"));
+        assertNotNull("短信读取拒绝 (隐私)", policy.check("sms.recent"));
+        assertNotNull("file.ls 拒绝 (文件走 file.*)", policy.check("file.ls"));
+        assertNotNull("触摸注入拒绝", policy.check("input.tap"));
+        assertNotNull("空 capability 拒绝", policy.check(""));
+    }
+
+    @Test
+    public void devicePolicy_hardwareUnavailable() {
+        java.util.Set<String> un = new java.util.HashSet<>();
+        un.add("torch.on"); un.add("torch.off");
+        com.hermes.android.agent.ToolRegistry.DevicePolicy policy =
+                com.hermes.android.agent.ToolRegistry.policyForTest(un);
+        String deny = policy.check("torch.on");
+        assertNotNull("无闪光灯设备应拒绝 torch", deny);
+        assertTrue(deny.contains("不支持"));
+        assertNull("其他动作不受影响", policy.check("vibrate"));
+    }
+
+    @Test
+    public void registry_unknownToolRejected() throws Exception {
+        FakeBrain brain = new FakeBrain(
+                "{\"plan\":[{\"action\":\"file.write\",\"path\":\"a.html\",\"desc\":\"x\"}]}",
+                "{\"action\":\"termux.exec\",\"text\":\"ls\"}",
+                "{\"action\":\"finish\",\"summary\":\"完\"}");
+        FakeSink sink = new FakeSink();
+        AgentLoop loop = startAndApprove("room11", brain, new FakeTools(), sink);
+        waitTerminal(loop);
+        assertEquals(AgentLoop.State.DONE, loop.getState());
+        JSONObject step = sink.firstOfType("step");
+        assertNotNull(step);
+        assertFalse("未注册工具应拒绝", step.optBoolean("ok"));
+        assertTrue(step.optString("result").contains("没有此工具"));
     }
 
     // ==================== v2: 评审团 ====================
