@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>烧烤摊点单</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;background:#141210;color:#f2ede2;padding-bottom:90px}
+header{padding:18px 16px 12px;border-bottom:1px solid #2a2622}
+h1{font-size:20px}header p{color:#8a8378;font-size:12px;margin-top:2px}
+.tabs{display:flex;border-bottom:1px solid #2a2622}
+.tab{flex:1;text-align:center;padding:12px;font-size:14px;color:#8a8378}
+.tab.on{color:#f59e0b;border-bottom:2px solid #f59e0b}
+.page{display:none}.page.on{display:block}
+.item{display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #211d19}
+.item .info{flex:1}.item .name{font-size:16px}.item .price{color:#f59e0b;font-size:14px;margin-top:2px}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper button{width:32px;height:32px;border-radius:50%;border:1px solid #f59e0b;background:none;color:#f59e0b;font-size:18px}
+.stepper .n{min-width:20px;text-align:center;font-size:16px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#1d1915;border-top:1px solid #2a2622;display:flex;align-items:center;padding:12px 16px}
+.bar .total{flex:1}.bar .total b{color:#f59e0b;font-size:22px}
+.bar .total span{font-size:12px;color:#8a8378}
+.bar button{background:#f59e0b;border:none;color:#141210;font-weight:700;font-size:16px;padding:12px 24px;border-radius:8px}
+.order{padding:14px 16px;border-bottom:1px solid #211d19}
+.order .top{display:flex;justify-content:space-between;font-size:13px;color:#8a8378}
+.order .items{margin-top:6px;font-size:14px;line-height:1.8}
+.order .amt{margin-top:4px;color:#f59e0b;font-size:15px;font-weight:700}
+.order .st{float:right;font-size:12px;padding:2px 8px;border-radius:4px;border:1px solid #4a443c;color:#8a8378}
+.order .st.done{border-color:#6fce8b;color:#6fce8b}
+.empty{text-align:center;color:#5a544c;padding:60px 0;font-size:14px}
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:flex-end}
+.mask.on{display:flex}
+.sheet{background:#1d1915;width:100%;border-radius:16px 16px 0 0;padding:24px 20px 32px;text-align:center}
+.sheet h2{font-size:18px;margin-bottom:6px}
+.sheet .big{color:#f59e0b;font-size:34px;font-weight:700;margin:8px 0 16px}
+.qr{width:200px;height:200px;margin:0 auto;background:#2a2622;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#8a8378;font-size:13px;line-height:1.8;padding:12px}
+.sheet .tip{font-size:12px;color:#8a8378;margin:14px 0 20px}
+.sheet button{width:100%;padding:14px;border:none;border-radius:8px;font-size:16px;font-weight:700;background:#f59e0b;color:#141210}
+.sheet .ghost{background:none;border:1px solid #4a443c;color:#8a8378;margin-top:10px}
+.stats{display:flex;padding:16px;gap:12px}
+.stat{flex:1;background:#1d1915;border-radius:10px;padding:14px;text-align:center}
+.stat b{display:block;color:#f59e0b;font-size:20px}.stat span{font-size:12px;color:#8a8378}
+</style>
+</head>
+<body>
+<header><h1>🔥 老地方烧烤</h1><p>点单 → 烤好上桌 → 吃完扫码结账</p></header>
+<div class="tabs">
+  <div class="tab on" data-p="menu">点单</div>
+  <div class="tab" data-p="orders">订单</div>
+  <div class="tab" data-p="mine">经营</div>
+</div>
+
+<div class="page on" id="p-menu"></div>
+<div class="page" id="p-orders"></div>
+<div class="page" id="p-mine">
+  <div class="stats">
+    <div class="stat"><b id="stCount">0</b><span>今日单数</span></div>
+    <div class="stat"><b id="stAmt">¥0</b><span>今日营收</span></div>
+    <div class="stat"><b id="stTop">-</b><span>销量冠军</span></div>
+  </div>
+  <div style="padding:0 16px;color:#8a8378;font-size:12px">数据只存在这台手机里，关机不丢。</div>
+</div>
+
+<div class="bar" id="bar">
+  <div class="total"><b id="total">¥0</b> <span id="count"></span></div>
+  <button id="submit">下单</button>
+</div>
+
+<div class="mask" id="payMask"><div class="sheet">
+  <h2>订单已下，后厨开烤 🔥</h2>
+  <div class="big" id="payAmt"></div>
+  <div class="qr">【收款码】<br>老板把自己的微信/支付宝<br>收款码图片替换到这里</div>
+  <div class="tip">吃完扫码结账 · 点下方按钮标记这桌已付款</div>
+  <button id="paidBtn">已付款，完成这单</button>
+  <button class="ghost" id="closePay">先吃着，稍后付</button>
+</div></div>
+
+<script>
+/* ================= 菜单数据（老板说一遍就能改） ================= */
+var MENU=[
+  {id:1,name:"羊肉串",price:5},{id:2,name:"牛肉串",price:6},{id:3,name:"板筋",price:3},
+  {id:4,name:"烤鸡翅",price:8},{id:5,name:"烤韭菜",price:8},{id:6,name:"烤茄子",price:10},
+  {id:7,name:"烤馒头片",price:4},{id:8,name:"毛豆花生拼盘",price:12},{id:9,name:"啤酒",price:6},
+  {id:10,name:"可乐",price:4}
+];
+
+/* ================= 骨架：需求(点单) → 交付(下单/出餐) → 收钱(扫码) ================= */
+var cart={},orders=[],seq=1;
+try{var s=JSON.parse(localStorage.getItem("bbq_orders")||"null");if(s){orders=s.orders||[];seq=s.seq||1;}}catch(e){}
+
+function save(){try{localStorage.setItem("bbq_orders",JSON.stringify({orders:orders,seq:seq}));}catch(e){}}
+function yuan(n){return "¥"+n;}
+function cartTotal(){var t=0,c=0;for(var k in cart){var m=find(k);t+=m.price*cart[k];c+=cart[k];}return{t:t,c:c};}
+function find(id){for(var i=0;i<MENU.length;i++)if(MENU[i].id==id)return MENU[i];}
+
+/* ---------- 点单页 ---------- */
+function renderMenu(){
+  var p=document.getElementById("p-menu");p.innerHTML="";
+  MENU.forEach(function(m){
+    var d=document.createElement("div");d.className="item";
+    d.innerHTML='<div class="info"><div class="name"></div><div class="price"></div></div>'+
+      '<div class="stepper"><button data-a="-">−</button><span class="n">0</span><button data-a="+">+</button></div>';
+    d.querySelector(".name").textContent=m.name;
+    d.querySelector(".price").textContent=yuan(m.price)+" / 份";
+    var n=d.querySelector(".n");
+    d.querySelectorAll("button").forEach(function(b){
+      b.addEventListener("click",function(){
+        cart[m.id]=Math.max(0,(cart[m.id]||0)+(b.dataset.a==="+"?1:-1));
+        if(!cart[m.id])delete cart[m.id];
+        n.textContent=cart[m.id]||0;renderBar();
+      });
+    });
+    n.textContent=cart[m.id]||0;
+    p.appendChild(d);
+  });
+}
+function renderBar(){
+  var t=cartTotal();
+  document.getElementById("total").textContent=yuan(t.t);
+  document.getElementById("count").textContent=t.c?("共 "+t.c+" 份"):"";
+  document.getElementById("submit").textContent=t.c?"下单":"先点菜";
+}
+
+/* ---------- 下单 ---------- */
+document.getElementById("submit").addEventListener("click",function(){
+  var t=cartTotal();if(!t.c)return;
+  var items=[];for(var k in cart){var m=find(k);items.push({name:m.name,price:m.price,n:cart[k]});}
+  orders.unshift({no:seq++,time:Date.now(),items:items,total:t.t,paid:false});
+  cart={};save();renderMenu();renderBar();renderOrders();renderStats();
+  document.getElementById("payAmt").textContent=yuan(t.t);
+  document.getElementById("payMask").classList.add("on");
+});
+document.getElementById("paidBtn").addEventListener("click",function(){
+  if(orders[0])orders[0].paid=true;save();renderOrders();renderStats();
+  document.getElementById("payMask").classList.remove("on");
+});
+document.getElementById("closePay").addEventListener("click",function(){
+  document.getElementById("payMask").classList.remove("on");
+});
+
+/* ---------- 订单页 ---------- */
+function renderOrders(){
+  var p=document.getElementById("p-orders");p.innerHTML="";
+  if(!orders.length){p.innerHTML='<div class="empty">还没有订单</div>';return;}
+  orders.forEach(function(o){
+    var d=document.createElement("div");d.className="order";
+    var dt=new Date(o.time);
+    var lines=o.items.map(function(i){return i.name+" ×"+i.n;}).join("　");
+    d.innerHTML='<div class="top"><span>#'+o.no+' · '+(dt.getMonth()+1)+'/'+dt.getDate()+' '+
+      ('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2)+'</span>'+
+      '<span class="st'+(o.paid?' done':'')+'">'+(o.paid?'已付款':'待付款')+'</span></div>'+
+      '<div class="items"></div><div class="amt"></div>';
+    d.querySelector(".items").textContent=lines;
+    d.querySelector(".amt").textContent=yuan(o.total);
+    if(!o.paid){d.style.cursor="pointer";d.addEventListener("click",function(){
+      o.paid=true;save();renderOrders();renderStats();
+    });d.querySelector(".st").textContent="待付款 · 点击结清";}
+    p.appendChild(d);
+  });
+}
+
+/* ---------- 经营页 ---------- */
+function renderStats(){
+  var today=new Date().toDateString(),c=0,amt=0,top={},tn="",tm=0;
+  orders.forEach(function(o){
+    if(new Date(o.time).toDateString()!==today)return;
+    c++;amt+=o.total;
+    o.items.forEach(function(i){top[i.name]=(top[i.name]||0)+i.n;});
+  });
+  for(var k in top)if(top[k]>tm){tm=top[k];tn=k;}
+  document.getElementById("stCount").textContent=c;
+  document.getElementById("stAmt").textContent=yuan(amt);
+  document.getElementById("stTop").textContent=tn||"-";
+}
+
+/* ---------- 切页 ---------- */
+document.querySelectorAll(".tab").forEach(function(t){
+  t.addEventListener("click",function(){
+    document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("on");});
+    document.querySelectorAll(".page").forEach(function(x){x.classList.remove("on");});
+    t.classList.add("on");
+    document.getElementById("p-"+t.dataset.p).classList.add("on");
+    document.getElementById("bar").style.display=t.dataset.p==="menu"?"flex":"none";
+  });
+});
+
+renderMenu();renderBar();renderOrders();renderStats();
+</script>
+</body>
+</html>
