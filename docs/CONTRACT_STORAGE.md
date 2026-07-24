@@ -181,7 +181,7 @@ Then:
 
 1. **路线 = PC 预编译壳 + 手机只组装**。壳工程 `templates/webapp-shell/`（独立 settings.gradle，主工程不 include），重建命令 `./gradlew -p templates/webapp-shell assembleRelease --offline`。壳 Activity 纯 framework 零 androidx，APK ≈3.8KB。手机端零外部依赖（不要 Termux/root/Linux）。
 2. **签名密钥共享内嵌**：`assets/movgen-sign.p12`（PKCS12, alias=movgen, 口令 movgen123, RSA2048, CN=MOV Generated Apps, 30 年）。所有 MOV 安装产出的 APK 共享同一"MOV 生成"签名身份——同包名可互相覆盖升级；**不可用于应用商店分发**。口令以明文存于源码是有意为之（本地工具属性），文档如实说明。
-3. **包名必须恰好 24 字符且不含空格**：AXML string pool 等长替换要求。`genPackageName()` = "com.movgen.a" + 12 随机 [a-z0-9] = 24。禁止用 padRight 补包名（尾部空格 = 非法包名）。label 空格补足 16 UTF-16 单元（尾部空格显示不可见）。
+3. **包名必须恰好 24 字符且不含空格**：AXML string pool 等长替换要求。`genPackageName(roomId, htmlName)` = "com.movgen.h" + md5(roomId + "/" + 文件名) 前 12 位 hex = 24（稳定包名，同房间同 HTML 重复打包 = 覆盖升级，支持菜单迭代）；无参随机版仅作兜底。禁止用 padRight 补包名（尾部空格 = 非法包名）。label 空格补足 16 UTF-16 单元（尾部空格显示不可见）。
 4. **等长替换失败即抛异常**：替换串编码后字节数必须与原占位符完全一致；模板缺占位符时 ApkAssembler 抛 IOException（提示重建壳模板）。
 5. **resources.arsc 包名补丁是双保险**：无资源的壳模板 arsc 只有表头+空全局 string pool（无 package chunk），`patchArscPackageName` 跳过并返回 0（不算失败）；包名由 manifest 决定。
 6. **安全约束**：roomId/path 全过 BridgeValidator；限 work 区 `.html/.htm`（扩展名检查先于存在性检查）；≤5MB；label 经 `sanitizeLabel` 限 16 单元，空回退文件名再回退 "MOV App"。输出在 `files/packager/<pkg>.apk`（应用私有目录，FileProvider files-path 暴露）。
@@ -225,6 +225,31 @@ Then:
 5. **所有磁盘 IO 在调用线程执行。** `saveWorkFile`/`restoreVersion` 是同步方法，调用方负责放到子线程。
 6. **index.json 读写不是原子的。** 并发写同一个文件时，后写的覆盖先写的。代码不需要处理并发——JS 单线程，不存在并发写同一房间的场景。
 7. **`listDir` 必须过滤 `.` 开头的隐藏文件和目录。** `.meta`、`.mov` 不对外暴露。
+
+---
+
+## Linux 交换目录（M1 内嵌 Linux, 2026-07-24）
+
+房间 ⇆ 内嵌 Ubuntu 的唯一文件通道。**不进 rooms/ 树**，布局：
+
+```
+context.getFilesDir()/
+  linux/
+    rootfs/               Ubuntu 24.04 rootfs (proot -r 目标)
+    ubuntu-base.tar.gz    安装包暂存 (解压成功即删)
+    state.json            RootfsManager 状态 {"state":"READY","msg":""}
+    tmp/                  proot TMPDIR/PROOT_TMP_DIR
+  linux-exchange/         guest 内挂 /exchange (proot -b)
+```
+
+- **file.push**：`rooms/<id>/files/work/<path>` → `linux-exchange/<文件名>`（二进制拷贝）
+- **file.pull**：`linux-exchange/<文件名>` → `rooms/<id>/files/work/<文件名>`（取回 APK 后可走"打包成应用"安装链路）
+- 两侧都过 `isSafe()` canonical 校验；exchange 侧限 linux-exchange 前缀，禁止 `..` 越界
+- RootfsManager 卸载时清空 linux/rootfs 与 linux-exchange 内容；state.json 的
+  DOWNLOADING/EXTRACTING/BOOTSTRAPPING 在进程重启后一律回落 NOT_INSTALLED
+- 本地包优先：`/sdcard/MOV/ubuntu-base.tar.gz` 存在且已授 MANAGE_EXTERNAL_STORAGE 时
+  免下载（预置包：shell 域装好 python3/git 后 `tar --hard-dereference` 重打包，
+  消除 app 域无法创建的硬链接）
 
 ---
 

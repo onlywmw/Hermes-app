@@ -14,7 +14,7 @@ status: active
 会话  │  运行
 ──────┼──────
 AI 协作│系统 & 模型
-项目房间│设备 & Cron
+项目房间│设备
 ```
 
 ## 核心架构
@@ -25,8 +25,11 @@ HermesActivity (WebView 壳)
        ├─ HermesBridge (68 个 @JavascriptInterface, BridgeFactory 聚合 6 个子桥)
        │   ├─ IntentParser → CapabilityExecutor (30 个能力)
        │   ├─ AiClient (OpenAI 兼容)
+       │   ├─ linux/ (内嵌 Ubuntu 24.04: 静态 proot, agent shell.exec, M1;
+       │   │          M2 内嵌 Hermes agent, hermes -z 重任务委派)
+       │   ├─ TerminalActivity (M3: 交互终端, terminal-emulator/terminal-view 移植自 termux-app)
+       │   ├─ linux/DeployConfig (M4: 部署服务器→全栈交付)
        │   ├─ CouncilClient (多角色讨论)
-       │   ├─ CronManager (WorkManager)
        │   └─ SkillStore (技能 CRUD)
        └─ B (JS 桥封装)
 ```

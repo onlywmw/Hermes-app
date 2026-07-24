@@ -23,15 +23,20 @@ var B=(function(){
     agentStop:function(loopId){try{if(b)b.agentStop(loopId);}catch(e){}},
     agentAnswer:function(loopId,text){try{if(b)b.agentAnswer(loopId,text);}catch(e){}},
     agentPlanRespond:function(loopId,approved,note){try{if(b)b.agentPlanRespond(loopId,approved,note||'');}catch(e){}},
+    /* P1: 写盘前预览确认/驳回 */
+    agentFileWriteRespond:function(loopId,approved){try{if(b)b.agentFileWriteRespond(loopId,approved);}catch(e){}},
+    /* 计划外 shell.exec 确认/驳回 */
+    agentShellRespond:function(loopId,approved){try{if(b)b.agentShellRespond(loopId,approved);}catch(e){}},
     aiInfo:function(){try{return b?JSON.parse(b.getAiInfo()):{enabled:false,configured:false};}catch(e){return {enabled:false,configured:false};}},
     device:function(){try{return b?JSON.parse(b.getDeviceInfo()):{};}catch(e){return {};}},
     toast:function(m){try{if(b)b.toast(m);}catch(e){}},
     openSettings:function(){try{if(b)b.openAiSettings();}catch(e){}},
-    /* P1-6: Cron */
-    listCron:function(){try{return b?JSON.parse(b.listCronJobs()):[];}catch(e){return [];}},
-    createCron:function(n,c,cmd){try{return b?JSON.parse(b.createCronJob(n,c,cmd)):{ok:false};}catch(e){return {ok:false};}},
-    toggleCron:function(id,en){try{return b?JSON.parse(b.toggleCronJob(id,en)):{ok:false};}catch(e){return {ok:false};}},
-    deleteCron:function(id){try{return b?JSON.parse(b.deleteCronJob(id)):{ok:false};}catch(e){return {ok:false};}},
+    /* M3: 交互式终端 */
+    openTerminal:function(){try{if(b)b.openTerminal();}catch(e){}},
+    /* M4: 部署服务器配置 */
+    getDeployConfig:function(){try{return b?JSON.parse(b.getDeployConfig()):{configured:false};}catch(e){return {configured:false};}},
+    saveDeployConfig:function(o){try{return b?JSON.parse(b.saveDeployConfig(JSON.stringify(o))):{ok:false};}catch(e){return {ok:false};}},
+    testDeployConnection:function(cb){if(!b){cb({ok:false,content:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.testDeployConnection(id);},
     /* P1-7: 技能 */
     listSkills:function(){try{return b?JSON.parse(b.listSkills()):[];}catch(e){return [];}},
     recordSkill:function(id){try{if(b)b.recordSkillUse(id);}catch(e){}},
@@ -85,6 +90,7 @@ var B=(function(){
     deleteModel:function(id){try{return b?JSON.parse(b.deleteModel(id)):{ok:false};}catch(e){return {ok:false};}},
     testModel:function(json,cb){if(!b){cb({ok:false,error:'浏览器演示模式'});return;}var id=nextCbId();_cbMap[id]=cb;b.testModel(typeof json==='string'?json:JSON.stringify(json),id);},
     setDefaultModel:function(id){try{return b?JSON.parse(b.setDefaultModel(id)):{ok:false};}catch(e){return {ok:false};}},
+    setReviewer:function(id){try{return b?JSON.parse(b.setReviewer(id)):{ok:false};}catch(e){return {ok:false};}},
     /* V5: Token 仪表盘 */
     tokenStats:function(){try{return b?JSON.parse(b.getTokenStats()):{today:0,month:0,quota:5000000};}catch(e){return {today:0,month:0,quota:5000000};}},
     /* 加密状态检查 */

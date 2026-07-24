@@ -24,6 +24,19 @@
 | Cron 定时任务 | CronManager 白名单 | 产出落房间 + 通知 |
 | HTML → 签名 APK（稳定包名覆盖升级） | PackageBuilder 链路真机已验证 | 安装/启动/杀进程数据在 |
 
+### A2. 内嵌 Linux（shell.exec / file.push / file.pull, M1, 2026-07-24 真机验证）
+
+| 能力 | 依据 | 完成度要求 |
+|------|------|-----------|
+| **shell.exec{cmd,timeoutSec}**：内嵌 Ubuntu 24.04 完整 shell（proot 用户态 chroot，无需 root） | 静态 proot (green-green-avk/build-proot-android) 随包，app 域 exec nativeLibraryDir 实测；rootfs 预装 python3/python3-venv/git；e2e 实测 `uname -a && python3 --version` 回显 | 长任务 timeoutSec 给足（15–600s）；大输出重定向到文件再分段看 |
+| **联网抓取/真实构建** | guest 内 curl/apt/python3 联网（untrusted_app 有网） | 此前 ❌ 行"agent 联网抓取"由此解锁 |
+| **file.push / file.pull**：房间 work 目录 ⇆ guest `/exchange` | StorageManager canonical 双向防越界；e2e 实测取回文件内容正确 | 产物必须 file.pull 取回房间才算交付 |
+| **/sdcard 读写（含 Obsidian vault）** | MANAGE_EXTERNAL_STORAGE 授权后 `-b /sdcard` 挂载 | 未授权则不挂载 |
+| 安全闸：计划含 shell.exec = 批准计划即授权；计划外首次 → shellPreview 确认卡（完整命令 + 超时），允许后本任务不再询问 | AgentLoop allowedShell + parkForShell，AgentLoopTest 三路径单测 | 驳回则该步失败并回灌 |
+| **重任务委派：内嵌 Hermes agent 0.19.0**（`~/.hermes-venv/bin/hermes -z '<任务>'` headless 单发） | M2 真机 e2e：`hermes --version` 回显 + oneshot 完整跑通（hermes→LLM→回答）；模型配置自动注入（MOV 默认模型→~/.hermes/.env+config.yaml） | 启动 ~50s，timeoutSec 给 300–600；产物写 /exchange 再 file.pull |
+| **全栈交付（M4）**：写 FastAPI/Express 后端 → 本地起服务 curl 自测 → movssh/movscp ssh 部署到用户服务器 → 健康检查 | M4 真机 e2e：FastAPI 留言板自测+部署+健康检查全通（localhost sshd 夹具）；部署配置加密存储 + rootfs 注入 movssh/movscp | 需先在设置页配部署服务器；部署后必须 curl 健康检查再交付 |
+| ⚠️ 边界：guest 内 apt/dpkg 装新包不可用 | Android SELinux 禁 app 域硬链接，dpkg status 备份必 link()，静态 proot 的 --link2symlink 模拟在 app 域不生效（详见 ARCHITECTURE.md M1 节） | 新包需求 → 预置 rootfs 路线重建 |
+
 ### B. 打包 APK 内（WebView 浏览器能力 + MovShell 桥）
 
 | 能力 | 依据 | 解锁场景 |
@@ -66,8 +79,8 @@
 | 需求 | 缺什么 | 替代方案 |
 |------|--------|---------|
 | APK 内定位 Geolocation API | ACCESS_FINE_LOCATION + onGeolocationPermissionsShowPrompt | 模板再升级；现在宿主 location.get 代查 |
-| agent 联网抓取 http.get | 工具未建（prompt 注入 + token 爆炸风险，需域名白名单设计） | 路线图 P2；现在用户手动贴内容 |
-| 真后端（账号/消息同步/多人实时） | agent 无服务器部署能力 | 交付 server.js + 部署说明（用户有云服务器可自部署，APK 内 HTTPS fetch 已通） |
+| ~~agent 联网抓取 http.get~~ | **M1 已解锁**：shell.exec 内嵌 Ubuntu 可 curl/抓取（见一.A2） | 纯 JS 侧抓取仍走用户手动贴内容 |
+| ~~真后端~~ | **M4 已解锁**：内嵌 Linux 写 FastAPI/Express + 本地自测 + movssh/movscp 部署到用户服务器（见一.A2/M4） | 部署需用户先在设置页配 SSH；APK 内 HTTPS fetch 已通 |
 | 支付接口 | 资质 + 后端 | 展示收款码图片（烧烤摊模式） |
 | 应用级推送 | 推送 SDK + 后端 | MovShell.notify 本机通知 |
 | PWA/Service Worker | file:// origin 不支持 | 不需要——本地 assets 本身就是离线 |
@@ -79,9 +92,14 @@
 1. 计划前对照本表：需求落在 ✅ → 全部做掉；⚠️ → 计划卡必须标注边界；❌ → 不得闷头做，先说明并给替代。
 2. 混合需求（部分 ✅ 部分 ❌）：✅ 部分全做，❌ 部分在计划卡单独列出"此部分无法真实现"及替代。
 3. 评审/验收以本表为准：✅ 项出现占位符 = 交付缺陷（返工）；⚠️ 项未明示边界 = 交付缺陷。
-4. **本表每行结论必须可复核**：修改任何一行，在 commit 里附上验证方法（aapt dump / 源码行 / 真机实测截图）。
+4. **交付质量闸门 (2026-07-24)**：评审看产物内容（ProductDigest 交互元素清单，能抓死按钮/空函数）；评审调用失败不计票（废 fail-open，全失败标「未评审」）；交付卡带功能自检清单（✅真实现/⚠️演示），演示 UI 元素必须带可见「演示」角标。
+5. **本表每行结论必须可复核**：修改任何一行，在 commit 里附上验证方法（aapt dump / 源码行 / 真机实测截图）。
 
 ## 五、修订记录
 
-- **v1.2 (2026-07-24)**：模板权限三件套落地 — 相机(getUserMedia)/录音/通知(MovShell.notify)/震动(MovShell.vibrate) 真机验证升 ✅；近赢档清零 vibrate（已交付）
+- **v1.6 (2026-07-24)**：交付质量闸门 — 评审看产物内容抓死按钮、评审失败不计票（废 fail-open）、交付卡功能自检清单（✅/⚠️）+ 演示角标制度（四.4）
+- v1.5 (2026-07-24)：M4 全栈交付 — 一.A2 加全栈行（写后端/自测/ssh 部署）；"真后端"移出 ❌；部署服务器配置（DeployConfig）
+- v1.4 (2026-07-24)：M2 内嵌 Hermes agent — 一.A2 新增重任务委派行（hermes -z headless，e2e 验证）；rootfs 预装扩到 pip/gcc/curl/build-essential
+- v1.3 (2026-07-24)：M1 内嵌 Linux 落地 — 新增一.A2（shell.exec/file.push/file.pull，真机 e2e 验证）；"agent 联网抓取"移出 ❌；标注 guest 内 apt/dpkg 边界（app 域硬链接限制）
+- v1.2 (2026-07-24)：模板权限三件套落地 — 相机(getUserMedia)/录音/通知(MovShell.notify)/震动(MovShell.vibrate) 真机验证升 ✅；近赢档清零 vibrate（已交付）
 - v1.1：联网行纠错（模板有 INTERNET，v1.0 误判 ❌）；补 cleartext 限制；新增 ✅ 五行（传感器/音频/WebGL/Gamepad/IndexedDB）；新增"近赢解锁"档；每行补验证依据

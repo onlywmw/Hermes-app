@@ -434,30 +434,6 @@ function assert(c, msg) { if (!c) throw new Error(msg || '断言失败'); }
     assert(/HermesSettingsActivity/i.test(top), '设置页未打开: ' + top.slice(0, 150));
     adb('shell input keyevent KEYCODE_BACK'); await sleep(800);
   });
-  await t('F11 Cron 创建 (链路: 自然语言→cron 表达式→WorkManager)', async () => {
-    const n0 = await evaljs(`B.listCron().length`);
-    await evaljs(`$('cronInput').value='每天 8:30 汇总测试';`);
-    await evaljs(`$('btnCronCreate').click()`); await sleep(600);
-    const jobs = await evaljs(`B.listCron()`);
-    assert(jobs.length === n0 + 1, '任务数未增加');
-    const j = jobs[jobs.length - 1];
-    assert(j.cron === '30 8 * * *', 'cron 表达式错误: ' + j.cron);
-    globalThis.__cronId = j.id;
-    return 'cron=' + j.cron + ', name=' + j.name;
-  });
-  await t('F12 Cron 开关切换', async () => {
-    const e0 = await evaljs(`B.listCron().find(function(j){return j.id==='${globalThis.__cronId}';}).enabled`);
-    await evaljs(`document.querySelector('[data-toggle="${globalThis.__cronId}"]').click()`); await sleep(500);
-    const e1 = await evaljs(`B.listCron().find(function(j){return j.id==='${globalThis.__cronId}';}).enabled`);
-    assert(e0 !== e1, '开关未切换: ' + e0 + '→' + e1);
-    return e0 + '→' + e1;
-  });
-  await t('F13 Cron 删除', async () => {
-    await evaljs(`document.querySelector('[data-del="${globalThis.__cronId}"]').click()`); await sleep(600);
-    const jobs = await evaljs(`B.listCron()`);
-    const gone = !jobs.some(function (j) { return j.id === globalThis.__cronId; });
-    assert(gone, '任务仍在 (confirm() 在 WebView 无 onJsConfirm 时返回 false)');
-  });
 
   /* ================= 汇总 ================= */
   const pass = results.filter(r => r.ok).length;

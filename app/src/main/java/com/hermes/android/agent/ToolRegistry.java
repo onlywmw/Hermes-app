@@ -155,6 +155,8 @@ public class ToolRegistry {
                 if ("file.read".equals(t.name)) sb.append(",\"offset\":0,\"length\":32768");
             } else if ("app.package".equals(t.name)) {
                 sb.append(",\"path\":\"game.html\",\"appName\":\"可选\"");
+            } else if ("shell.exec".equals(t.name)) {
+                sb.append(",\"cmd\":\"要执行的 shell 命令\",\"timeoutSec\":120");
             }
             sb.append("} — ").append(t.desc).append("\n");
         }
@@ -171,6 +173,16 @@ public class ToolRegistry {
      */
     public static ToolRegistry build(AgentLoop.Tools tools, String roomId,
                                      Supplier<Set<String>> allowedPaths, DevicePolicy policy) {
+        return build(tools, roomId, allowedPaths, policy, false);
+    }
+
+    /**
+     * @param linuxAvailable 内嵌 Linux rootfs 就绪 (RootfsManager.isReady) 才注册
+     *                       shell.exec / file.push / file.pull
+     */
+    public static ToolRegistry build(AgentLoop.Tools tools, String roomId,
+                                     Supplier<Set<String>> allowedPaths, DevicePolicy policy,
+                                     boolean linuxAvailable) {
         ToolRegistry r = new ToolRegistry(policy);
         r.register(new Tool("file.list", "列房间文件",
                 a -> new Result(true, tools.fileList(roomId))));
@@ -213,16 +225,55 @@ public class ToolRegistry {
             if (deny != null) return new Result(false, deny);
             return new Result(true, tools.deviceCmd(a.optString("text")));
         }));
-        r.register(new Tool("app.package", "把房间里的 HTML 打包成签名 APK (path=html文件, appName 可选)", a -> {
+        r.register(new Tool("app.package", "把房间里的 HTML 打包成签名 APK (path=html文件, appName 可选;"
+                + " HTML 必须单文件、所有资源内联, 不得相对引用其他文件, 否则安装后白屏)", a -> {
             String path = a.optString("path");
             if (!path.toLowerCase().endsWith(".html") && !path.toLowerCase().endsWith(".htm")) {
                 return new Result(false, "app.package 只支持 HTML 文件");
             }
             String res = tools.packageApk(roomId, path, a.optString("appName", ""));
+            /* 结构化 JSON 优先 ({ok,file,msg}/{ok,error}); 解析失败兜底旧的 "OK: <file> · ..." 文本 */
+            if (res.startsWith("{")) {
+                try {
+                    JSONObject o = new JSONObject(res);
+                    if (!o.optBoolean("ok")) {
+                        return new Result(false, o.optString("error", "打包失败"));
+                    }
+                    String file = o.optString("file");
+                    return new Result(true, o.optString("msg", file),
+                            file.isEmpty() ? null : file);
+                } catch (Exception ignored) { /* 落回旧文本格式解析 */ }
+            }
             if (!res.startsWith("OK:")) return new Result(false, res);
-            String produced = res.substring(4, res.indexOf(" · "));
+            int sep = res.indexOf(" · ", 4);
+            String produced = sep > 0 ? res.substring(4, sep) : res.substring(4);
             return new Result(true, res.substring(4), produced);
         }));
+        /* 内嵌 Linux (rootfs 就绪才注册): shell.exec + /exchange 文件交换 */
+        if (linuxAvailable) {
+            r.register(new Tool("shell.exec", "内嵌 Ubuntu 24.04 完整 Linux (apt/python3/git 已装, 可联网)。"
+                    + "工作目录 /root; 与房间换文件走 /exchange (先 file.push 送进, 产物 file.pull 取回);"
+                    + "长任务(装包/编译/抓取) timeoutSec 必须给足 (15-600, 默认 120);"
+                    + "大输出重定向到文件再 grep/tail 分段看, 禁止直接全量打印", a -> {
+                String cmd = a.optString("cmd");
+                if (cmd.isEmpty()) return new Result(false, "cmd 为空");
+                String res = tools.shellExec(cmd, a.optInt("timeoutSec", 120));
+                return new Result(res.startsWith("exit=0"), res);
+            }));
+            r.register(new Tool("file.push", "把房间文件送进 Linux 的 /exchange (path=房间文件名),"
+                    + " 之后 shell.exec 里以 /exchange/<文件名> 访问", a -> {
+                String res = tools.filePush(roomId, a.optString("path"));
+                return new Result(res.contains("\"ok\":true"), res);
+            }));
+            r.register(new Tool("file.pull", "把 Linux /exchange 里的产物取回房间文件 (path=/exchange 内文件名;"
+                    + " 取回 APK 后可走现有安装流程)", a -> {
+                String name = a.optString("path");
+                String res = tools.filePull(roomId, name);
+                boolean ok = res.contains("\"ok\":true");
+                int slash = name.lastIndexOf('/');
+                return new Result(ok, res, ok ? (slash >= 0 ? name.substring(slash + 1) : name) : null);
+            }));
+        }
         return r;
     }
 

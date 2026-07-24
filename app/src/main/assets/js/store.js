@@ -1,7 +1,7 @@
 /* ============================================================
    store.js — 数据层
    ROOMS: 本地壳数据, 持久化在 localStorage;
-   'desk' 为系统保留 id, 不可删除/覆盖
+   'desk' 是默认房间 id (首装播种), 普通房间, 可删 (2026-07-24 起)
    ============================================================ */
 var STORE_KEY='mov_rooms_v2';
 /* V5: 主题 (素白默认 / 墨黑), 持久化 mov_theme */
@@ -27,7 +27,7 @@ try{
   var saved=JSON.parse(localStorage.getItem(STORE_KEY));
   if(saved&&saved.length){
     ROOMS=saved.map(function(r){r.msgs=[];r.msgData=r.msgData||[];r.seeded=!!r.seeded;r.played=false;return r;});
-    if(!ROOMS.some(function(r){return r.id==='desk';}))ROOMS.unshift(DEFAULT_ROOMS[0]);
+    /* desk 已删不复活 — 用户删掉就是不要了 */
   }else{ROOMS=DEFAULT_ROOMS;}
 }catch(e){ROOMS=DEFAULT_ROOMS;}
 function persistRooms(){

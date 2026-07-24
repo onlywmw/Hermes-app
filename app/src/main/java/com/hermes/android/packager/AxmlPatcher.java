@@ -26,6 +26,22 @@ public final class AxmlPatcher {
     private AxmlPatcher() {}
 
     /**
+     * 模板编码自检: string pool 是否 UTF-16 (中文应用名等长替换的前提;
+     * UTF-8 池下中文名长度换算会静默失败, 调用方应直接拒绝该模板)。
+     */
+    public static boolean isUtf16StringPool(byte[] axml) {
+        try {
+            ByteBuffer buf = ByteBuffer.wrap(axml).order(ByteOrder.LITTLE_ENDIAN);
+            if ((buf.getShort(0) & 0xFFFF) != 0x0003) return false;   /* RES_XML_TYPE */
+            if ((buf.getShort(8) & 0xFFFF) != 0x0001) return false;   /* string pool chunk */
+            int flags = buf.getInt(8 + 16);
+            return (flags & UTF8_FLAG) == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * 在 AXML 字节流中把 from 等长替换为 to。
      * @return 替换处数 (0 = 占位符没找到, 调用方应视为失败)
      */

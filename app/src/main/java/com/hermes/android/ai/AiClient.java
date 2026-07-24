@@ -117,7 +117,7 @@ public class AiClient {
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setConnectTimeout(15000);
-            conn.setReadTimeout(60000);
+            conn.setReadTimeout(120000);   /* 长生成(大文件一次写完)可能 60-90s 无字节, 60s 会误杀 */
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
             String apiKey = getApiKey();

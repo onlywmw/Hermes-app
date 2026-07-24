@@ -85,6 +85,8 @@ function renderRooms(){
   document.querySelectorAll('#roomList .room').forEach(function(el){
     el.addEventListener('click',function(){
       if(lpSuppressClick())return;
+      /* 多选模式: 点卡片 = 切换勾选, 不进房间 */
+      if(window._roomSelOn&&window._roomSelOn()){window.toggleRoomSel(el.getAttribute('data-room'));return;}
       enterRoom(el.getAttribute('data-room'));
     });
   });
@@ -117,12 +119,10 @@ function push(roomId,node,data){
   room.msgs=room.msgs||[];room.msgs.push(node);
   if(!data&&node._md){data=node._md;}
   else if(!data&&node.classList&&node.classList.contains('wide')){
-    var vc=node.querySelector('.vote-card');
     var pc2=node.querySelector('.plan-card');
     var dc=node.querySelector('.deliver-card');
     var tc=node.querySelector('.toolcall');
-    if(vc){data={t:'vote',h:vc.outerHTML};}
-    else if(pc2){data={t:'plan',h:pc2.outerHTML};}
+    if(pc2){data={t:'plan',h:pc2.outerHTML};}
     else if(dc){data={t:'deliver',h:dc.outerHTML,tt:dc.querySelector('.tt')?dc.querySelector('.tt').textContent:''};}
     else if(tc){data={t:'tool',h:tc.outerHTML};}
   }
@@ -143,9 +143,6 @@ function rebuildMsgs(r){
       var th=td.querySelector('.th');
       if(th){th.addEventListener('click',function(){td.querySelector('.toolcall').classList.toggle('open');});}
       r.msgs.push(td);
-    }else if(d.t==='vote'){
-      var vd=document.createElement('div');vd.className='msg wide';vd.innerHTML=sanitize(d.h);
-      r.msgs.push(vd);
     }else if(d.t==='plan'){
       var pd=document.createElement('div');pd.className='msg wide';pd.innerHTML=sanitize(d.h);
       r.msgs.push(pd);

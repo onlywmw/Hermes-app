@@ -190,6 +190,7 @@ public class BridgeFile extends BaseBridge {
                 return o.toString();
             }
             o.put("sizeBytes", r.sizeBytes).put("packageName", r.packageName);
+            if (r.warning != null) o.put("warning", r.warning);
             final java.io.File apk = r.apkFile;
             activity.runOnUiThread(() -> launchInstaller(apk));
             return o.toString();
@@ -207,7 +208,23 @@ public class BridgeFile extends BaseBridge {
         if (apk == null || !apk.exists()) {
             return "{\"ok\":false,\"error\":\"APK 不存在: " + path + "\"}";
         }
-        activity.runOnUiThread(() -> launchInstaller(apk));
+        /* 房间工作区在外部私有目录 (sdcard/Android/data), MIUI 安装器经 FileProvider
+           读不到 → 「解析软件包时出现问题 EACCES」(2026-07-24 真机踩雷);
+           先拷进应用内部目录再发 URI, 系统安装器才能读到 */
+        try {
+            java.io.File dir = new java.io.File(activity.getFilesDir(), "packager");
+            dir.mkdirs();
+            java.io.File inner = new java.io.File(dir, apk.getName());
+            if (!apk.getCanonicalPath().equals(inner.getCanonicalPath())) {
+                java.nio.file.Files.copy(apk.toPath(), inner.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            apk = inner;
+        } catch (Exception ex) {
+            return "{\"ok\":false,\"error\":\"安装准备失败: " + ex.getMessage() + "\"}";
+        }
+        final java.io.File target = apk;
+        activity.runOnUiThread(() -> launchInstaller(target));
         return "{\"ok\":true}";
     }
 

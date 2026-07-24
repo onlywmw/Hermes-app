@@ -76,7 +76,7 @@ Then:
   2. 房间副标题与列表头像栈刷新
   3. 勾选数为 0 且模式为团队 → 自动降级 mode='single'
   4. 保存时进行中的 council 讨论作废 (genCounter 守卫)
-  5. desk 房间不显示「AI 成员」入口
+  5. desk 房间同样显示「AI 成员」入口 (2026-07-24 起 desk 不再特殊)
 ```
 
 ### TC-R04：房间操作 — 清空聊天
@@ -103,14 +103,15 @@ Then:
   4. desk 房间不受影响
 ```
 
-### TC-R06：desk 房间保护
+### TC-R06：desk 是普通房间 (2026-07-24 起)
 
 ```
 Given: desk 房间
 When: 长按 desk / 点 ⋮
 Then:
-  1. 操作 sheet 只显示"清空聊天记录"
-  2. "重命名""AI 成员""归档""删除" 不显示
+  1. 操作 sheet 与其他房间一致: 重命名/AI 成员/归档/删除/清空 全部可用
+  2. 删除 desk 后不复活 (不再从 DEFAULT_ROOMS 自动补回)
+  3. 仅首次安装时由 DEFAULT_ROOMS 播种
 ```
 
 ### TC-R07：切换房间 → 聊天区隔离
@@ -138,11 +139,11 @@ Then:
 ### TC-R09：空房间列表
 
 ```
-Given: 用户删除了所有房间 (只剩 desk)
+Given: 用户删除了所有房间 (含 desk)
 When: 看房间列表
 Then:
-  1. desk 房间存在
-  2. 不崩溃
+  1. 列表为空
+  2. 不崩溃, 可通过 + 新建房间
 ```
 
 ---
@@ -152,7 +153,7 @@ Then:
 1. **新建房间是底部 sheet，不是居中弹窗。** `#newRoomMask` + `#newRoomSheet`（兄弟结构，复用 `.sheet-mask`/`.sheet` 体系与 `openSheetExclusive`）。v2.0 起替代旧居中 dialog。
 2. **房间数据 `members` 格式：** `{human: [{who, role}], ai: [modelId]}`。旧格式 `['mov']` 仍需兼容（store.js 的 roomAiMembers 已做兼容）；成员编辑保存时旧格式迁移为新格式。
 3. **ROOMS 数组持久化在 localStorage key `mov_rooms_v2`。** key 名不可变。
-4. **desk 房间 id='desk' 不可删除。** 如果 localStorage 数据中不存在 desk，从 DEFAULT_ROOMS 恢复。desk 走旧全局 AiProviderConfig，不参与房间级模型路由。
+4. **desk 是普通房间 (2026-07-24 起)。** id='desk' 仅作首装播种，可删除/重命名/归档，删除后不复活。desk 走旧全局 AiProviderConfig，不参与房间级模型路由。
 5. **新建房间时 `initRoomStorage(id)` 必须在 `enterRoom(id)` 之前调用。** 否则文件 tab 打开时目录不存在。
 6. **房间操作 sheet 的状态切换（菜单→确认→输入→成员）通过切换 div 的 display 实现，不增删 DOM。**
 7. **单聊房模型路由：** 非 desk 且 members.ai 非空的房间，发消息走 `aiChatWithModel(text, modelId)`；modelId 失效时原生侧回退注册表默认模型；注册表为空走「AI 未配置」提示。

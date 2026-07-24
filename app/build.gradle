@@ -10,6 +10,8 @@ android {
         targetSdk 36
         versionCode 2
         versionName "3.2.0"
+        /* 内嵌 Linux (proot) 只有 arm64 二进制, 限 abi 防其他架构装上跑不了 */
+        ndk { abiFilters "arm64-v8a" }
     }
 
     buildTypes {
@@ -26,11 +28,12 @@ android {
 }
 
 dependencies {
+    /* M3: 交互式终端 (termux-app 的 TerminalView + VT 仿真/JNI pty) */
+    implementation project(':terminal-view')
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.android.material:material:1.11.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
-    implementation "androidx.work:work-runtime:2.9.1"
     /* 打包器: 纯 Java APK 签名 (v1+v2), 手机本地签名生成的壳 APK */
     implementation "com.android.tools.build:apksig:8.7.3"
 

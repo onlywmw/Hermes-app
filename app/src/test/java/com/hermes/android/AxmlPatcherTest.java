@@ -189,4 +189,48 @@ public class AxmlPatcherTest {
         String longInput = "0123456789abcdefg"; // 17 chars -> truncated to 16
         assertEquals("0123456789abcdef", PackageBuilder.padRight(longInput, 16));
     }
+
+    @Test
+    public void genPackageName_stableHashPerRoomAndFile() {
+        String a = PackageBuilder.genPackageName("room1", "snake.html");
+        String a2 = PackageBuilder.genPackageName("room1", "snake.html");
+        String b = PackageBuilder.genPackageName("room1", "menu.html");
+        String c = PackageBuilder.genPackageName("room2", "snake.html");
+        assertEquals("同房间同文件必须同包名 (覆盖升级)", a, a2);
+        assertTrue("换文件应换包名", !a.equals(b));
+        assertTrue("换房间应换包名", !a.equals(c));
+        assertEquals(AxmlPatcher.PKG_LEN, a.length());
+        assertTrue(a.startsWith("com.movgen."));
+        for (int i = 0; i < a.length(); i++) {
+            char ch = a.charAt(i);
+            assertTrue(ch == '.' || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'));
+        }
+    }
+
+    @Test
+    public void scanRelativeRefs_flagsLocalRefsOnly() {
+        String w = PackageBuilder.scanRelativeRefs(
+                "<html><script src=\"game.js\"></script><link href=\"img/a.css\">"
+                        + "<script src=\"https://cdn.x.com/a.js\"></script>"
+                        + "<img src=\"data:image/png;base64,xx\"><a href=\"#top\">t</a></html>");
+        assertTrue("应报相对引用警告: " + w, w != null && w.contains("game.js"));
+        assertTrue("http/data/# 不应误报: " + w, !w.contains("cdn.x.com") && !w.contains("data:"));
+        assertEquals(null, PackageBuilder.scanRelativeRefs(
+                "<html><script src=\"https://a.com/x.js\"></script></html>"));
+        assertEquals(null, PackageBuilder.scanRelativeRefs(null));
+    }
+
+    @Test
+    public void isUtf16StringPool_templateAndFlippedFlag() throws Exception {
+        byte[] manifest;
+        try (ZipFile z = new ZipFile(templateFile())) {
+            manifest = entryBytes(z, "AndroidManifest.xml");
+        }
+        assertTrue("模板 string pool 必须 UTF-16", AxmlPatcher.isUtf16StringPool(manifest));
+        /* 置 UTF-8 flag (flags 在 string pool 头 +16, LE int → 第 2 字节 bit0) */
+        byte[] flipped = manifest.clone();
+        flipped[8 + 16 + 1] |= 0x01;
+        assertTrue("UTF-8 池应判为不兼容", !AxmlPatcher.isUtf16StringPool(flipped));
+        assertTrue("垃圾字节应判为不兼容", !AxmlPatcher.isUtf16StringPool(new byte[4]));
+    }
 }

@@ -57,7 +57,13 @@ public class BridgeModel extends BaseBridge {
 
     public String updateModel(String json) {
         try {
-            ModelConfig mc = ModelConfig.fromJson(new JSONObject(json));
+            JSONObject raw = new JSONObject(json);
+            ModelConfig mc = ModelConfig.fromJson(raw);
+            /* isReviewer 未随编辑载荷提交时保留原值 (防编辑即丢评审标记, 同 apiKey 保留逻辑) */
+            if (!raw.has("isReviewer")) {
+                ModelConfig old = registry.get(mc.id);
+                if (old != null) mc.isReviewer = old.isReviewer;
+            }
             /* WebView 编辑路径: listModels 已脱敏, apiKey 留空 = 保留原 Key (防编辑即丢 Key) */
             if (mc.apiKey == null || mc.apiKey.isEmpty()) {
                 ModelConfig old = registry.get(mc.id);
@@ -83,7 +89,22 @@ public class BridgeModel extends BaseBridge {
 
     public String setDefaultModel(String id) {
         boolean ok = registry.setDefault(id);
+        /* 默认模型变更 → 同步重注入内嵌 Hermes 配置 (~/.hermes/.env+config.yaml,
+           幂等; rootfs 未就绪时 writeModelConfig 静默 false, 装 Hermes 时会重写) */
+        if (ok) {
+            new Thread(() -> com.hermes.android.linux.HermesInstaller
+                    .writeModelConfig(activity.getApplicationContext())).start();
+        }
         return "{\"ok\":" + ok + "}";
+    }
+
+    /** 评审身份开关: 返回切换后的状态 (评审=新建房间默认评审团; 可多选) */
+    public String setReviewer(String id) {
+        ModelConfig mc = registry.get(id);
+        if (mc == null) return "{\"ok\":false,\"error\":\"模型不存在\"}";
+        mc.isReviewer = !mc.isReviewer;
+        boolean ok = registry.update(mc);
+        return "{\"ok\":" + ok + ",\"isReviewer\":" + mc.isReviewer + "}";
     }
 
     public String getEncStatus() {

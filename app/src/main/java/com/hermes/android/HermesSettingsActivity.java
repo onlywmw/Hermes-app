@@ -18,6 +18,12 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.hermes.android.ai.AiProviderConfig;
+import com.hermes.android.linux.DeployConfig;
+import com.hermes.android.linux.HermesInstaller;
+import com.hermes.android.linux.Proot;
+import com.hermes.android.linux.ProotRunner;
+import com.hermes.android.linux.RootfsManager;
+
 import com.hermes.android.model.ModelConfig;
 import com.hermes.android.model.ModelPresets;
 import com.hermes.android.model.ModelRegistry;
@@ -25,15 +31,13 @@ import com.hermes.android.model.ModelRegistry;
 import java.util.List;
 
 /**
- * 设置页: 多模型管理 + 语言 + 统计。
+ * 设置页: 多模型管理 + 统计。
  * 模型列表 → 点击编辑 → 保存/测试/删除。
  * 厂商数据来自 ModelPresets，选中厂商自动填充 baseUrl / 默认模型。
  */
 public class HermesSettingsActivity extends AppCompatActivity {
 
     private static final String[] ROLE_NAMES = {"通用", "产品", "技术", "数据", "自定义"};
-    private static final String[] LANG_NAMES = {"中文", "English"};
-    private static final String[] LANG_VALUES = {"zh", "en"};
 
     private ModelRegistry registry;
     private AiProviderConfig aiConfig;
@@ -43,7 +47,7 @@ public class HermesSettingsActivity extends AppCompatActivity {
     private TextView tvEditTitle, tvProviderNote;
     private EditText etName, etBaseUrl, etApiKey;
     private AutoCompleteTextView etModel;
-    private Spinner spinnerProvider, spinnerRole, spinnerLanguage;
+    private Spinner spinnerProvider, spinnerRole;
     private Button btnGetApiKey;
 
     /** 全部厂商预设，Spinner 下标与其一一对应 */
@@ -77,7 +81,6 @@ public class HermesSettingsActivity extends AppCompatActivity {
         btnGetApiKey = findViewById(R.id.btnGetApiKey);
         spinnerProvider = findViewById(R.id.spinnerProvider);
         spinnerRole = findViewById(R.id.spinnerRole);
-        spinnerLanguage = findViewById(R.id.spinnerLanguage);
 
         // 厂商 Spinner: 数据源为 ModelPresets
         presets = ModelPresets.all();
@@ -100,20 +103,6 @@ public class HermesSettingsActivity extends AppCompatActivity {
 
         spinnerRole.setAdapter(new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_dropdown_item, ROLE_NAMES));
-        spinnerLanguage.setAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_dropdown_item, LANG_NAMES));
-
-        // 语言
-        String lang = aiConfig.getLanguage();
-        for (int i = 0; i < LANG_VALUES.length; i++) {
-            if (LANG_VALUES[i].equals(lang)) { spinnerLanguage.setSelection(i, false); break; }
-        }
-        spinnerLanguage.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
-                aiConfig.setLanguage(LANG_VALUES[pos]);
-            }
-            public void onNothingSelected(AdapterView<?> p) {}
-        });
 
         // 获取 API Key: 打开当前厂商的 Key 控制台页面
         btnGetApiKey.setOnClickListener(v -> {
@@ -140,8 +129,344 @@ public class HermesSettingsActivity extends AppCompatActivity {
 
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
+        buildLinuxSection();
+        buildDeploySection();
         refreshStatus();
         renderModelList();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        /* 从「所有文件访问」授权页返回时刷新 Linux 区状态 */
+        if (linuxRootfs != null) renderLinuxSection();
+    }
+
+    /* ── Linux 环境 (内嵌 Ubuntu + proot) ── */
+
+    private RootfsManager linuxRootfs;
+    private HermesInstaller hermesInstaller;
+    private TextView tvLinuxProbe, tvLinuxStatus, tvHermesStatus;
+    private Button btnLinuxInstall, btnHermesInstall;
+
+    private void buildLinuxSection() {
+        linuxRootfs = new RootfsManager(this);
+        linuxRootfs.setListener((s, prog, msg) -> runOnUiThread(this::renderLinuxSection));
+        hermesInstaller = new HermesInstaller(this);
+        hermesInstaller.setListener((s, stage, msg) -> runOnUiThread(this::renderLinuxSection));
+
+        LinearLayout container = findViewById(R.id.linuxContainer);
+        TextView title = new TextView(this);
+        title.setText("Linux 环境");
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(16);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setPadding(0, dp(20), 0, 0);
+        container.addView(title);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(getDrawable(R.drawable.bg_input));
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(8);
+        card.setLayoutParams(lp);
+
+        /* proot 探测: M1 生死验证 — app 域能否 exec nativeLibraryDir 里的 proot */
+        tvLinuxProbe = new TextView(this);
+        tvLinuxProbe.setText("proot: 探测中…");
+        tvLinuxProbe.setTextColor(getColor(R.color.text_secondary));
+        tvLinuxProbe.setTextSize(12);
+        card.addView(tvLinuxProbe);
+        new Thread(() -> {
+            String probe = Proot.probe(this);
+            runOnUiThread(() -> {
+                boolean ok = !probe.startsWith("ERROR:");
+                tvLinuxProbe.setText("proot: " + probe);
+                tvLinuxProbe.setTextColor(getColor(ok
+                        ? R.color.accent_light : R.color.text_secondary));
+            });
+        }).start();
+
+        tvLinuxStatus = new TextView(this);
+        tvLinuxStatus.setTextColor(getColor(R.color.text_secondary));
+        tvLinuxStatus.setTextSize(12);
+        tvLinuxStatus.setPadding(0, dp(4), 0, 0);
+        card.addView(tvLinuxStatus);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(8), 0, 0);
+        btnLinuxInstall = makeSmallBtn("安装", v -> {
+            linuxRootfs.install();
+            renderLinuxSection();
+        });
+        row.addView(btnLinuxInstall);
+        row.addView(makeSmallBtn("授权文件访问", v -> {
+            /* /sdcard 挂载与本地包优先都依赖 all-files 权限 */
+            try {
+                startActivity(new Intent(
+                        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) {
+                startActivity(new Intent(
+                        android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+            }
+        }));
+        row.addView(makeSmallBtn("卸载", v -> {
+            linuxRootfs.uninstall();
+            renderLinuxSection();
+            Toast.makeText(this, "Linux 环境已卸载", Toast.LENGTH_SHORT).show();
+        }));
+        /* M3: 交互终端入口 */
+        row.addView(makeSmallBtn("打开终端", v ->
+                startActivity(new Intent(this, TerminalActivity.class))));
+        card.addView(row);
+
+        /* Hermes agent (M2): 内嵌进 Ubuntu 的第二个 agent, rootfs READY 后可装 */
+        TextView hermesTitle = new TextView(this);
+        hermesTitle.setText("Hermes agent (内嵌委派)");
+        hermesTitle.setTextColor(getColor(R.color.text_primary));
+        hermesTitle.setTextSize(13);
+        hermesTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        hermesTitle.setPadding(0, dp(10), 0, 0);
+        card.addView(hermesTitle);
+
+        tvHermesStatus = new TextView(this);
+        tvHermesStatus.setTextColor(getColor(R.color.text_secondary));
+        tvHermesStatus.setTextSize(12);
+        tvHermesStatus.setPadding(0, dp(4), 0, 0);
+        card.addView(tvHermesStatus);
+
+        LinearLayout hrow = new LinearLayout(this);
+        hrow.setOrientation(LinearLayout.HORIZONTAL);
+        hrow.setPadding(0, dp(6), 0, 0);
+        btnHermesInstall = makeSmallBtn("安装 Hermes", v -> {
+            hermesInstaller.install();
+            renderLinuxSection();
+        });
+        hrow.addView(btnHermesInstall);
+        card.addView(hrow);
+        container.addView(card);
+        renderLinuxSection();
+    }
+
+    private void renderLinuxSection() {
+        if (linuxRootfs == null || tvLinuxStatus == null) return;
+        RootfsManager.State s = linuxRootfs.getState();
+        String text;
+        boolean busy = false;
+        switch (s) {
+            case READY:
+                text = "状态: 已就绪 (Ubuntu 24.04) · 占用 "
+                        + (linuxRootfs.diskUsage() / 1024 / 1024) + " MB";
+                break;
+            case DOWNLOADING:
+                text = "状态: 下载 rootfs 中 " + linuxRootfs.getProgress() + "%";
+                busy = true;
+                break;
+            case EXTRACTING:
+                text = "状态: 解压 rootfs 中…";
+                busy = true;
+                break;
+            case BOOTSTRAPPING:
+                text = "状态: 首次初始化装包中 (python3/git, 需几分钟)…";
+                busy = true;
+                break;
+            case ERROR:
+                text = "状态: 出错 — " + linuxRootfs.getErrorMsg();
+                break;
+            default:
+                text = "状态: 未安装 (agent 的 shell.exec 需要先安装)";
+        }
+        tvLinuxStatus.setText(text);
+        if (btnLinuxInstall != null) {
+            btnLinuxInstall.setEnabled(!busy);
+            btnLinuxInstall.setAlpha(busy ? 0.4f : 1f);
+            btnLinuxInstall.setText(s == RootfsManager.State.READY ? "重装" : "安装");
+        }
+        renderHermesStatus(s == RootfsManager.State.READY);
+    }
+
+    private void renderHermesStatus(boolean rootfsReady) {
+        if (hermesInstaller == null || tvHermesStatus == null) return;
+        HermesInstaller.State s = hermesInstaller.getState();
+        String text;
+        boolean busy = false;
+        switch (s) {
+            case READY:
+                text = "Hermes: 已就绪 · " + hermesInstaller.getVersion();
+                break;
+            case INSTALLING:
+                text = "Hermes: 安装中… (pip 装依赖, 需几分钟)";
+                busy = true;
+                break;
+            case ERROR:
+                text = "Hermes: 出错 — " + hermesInstaller.getErrorMsg();
+                break;
+            default:
+                text = rootfsReady ? "Hermes: 未安装 (agent 重任务委派)"
+                        : "Hermes: 需先安装 Linux 环境";
+        }
+        tvHermesStatus.setText(text);
+        if (btnHermesInstall != null) {
+            boolean enabled = rootfsReady && !busy;
+            btnHermesInstall.setEnabled(enabled);
+            btnHermesInstall.setAlpha(enabled ? 1f : 0.4f);
+            btnHermesInstall.setText(s == HermesInstaller.State.READY ? "重装 Hermes" : "安装 Hermes");
+        }
+    }
+
+    /* ── 部署服务器 (M4: SSH 部署目标, 配置加密存储 + 注入 rootfs) ── */
+
+    private DeployConfig deployConfig;
+    private EditText editDeployHost, editDeployPort, editDeployUser, editDeploySecret;
+    private Button btnDeployAuth;
+    private TextView tvDeployStatus;
+    private boolean deployTesting = false;
+
+    private void buildDeploySection() {
+        deployConfig = new DeployConfig(this);
+        LinearLayout container = findViewById(R.id.linuxContainer);
+
+        TextView title = new TextView(this);
+        title.setText("部署服务器");
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(16);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setPadding(0, dp(20), 0, 0);
+        container.addView(title);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(getDrawable(R.drawable.bg_input));
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = dp(8);
+        card.setLayoutParams(lp);
+
+        TextView hint = new TextView(this);
+        hint.setText("agent 写后端后可 ssh 部署到此服务器 (别名 mov-deploy); 密钥加密存储");
+        hint.setTextColor(getColor(R.color.text_secondary));
+        hint.setTextSize(11);
+        card.addView(hint);
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        editDeployHost = deployField("主机 (IP/域名)", 1f);
+        editDeployHost.setText(deployConfig.host);
+        row1.addView(editDeployHost);
+        editDeployPort = deployField("端口", 0.4f);
+        editDeployPort.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        editDeployPort.setText(String.valueOf(deployConfig.port));
+        row1.addView(editDeployPort);
+        card.addView(row1);
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        editDeployUser = deployField("用户名", 1f);
+        editDeployUser.setText(deployConfig.user);
+        row2.addView(editDeployUser);
+        btnDeployAuth = makeSmallBtn(deployConfig.authType.equals(DeployConfig.AUTH_KEY)
+                ? "私钥认证" : "密码认证", v -> {
+            deployConfig.authType = deployConfig.authType.equals(DeployConfig.AUTH_KEY)
+                    ? DeployConfig.AUTH_PASSWORD : DeployConfig.AUTH_KEY;
+            btnDeployAuth.setText(deployConfig.authType.equals(DeployConfig.AUTH_KEY)
+                    ? "私钥认证" : "密码认证");
+            editDeploySecret.setHint(deployConfig.authType.equals(DeployConfig.AUTH_KEY)
+                    ? "粘贴私钥 (BEGIN OPENSSH PRIVATE KEY)" : "SSH 密码");
+        });
+        row2.addView(btnDeployAuth);
+        card.addView(row2);
+
+        editDeploySecret = deployField(deployConfig.authType.equals(DeployConfig.AUTH_KEY)
+                ? "粘贴私钥 (BEGIN OPENSSH PRIVATE KEY)" : "SSH 密码", 1f);
+        editDeploySecret.setText(deployConfig.secret);
+        editDeploySecret.setSingleLine(false);
+        editDeploySecret.setMinLines(2);
+        card.addView(editDeploySecret);
+
+        LinearLayout row3 = new LinearLayout(this);
+        row3.setOrientation(LinearLayout.HORIZONTAL);
+        row3.setPadding(0, dp(6), 0, 0);
+        row3.addView(makeSmallBtn("保存", v -> saveDeploy()));
+        row3.addView(makeSmallBtn("测试连接", v -> testDeploy()));
+        card.addView(row3);
+
+        tvDeployStatus = new TextView(this);
+        tvDeployStatus.setTextColor(getColor(R.color.text_secondary));
+        tvDeployStatus.setTextSize(12);
+        tvDeployStatus.setPadding(0, dp(6), 0, 0);
+        tvDeployStatus.setText(deployConfig.isConfigured()
+                ? "已配置: " + deployConfig.user + "@" + deployConfig.host + ":" + deployConfig.port
+                : "未配置 — agent 部署后端前会先引导你在这里填写");
+        card.addView(tvDeployStatus);
+        container.addView(card);
+    }
+
+    private EditText deployField(String hint, float weight) {
+        EditText e = new EditText(this);
+        e.setHint(hint);
+        e.setHintTextColor(getColor(R.color.text_secondary));
+        e.setTextColor(getColor(R.color.text_primary));
+        e.setTextSize(13);
+        e.setBackground(getDrawable(R.drawable.bg_chip));
+        e.setPadding(dp(10), 0, dp(10), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                0, dp(40), weight);
+        lp.rightMargin = dp(8);
+        lp.topMargin = dp(8);
+        e.setLayoutParams(lp);
+        return e;
+    }
+
+    private void saveDeploy() {
+        deployConfig.host = editDeployHost.getText().toString().trim();
+        try {
+            deployConfig.port = Integer.parseInt(editDeployPort.getText().toString().trim());
+        } catch (Exception e) {
+            deployConfig.port = 22;
+        }
+        deployConfig.user = editDeployUser.getText().toString().trim();
+        deployConfig.secret = editDeploySecret.getText().toString();
+        deployConfig.save(this);   // 加密存储 + 注入 rootfs (ssh config/movssh/movscp)
+        tvDeployStatus.setText(deployConfig.isConfigured()
+                ? "已保存: " + deployConfig.user + "@" + deployConfig.host + ":" + deployConfig.port
+                : "已保存 (信息不完整, 部署时 agent 会再引导)");
+        Toast.makeText(this, "部署服务器配置已保存", Toast.LENGTH_SHORT).show();
+    }
+
+    private void testDeploy() {
+        if (deployTesting) return;
+        if (!deployConfig.isConfigured()) {
+            tvDeployStatus.setText("先填写并保存完整配置");
+            return;
+        }
+        if (!RootfsManager.isReady(this)) {
+            tvDeployStatus.setText("Linux 环境未就绪, 先安装");
+            return;
+        }
+        deployTesting = true;
+        tvDeployStatus.setText("测试连接中 (ssh " + deployConfig.host + ")…");
+        new Thread(() -> {
+            ProotRunner.ExecResult r = ProotRunner.exec(this, DeployConfig.buildTestCmd(), 30);
+            String msg = (r.exitCode == 0 && r.stdout.contains("MOV_SSH_OK"))
+                    ? "✓ 连接成功: " + deployConfig.user + "@" + deployConfig.host
+                    : "✗ 连接失败 exit=" + r.exitCode + " " + tailText(r.stderr.isEmpty()
+                            ? r.stdout : r.stderr);
+            runOnUiThread(() -> {
+                tvDeployStatus.setText(msg);
+                deployTesting = false;
+            });
+        }).start();
+    }
+
+    private static String tailText(String s) {
+        if (s == null) return "";
+        String t = s.trim();
+        return t.length() > 120 ? "…" + t.substring(t.length() - 120) : t;
     }
 
     /* ── 厂商预设联动 ── */

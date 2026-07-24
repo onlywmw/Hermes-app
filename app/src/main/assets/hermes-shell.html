@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>MOV</title>
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/shell.css">
@@ -13,6 +13,18 @@
 
     <!-- 会话 tab · 房间列表 (V5: 顶栏已移除) -->
     <div class="view act" id="view-rooms">
+      <div class="selbar" id="selBar" style="display:none">
+        <span class="selbar-count" id="selCount">已选 0 项</span>
+        <div class="selbar-btns" id="selBtnsNormal">
+          <button class="btn" id="selAll" data-i18n="sel.all">全选</button>
+          <button class="btn btn-acc" id="selDel" data-i18n="sel.delete">删除</button>
+          <button class="btn" id="selCancel" data-i18n="sel.cancel">取消</button>
+        </div>
+        <div class="selbar-btns" id="selBtnsConfirm" style="display:none">
+          <button class="btn btn-danger" id="selConfirmOk" data-i18n="sel.confirmOk">确定删除</button>
+          <button class="btn" id="selConfirmCancel" data-i18n="sel.cancel">取消</button>
+        </div>
+      </div>
       <div class="sbody">
         <div class="room-list" id="roomList"></div>
       </div>
@@ -94,6 +106,7 @@
           <span class="pr-sub" id="prSub">本地运行</span>
         </div>
         <span class="ico-btn" id="btnTheme" title="素白/墨黑">◐</span>
+        <span class="ico-btn" id="btnTerminal" title="终端">&gt;_</span>
         <span class="ico-btn" id="btnPersonalSettings" title="设置">≡</span>
       </div>
       <div style="padding:0 var(--sp-5)">
@@ -111,11 +124,6 @@
         <!-- MODEL -->
         <div class="sub-head" data-i18n="rt.model">模型</div>
         <div id="modelList"></div>
-
-        <!-- CRON -->
-        <div class="sub-head"><span data-i18n="rt.cron">定时任务</span> · <span id="cronSub">0</span></div>
-        <div class="auto-input"><input class="field" id="cronInput" data-i18n-ph="rt.cronInput" placeholder="自然语言创建任务 · 如: 每天 8:30 汇总邮箱" aria-label="创建任务"><button class="go" id="btnCronCreate" data-i18n="rt.cronCreate">创建</button></div>
-        <div id="cronJobList"></div>
       </div>
     </div>
 
@@ -141,6 +149,7 @@
         <div class="sheet-row" id="opsMembers" data-i18n="ops.members">AI 成员</div>
         <div class="sheet-row" id="opsArchive" data-i18n="ops.archive">归档</div>
         <div class="sheet-row" id="opsClear" data-i18n="ops.clear">清空聊天记录</div>
+        <div class="sheet-row" id="opsMultiSel" data-i18n="ops.multiSel">多选删除</div>
         <div class="sheet-row danger" id="opsDelete" data-i18n="ops.delete">删除房间</div>
       </div>
       <div id="roomOpsConfirm" style="display:none">
@@ -213,6 +222,7 @@
       <div id="modelOpsMenu">
         <div class="sheet-row" id="mopsTest" data-i18n="model.testConn">测连接</div>
         <div class="sheet-row" id="mopsDefault" data-i18n="model.setAsBrain">设为大脑</div>
+        <div class="sheet-row" id="mopsReviewer" data-i18n="model.setReviewer">设为评审</div>
         <div class="sheet-row" id="mopsEdit" data-i18n="model.edit">编辑</div>
         <div class="sheet-row danger" id="mopsDelete" data-i18n="model.delete">删除</div>
       </div>

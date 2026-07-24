@@ -4,7 +4,6 @@ import com.hermes.android.HermesActivity;
 import com.hermes.android.agent.AgentLoop;
 import com.hermes.android.ai.AiClient;
 import com.hermes.android.ai.AiProviderConfig;
-import com.hermes.android.council.CouncilClient;
 import com.hermes.android.model.ModelRegistry;
 
 import org.json.JSONArray;
@@ -216,24 +215,57 @@ public class BridgeAi extends BaseBridge {
                     com.hermes.android.packager.PackageBuilder.Result r =
                             com.hermes.android.packager.PackageBuilder.build(
                                     activity, sm, roomId, path, appName);
-                    if (!r.ok) return "ERR: " + (r.error != null ? r.error : "打包失败");
-                    /* APK 落到房间产出目录, 文件列表可见 */
-                    String label = new java.io.File(path).getName()
-                            .replaceAll("\\.[^.]+$", "") + ".apk";
+                    if (!r.ok) {
+                        return new JSONObject().put("ok", false)
+                                .put("error", r.error != null ? r.error : "打包失败").toString();
+                    }
+                    /* APK 落到房间产出目录, 文件列表可见; ".html" 纯扩展名 → 兜底命名 */
+                    String base = new java.io.File(path).getName()
+                            .replaceAll("\\.[^.]+$", "");
+                    if (base.isEmpty()) base = "未命名应用";
+                    String label = base + ".apk";
                     java.io.File workDir = new java.io.File(
                             sm.getRoomsDir(), roomId + "/files/work");
                     workDir.mkdirs();
                     java.io.File dst = new java.io.File(workDir, label).getCanonicalFile();
                     if (!dst.getPath().startsWith(workDir.getCanonicalFile().getPath()
                             + java.io.File.separator)) {
-                        return "ERR: 路径越界";
+                        return "{\"ok\":false,\"error\":\"路径越界\"}";
                     }
                     java.nio.file.Files.copy(r.apkFile.toPath(), dst.toPath(),
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    return "OK: " + label + " · " + (r.sizeBytes / 1024) + "KB · " + r.packageName;
+                    String msg = label + " · " + (r.sizeBytes / 1024) + "KB · " + r.packageName
+                            + " · 已放入房间文件, 点交付卡上的「安装」按钮完成安装";
+                    if (r.warning != null) msg += "\n" + r.warning;
+                    return new JSONObject().put("ok", true)
+                            .put("file", label).put("msg", msg).toString();
                 } catch (Exception e) {
-                    return "ERR: " + e.getMessage();
+                    try {
+                        return new JSONObject().put("ok", false)
+                                .put("error", String.valueOf(e.getMessage())).toString();
+                    } catch (Exception ex) {
+                        return "{\"ok\":false,\"error\":\"打包异常\"}";
+                    }
                 }
+            }
+
+            @Override
+            public String shellExec(String cmd, int timeoutSec) {
+                if (!com.hermes.android.linux.RootfsManager.isReady(activity)) {
+                    return "ERROR: Linux 环境未就绪, 请先在设置页安装 (设置 → Linux 环境 → 安装),"
+                            + " 就绪后 shell.exec 才能使用";
+                }
+                return com.hermes.android.linux.ProotRunner.exec(activity, cmd, timeoutSec).format();
+            }
+
+            @Override
+            public String filePush(String roomId, String path) {
+                return sm.pushToExchange(roomId, path);
+            }
+
+            @Override
+            public String filePull(String roomId, String name) {
+                return sm.pullFromExchange(roomId, name);
             }
         };
         AgentLoop.LogSink sink = log -> {
@@ -241,11 +273,13 @@ public class BridgeAi extends BaseBridge {
                 evalJs("window._agentLog(" + log.toString() + ")");
             } catch (Exception ignored) {}
         };
-        /* 工具注册表: 探测本机硬件/权限生成 (agent 与硬件控制的分割层) */
+        /* 工具注册表: 探测本机硬件/权限生成 (agent 与硬件控制的分割层);
+           内嵌 Linux rootfs 就绪时追加 shell.exec/file.push/file.pull */
         java.util.Set<String> sharedPaths = new java.util.HashSet<>();
         com.hermes.android.agent.ToolRegistry registry = com.hermes.android.agent.ToolRegistry.build(
                 tools, roomId, () -> sharedPaths,
-                com.hermes.android.agent.ToolRegistry.DevicePolicy.probe(activity));
+                com.hermes.android.agent.ToolRegistry.DevicePolicy.probe(activity),
+                com.hermes.android.linux.RootfsManager.isReady(activity));
         AgentLoop loop = AgentLoop.startNew(roomId, goal, brain, tools, registry,
                 sharedPaths, buildReviewer(modelIdsJson), wrapSinkWithQueue(sink));
         if (loop == null) {
@@ -267,8 +301,16 @@ public class BridgeAi extends BaseBridge {
             java.util.List<com.hermes.android.model.ModelConfig> reviewers = new java.util.ArrayList<>();
             JSONArray arr = new JSONArray(modelIdsJson != null ? modelIdsJson : "[]");
             for (int i = 0; i < arr.length(); i++) {
-                com.hermes.android.model.ModelConfig mc = modelRegistry.get(arr.getString(i));
-                if (mc != null && mc.enabled && mc.isConfigured()
+                /* 兼容成员格式: 字符串 id 或 {"id":..} 对象 (房间 members.ai 两种来源) */
+                Object item = arr.get(i);
+                String mid = item instanceof JSONObject
+                        ? ((JSONObject) item).optString("id") : String.valueOf(item);
+                com.hermes.android.model.ModelConfig mc = modelRegistry.get(mid);
+                /* 剔除不可用/假模型: 未配置 key, 或 baseUrl 指向 localhost 的测试模型
+                   (mock-llm 是 ollama+127.0.0.1, 真实评审不许它进团) */
+                boolean localhost = mc != null && mc.baseUrl != null
+                        && (mc.baseUrl.contains("127.0.0.1") || mc.baseUrl.contains("localhost"));
+                if (mc != null && mc.enabled && mc.isConfigured() && !localhost
                         && (defId == null || !defId.equals(mc.id))) {
                     reviewers.add(mc);
                 }
@@ -315,38 +357,16 @@ public class BridgeAi extends BaseBridge {
         if (l != null && l.getLoopId().equals(loopId)) l.respondPlan(approved, note);
     }
 
-    public void councilAsync(String topic, String callbackId) {
-        councilAsync(topic, "[]", null, callbackId);
+    /** P1: 文件写入预览确认/驳回 (照 agentPlanRespond 模式) */
+    public void agentFileWriteRespond(String loopId, boolean approved) {
+        AgentLoop l = AgentLoop.current();
+        if (l != null && l.getLoopId().equals(loopId)) l.respondFileWrite(approved);
     }
 
-    public void councilAsync(String topic, String modelIdsJson, String context, String callbackId) {
-        aiExecutor.execute(() -> {
-            try {
-                CouncilClient council = new CouncilClient(modelRegistry);
-                List<String> ids = new ArrayList<>();
-                try {
-                    JSONArray arr = new JSONArray(modelIdsJson);
-                    for (int i = 0; i < arr.length(); i++) ids.add(arr.getString(i));
-                } catch (Exception ignored) {}
-
-                council.discussAsync(topic, ids.isEmpty() ? null : ids, context,
-                    reply -> {
-                        // 每个模型回复 → 立即推 JS (先到先显)
-                        evalJs("window._councilReply('" + callbackId + "'," + reply.toString() + ")");
-                    });
-            } catch (Exception e) {
-                try {
-                    /* JSONObject 构造错误 JSON, 与上方 reply.toString() 一样作为 JS 对象字面量拼接 */
-                    String errJson = new JSONObject()
-                            .put("type", "error")
-                            .put("content", e.getMessage()).toString();
-                    evalJs("window._councilReply('" + callbackId + "'," + errJson + ")");
-                } catch (Exception ex) {
-                    evalJs("window._councilReply('" + callbackId
-                            + "',{\"type\":\"error\",\"content\":\"讨论失败\"})");
-                }
-            }
-        });
+    /** 计划外 shell.exec 确认/驳回 (照 agentFileWriteRespond 模式) */
+    public void agentShellRespond(String loopId, boolean approved) {
+        AgentLoop l = AgentLoop.current();
+        if (l != null && l.getLoopId().equals(loopId)) l.respondShell(approved);
     }
 
     public String aiChat(String text) {
@@ -374,21 +394,5 @@ public class BridgeAi extends BaseBridge {
         } catch (Exception e) {
             return "{}";
         }
-    }
-
-    public String getLanguage() {
-        /* EncryptedSharedPreferences Keystore 失败会抛 RuntimeException, 兜底默认中文, 不向 JS 抛 */
-        try {
-            return aiConfig.getLanguage();
-        } catch (Exception e) {
-            return "zh";
-        }
-    }
-
-    public void setLanguage(String lang) {
-        /* 同上: 写失败静默降级, 保持现状 */
-        try {
-            aiConfig.setLanguage(lang);
-        } catch (Exception ignored) {}
     }
 }

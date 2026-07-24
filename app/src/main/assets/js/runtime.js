@@ -1,13 +1,13 @@
 /* ============================================================
    runtime.js — 运行 tab: 全部真数据 + i18n
-   v3: 技能系统已下线 (timeAgo 并入 files.js), Cron 从自动 tab 移入
+   v3: 技能系统已下线 (timeAgo 并入 files.js)
    ============================================================ */
 
 /* ---------- 主刷新 ---------- */
 /* 步骤隔离: 任一区块抛错只降级该区块并上报 logcat, 不再拖垮整页 */
 function refreshRuntime(){
   var steps=[['process',renderPersonalRow],['model',refreshModel],
-             ['cron',renderCronJobs],['tokens',renderTokenStats]];
+             ['tokens',renderTokenStats]];
   for(var i=0;i<steps.length;i++){
     try{steps[i][1]();}
     catch(e){ev('运行页区块刷新失败 ['+steps[i][0]+']: '+(e&&e.message?e.message:e));}
@@ -77,6 +77,7 @@ function refreshModel(){
       +'<div class="md">'+esc(m.name)+'</div>'
       +'<div class="ms">'+modelStatusDot(m)+'<span>'+esc(modelStatusText(m))+'</span></div></div>'
       +(m.isDefault?'<span class="badge ok"><span class="dot"></span>'+t('model.brain')+'</span>':'')
+      +(m.isReviewer?'<span class="badge council"><span class="dot"></span>'+t('model.reviewerTag')+'</span>':'')
       +'</div>';
   });
   if(models.length===0){
@@ -225,9 +226,11 @@ var _opsModel=null;
 function openModelOps(m){
   _opsModel=m;
   $('modelOpsName').textContent=m.name+' · '+_pvName(m.provider)+' · '+(m.model||'');
-  /* 角色身份: 大脑(agent 驱动) / 评审候选 */
-  $('modelOpsRole').textContent=m.isDefault?t('model.brainDesc'):t('model.reviewerDesc');
+  /* 角色身份: 大脑(agent 驱动) / 评审 (可身兼) */
+  var roleTxt=(m.isDefault?t('model.brainDesc'):'')+(m.isReviewer?(m.isDefault?' · ':'')+t('model.reviewerTag'):'')||t('model.reviewerDesc');
+  $('modelOpsRole').textContent=roleTxt;
   $('modelOpsRole').style.color=m.isDefault?'var(--seal-deep)':'var(--ink-3)';
+  $('mopsReviewer').textContent=m.isReviewer?t('model.unsetReviewer'):t('model.setReviewer');
   $('modelOpsMenu').style.display='';
   $('modelOpsConfirm').style.display='none';
   $('mopsDefault').style.display=m.isDefault?'none':'';
@@ -290,6 +293,13 @@ $('mopsTest').addEventListener('click',function(){
     setTimeout(function(){row.textContent=t('model.testConn');},4000);
   });
 });
+$('mopsReviewer').addEventListener('click',function(){
+  if(!_opsModel)return;
+  var res=B.setReviewer(_opsModel.id);
+  if(res.ok){B.toast((res.isReviewer?t('model.setReviewer'):t('model.unsetReviewer'))+' · '+_opsModel.name);}
+  else{B.toast(res.error||t('model.setFail'));}
+  closeAllSheets();refreshModel();
+});
 $('mopsEdit').addEventListener('click',function(){
   if(!_opsModel)return;
   openModelSheet(_opsModel.id); /* openSheetExclusive 内部会先关 ops sheet */
@@ -311,34 +321,3 @@ $('mopsConfirmOk').addEventListener('click',function(){
   else{B.toast(res.error||t('model.cannotDeleteLast'));}
   closeAllSheets();refreshModel();
 });
-
-/* ============ CRON (v3: 移入运行页) ============ */
-function renderCronJobs(){
-  var jobs=B.listCron();
-  $('cronSub').textContent=jobs.length+' '+t('rt.task')+' · '+t('rt.unattended');
-  var h='';
-  jobs.forEach(function(j){
-    var lastStr=j.lastStatus?(t('skill.lastUsed')+' '+esc(j.lastStatus)):'--';
-    h+='<div class="job" data-id="'+esc(j.id)+'">'
-      +'<div class="r1"><b>'+esc(j.name)+'</b><span class="switch'+(j.enabled?'':' off')+'" data-toggle="'+esc(j.id)+'"></span></div>'
-      +'<div class="r2"><span class="cron">'+esc(j.cron)+'</span><span>'+esc(j.command)+'</span></div>'
-      +'<div class="r3"><span>'+lastStr+'</span><span class="del-cron" data-del="'+esc(j.id)+'" style="cursor:pointer;color:var(--err)">'+t('rt.delete')+'</span></div>'
-      +'</div>';
-  });
-  if(jobs.length===0)h='<div style="margin:0 12px 8px;padding:16px;text-align:center;font-family:var(--font-mono);font-size:10px;color:var(--ink-4)">'+t('rt.cronNone')+'</div>';
-  $('cronJobList').innerHTML=h;
-  document.querySelectorAll('[data-toggle]').forEach(function(el){
-    el.addEventListener('click',function(){
-      var id=el.getAttribute('data-toggle');
-      var job=jobs.find(function(j){return j.id===id;});
-      if(job){B.toggleCron(id,!job.enabled);setTimeout(renderCronJobs,200);}
-    });
-  });
-  document.querySelectorAll('[data-del]').forEach(function(el){
-    el.addEventListener('click',function(){
-      var id=el.getAttribute('data-del');
-      var job=jobs.find(function(j){return j.id===id;});
-      if(confirm(t('cron.confirmDel'))){B.deleteCron(id);B.toast(t('cron.deleted')+(job?' · '+job.name:''));setTimeout(renderCronJobs,200);}
-    });
-  });
-}

@@ -17,3 +17,6 @@ local.properties
 .DS_Store
 Thumbs.db
 debug.keystore
+__pycache__/
+node_modules/
+tools/e2e/shots/

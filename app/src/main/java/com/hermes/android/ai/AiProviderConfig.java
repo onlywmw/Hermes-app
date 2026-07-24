@@ -25,7 +25,6 @@ public class AiProviderConfig {
     private static final String KEY_MODEL = "model";
     private static final String KEY_SYSTEM_PROMPT = "system_prompt";
     private static final String KEY_AI_ENABLED = "ai_enabled";
-    private static final String KEY_LANGUAGE = "language";
 
     public static final String PROVIDER_OPENAI = "openai";
     public static final String PROVIDER_DEEPSEEK = "deepseek";
@@ -173,14 +172,5 @@ public class AiProviderConfig {
         setProvider(provider);
         setBaseUrl("");
         setModel("");
-    }
-
-    /* 界面语言: zh (默认) / en */
-    public String getLanguage() {
-        return prefs.getString(KEY_LANGUAGE, "zh");
-    }
-
-    public void setLanguage(String lang) {
-        prefs.edit().putString(KEY_LANGUAGE, lang != null ? lang.trim() : "zh").apply();
     }
 }

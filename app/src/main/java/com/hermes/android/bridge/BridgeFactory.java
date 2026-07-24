@@ -15,7 +15,6 @@ public class BridgeFactory {
     private final BridgeDevice device;
     private final BridgeAi ai;
     private final BridgeFile file;
-    private final BridgeCron cron;
     private final BridgeSkill skill;
     private final BridgeModel model;
 
@@ -24,7 +23,6 @@ public class BridgeFactory {
         device = new BridgeDevice(activity);
         ai = new BridgeAi(activity);
         file = new BridgeFile(activity);
-        cron = new BridgeCron(activity);
         skill = new BridgeSkill(activity);
         model = new BridgeModel(activity);
     }
@@ -46,12 +44,10 @@ public class BridgeFactory {
     @JavascriptInterface public void agentStop(String loopId) { ai.agentStop(loopId); }
     @JavascriptInterface public void agentAnswer(String loopId, String text) { ai.agentAnswer(loopId, text); }
     @JavascriptInterface public void agentPlanRespond(String loopId, boolean approved, String note) { ai.agentPlanRespond(loopId, approved, note); }
-    @JavascriptInterface public void councilAsync(String topic, String cbId) { ai.councilAsync(topic, cbId); }
-    @JavascriptInterface public void councilAsync(String topic, String modelIdsJson, String context, String cbId) { ai.councilAsync(topic, modelIdsJson, context, cbId); }
+    @JavascriptInterface public void agentFileWriteRespond(String loopId, boolean approved) { ai.agentFileWriteRespond(loopId, approved); }
+    @JavascriptInterface public void agentShellRespond(String loopId, boolean approved) { ai.agentShellRespond(loopId, approved); }
     @JavascriptInterface public String aiChat(String text) { return ai.aiChat(text); }
     @JavascriptInterface public String getAiInfo() { return ai.getAiInfo(); }
-    @JavascriptInterface public String getLanguage() { return ai.getLanguage(); }
-    @JavascriptInterface public void setLanguage(String lang) { ai.setLanguage(lang); }
 
     // ==================== File / Storage ====================
     @JavascriptInterface public String listWorkFiles(String roomId) { return file.listWorkFiles(roomId); }
@@ -89,12 +85,6 @@ public class BridgeFactory {
     /* 一键安装: 房间产出 APK → 系统安装器 */
     @JavascriptInterface public String installApk(String roomId, String path) { return file.installApk(roomId, path); }
 
-    // ==================== Cron ====================
-    @JavascriptInterface public String listCronJobs() { return cron.listCronJobs(); }
-    @JavascriptInterface public String createCronJob(String name, String cronExpr, String command) { return cron.createCronJob(name, cronExpr, command); }
-    @JavascriptInterface public String toggleCronJob(String jobId, boolean enabled) { return cron.toggleCronJob(jobId, enabled); }
-    @JavascriptInterface public String deleteCronJob(String jobId) { return cron.deleteCronJob(jobId); }
-
     // ==================== Skill ====================
     @JavascriptInterface public String listSkills() { return skill.listSkills(); }
     @JavascriptInterface public String recordSkillUse(String skillId) { return skill.recordSkillUse(skillId); }
@@ -107,6 +97,7 @@ public class BridgeFactory {
     @JavascriptInterface public String updateModel(String json) { return model.updateModel(json); }
     @JavascriptInterface public String deleteModel(String id) { return model.deleteModel(id); }
     @JavascriptInterface public String setDefaultModel(String id) { return model.setDefaultModel(id); }
+    @JavascriptInterface public String setReviewer(String id) { return model.setReviewer(id); }
     /* TC-M09: 异步两参版 (bridge.js 回调式调用); 替换原一参同步版 — 同名 @JavascriptInterface 不可重载 */
     @JavascriptInterface public void testModel(String json, String cbId) {
         activity.getAiExecutor().execute(() -> {
@@ -129,6 +120,76 @@ public class BridgeFactory {
         activity.runOnUiThread(() ->
             activity.startActivity(new android.content.Intent(activity,
                 com.hermes.android.HermesSettingsActivity.class)));
+    }
+
+    /* M3: 打开交互式终端 (内嵌 Ubuntu, rootfs 未就绪时终端内给引导) */
+    @JavascriptInterface
+    public void openTerminal() {
+        activity.runOnUiThread(() ->
+            activity.startActivity(new android.content.Intent(activity,
+                com.hermes.android.TerminalActivity.class)));
+    }
+
+    /* M4: 部署服务器配置 (读[脱敏]/写/测试连接; 密钥加密存储) */
+    @JavascriptInterface
+    public String getDeployConfig() {
+        com.hermes.android.linux.DeployConfig d =
+                new com.hermes.android.linux.DeployConfig(activity);
+        org.json.JSONObject r = new org.json.JSONObject();
+        try {
+            r.put("host", d.host).put("port", d.port).put("user", d.user)
+             .put("authType", d.authType)
+             .put("secretMasked", com.hermes.android.linux.DeployConfig.maskSecret(d.secret))
+             .put("configured", d.isConfigured());
+        } catch (Exception ignored) {}
+        return r.toString();
+    }
+
+    @JavascriptInterface
+    public String saveDeployConfig(String json) {
+        try {
+            org.json.JSONObject o = new org.json.JSONObject(json);
+            com.hermes.android.linux.DeployConfig d =
+                    new com.hermes.android.linux.DeployConfig(activity);
+            d.host = o.optString("host", d.host);
+            d.port = o.optInt("port", d.port);
+            d.user = o.optString("user", d.user);
+            d.authType = o.optString("authType", d.authType);
+            if (o.has("secret")) d.secret = o.optString("secret");
+            d.save(activity);
+            return "{\"ok\":true,\"configured\":" + d.isConfigured() + "}";
+        } catch (Exception e) {
+            return "{\"ok\":false}";
+        }
+    }
+
+    @JavascriptInterface
+    public void testDeployConnection(String callbackId) {
+        new Thread(() -> {
+            String result;
+            com.hermes.android.linux.DeployConfig d =
+                    new com.hermes.android.linux.DeployConfig(activity);
+            if (!d.isConfigured()) {
+                result = "{\"ok\":false,\"content\":\"未配置部署服务器\"}";
+            } else if (!com.hermes.android.linux.RootfsManager.isReady(activity)) {
+                result = "{\"ok\":false,\"content\":\"Linux 环境未就绪\"}";
+            } else {
+                com.hermes.android.linux.ProotRunner.ExecResult r =
+                        com.hermes.android.linux.ProotRunner.exec(activity,
+                                com.hermes.android.linux.DeployConfig.buildTestCmd(), 30);
+                boolean ok = r.exitCode == 0 && r.stdout.contains("MOV_SSH_OK");
+                try {
+                    result = new org.json.JSONObject().put("ok", ok)
+                            .put("content", ok ? "连接成功: " + d.user + "@" + d.host
+                                    : "exit=" + r.exitCode + " "
+                                            + (r.stderr.isEmpty() ? r.stdout : r.stderr)
+                                                      .trim()).toString();
+                } catch (Exception e) {
+                    result = "{\"ok\":false,\"content\":\"测试异常\"}";
+                }
+            }
+            activity.evalJsPublic("window._hermesCb('" + callbackId + "'," + result + ")");
+        }).start();
     }
 
     @JavascriptInterface

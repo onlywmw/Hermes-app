@@ -33,8 +33,6 @@ import androidx.core.content.ContextCompat;
 
 import com.hermes.android.ai.AiClient;
 import com.hermes.android.ai.AiProviderConfig;
-import com.hermes.android.council.CouncilClient;
-import com.hermes.android.cron.CronManager;
 import com.hermes.android.skill.SkillStore;
 
 import org.json.JSONArray;
@@ -67,7 +65,6 @@ public class HermesActivity extends AppCompatActivity {
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final CapabilityExecutor capabilityExecutor = new CapabilityExecutor();
     private AiProviderConfig aiConfig;
-    private CronManager cronManager;
     private SkillStore skillStore;
     private com.hermes.android.model.ModelRegistry modelRegistry;
     private StorageManager storageManager;
@@ -101,7 +98,6 @@ public class HermesActivity extends AppCompatActivity {
         modelRegistry = com.hermes.android.model.ModelRegistry.getInstance(this);
         storageManager = new StorageManager(this);
         capabilityExecutor.init(this);
-        cronManager = new CronManager(this);
         skillStore = new SkillStore(this);
 
         // 全局未捕获异常 → 交还默认处理器
@@ -161,7 +157,7 @@ public class HermesActivity extends AppCompatActivity {
         });
         shell.setWebChromeClient(new WebChromeClient() {
             /* Fix: WebView 默认不处理 confirm()/prompt() — confirm 恒返回 false、prompt 恒返回 null,
-               导致 Cron 删除确认、模板使用命名等流程静默失败。用原生对话框承接。 */
+               导致模板使用命名等流程静默失败。用原生对话框承接。 */
             @Override
             public boolean onJsConfirm(WebView view, String url, String message,
                                        android.webkit.JsResult result) {
@@ -419,7 +415,6 @@ public class HermesActivity extends AppCompatActivity {
     public ExecutorService getAiExecutor() { return aiExecutor; }
     public List<AiClient.Message> getChatHistory() { return chatHistory; }
     public StorageManager getStorageManager() { return storageManager; }
-    public CronManager getCronManager() { return cronManager; }
     public SkillStore getSkillStore() { return skillStore; }
     public void saveChatHistoryPublic() { saveChatHistory(); }
     public void setRoomOpenPublic(boolean open) { roomOpen = open; }

@@ -19,6 +19,7 @@ public class ModelConfig {
     public String color;        // 头像色 "#D97706"
     public boolean enabled;
     public boolean isDefault;   // 单聊模式用的默认模型
+    public boolean isReviewer;  // 评审身份: 新建房间时的默认评审模型 (无评审标记时回退大脑, 单模型身兼两职)
 
     public ModelConfig() {
         enabled = true;
@@ -41,6 +42,7 @@ public class ModelConfig {
         c.color = j.optString("color", "#D97706");
         c.enabled = j.optBoolean("enabled", true);
         c.isDefault = j.optBoolean("isDefault", false);
+        c.isReviewer = j.optBoolean("isReviewer", false);
         return c;
     }
 
@@ -63,6 +65,7 @@ public class ModelConfig {
             j.put("color", color);
             j.put("enabled", enabled);
             j.put("isDefault", isDefault);
+            j.put("isReviewer", isReviewer);
             return j;
         } catch (Exception e) {
             return new JSONObject();

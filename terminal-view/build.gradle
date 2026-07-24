@@ -1,0 +1,22 @@
+/* 摘自 termux-app (GPLv3, 见 LICENSE.md) — MOV M3 交互终端的 TerminalView 控件 */
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.termux.view"
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 26
+        targetSdk 36
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation "androidx.annotation:annotation:1.9.0"
+    api project(":terminal-emulator")
+}

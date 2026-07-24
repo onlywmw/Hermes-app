@@ -1,28 +1,9 @@
 /* ============================================================
-   app-run.js — 运行页刷新 + Cron 创建 + 详情弹层
+   app-run.js — 运行页刷新 + 详情弹层
    (从 app.js 拆出, DESIGN_POLISH #2)
    ============================================================ */
 
 /* 运行页刷新: 切 tab/回前台自动触发 (V5 已移除手动刷新按钮) */
-
-/* Cron 创建 */
-$('btnCronCreate').addEventListener('click',function(){
-  var text=$('cronInput').value.trim();
-  if(!text){B.toast(t('rt.cronInput'));return;}
-  var cron='0 8 * * *';
-  /* P2: 首个命中生效不再互相覆盖; 优先级 分钟 > 小时 > 定点; 容忍空格 */
-  var mMin=text.match(/每\s*(\d+)\s*分钟/);
-  var mHour=text.match(/每\s*(\d+)\s*小时/);
-  var mTime=text.match(/(\d{1,2}):(\d{2})/);
-  if(mMin){cron='*/'+mMin[1]+' * * * *';}
-  else if(mHour){cron='0 */'+mHour[1]+' * * *';}
-  else if(mTime){cron=mTime[2]+' '+mTime[1]+' * * *';}
-  var name=text.length>20?text.slice(0,20)+'…':text;
-  var res=B.createCron(name,cron,text);
-  if(res.ok){$('cronInput').value='';renderCronJobs();B.toast(t('cron.created'));if(res.notice)B.toast(res.notice);}
-  else{B.toast(t('cron.createFail')+(res.error||''));}
-  ev('创建 Cron: '+text);
-});
 
 /* 三行入口与详情弹层已随 V5 移除 (通道/技能/权限不再展示) */
 
@@ -30,6 +11,12 @@ $('btnCronCreate').addEventListener('click',function(){
 $('btnPersonalSettings').addEventListener('click',function(){
   B.openSettings();
   ev('从运行页打开设置');
+});
+
+/* M3: 交互式终端入口 (内嵌 Ubuntu) */
+$('btnTerminal').addEventListener('click',function(){
+  B.openTerminal();
+  ev('打开终端');
 });
 
 /* V5: 素白 ↔ 墨黑 主题切换 (持久化 mov_theme) */

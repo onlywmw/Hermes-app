@@ -61,10 +61,11 @@ function renderModelPicker(containerId,sel,multi,onChange){
 $('fabNew').addEventListener('click',function(){
   _nrSel=[];
   $('newRoomName').value='';
-  /* 默认勾注册表默认模型当评审 (用户可自行取消; agent 恒在) */
+  /* 默认评审 = 评审标记模型; 无标记回退大脑 (单模型身兼两职; agent 恒在, 用户可再改) */
   var models=B.listModels();
-  var def=models.find(function(m){return m.isDefault;});
-  if(def)_nrSel.push(def.id);
+  var reviewers=models.filter(function(m){return m.isReviewer;});
+  if(reviewers.length){reviewers.forEach(function(m){_nrSel.push(m.id);});}
+  else{var def=models.find(function(m){return m.isDefault;});if(def)_nrSel.push(def.id);}
   renderModelPicker('newRoomModels',_nrSel,true,updateCreateBtn);
   openSheetExclusive('newRoomMask','newRoomSheet');
   $('newRoomName').focus();
@@ -110,11 +111,7 @@ function openRoomOpsSheet(roomId){
   $('sheetRoomOps').classList.add('open');
   _opsRoomId=roomId;
   $('roomOpsName').textContent=room.name;
-  var isDesk=(roomId==='desk');
-  $('opsRename').style.display=isDesk?'none':'';
-  $('opsMembers').style.display=isDesk?'none':'';
-  $('opsArchive').style.display=isDesk?'none':'';
-  $('opsDelete').style.display=isDesk?'none':'';
+  /* desk 不再特殊 (2026-07-24): 重命名/成员/归档/删除全部可用 */
   $('opsClear').style.display='';
   $('roomOpsMenu').style.display='';
   $('roomOpsConfirm').style.display='none';
@@ -142,6 +139,8 @@ $('btnRoomMore').addEventListener('click',function(){
 });
 
 function bindRoomListLongPress(){
+  /* 多选模式下长按不再弹操作 sheet (避免与勾选手势打架) */
+  if(window._roomSelOn&&window._roomSelOn())return;
   document.querySelectorAll('#roomList .room').forEach(function(el){
     bindLongPress(el,{
       text:'',
@@ -188,7 +187,6 @@ $('opsClear').addEventListener('click',function(){
 
 $('opsDelete').addEventListener('click',function(){
   showOpsConfirm('确定删除此房间？不可撤销。',function(){
-    if(_opsRoomId==='desk')return; /* 纵深防御: desk 不可删 */
     var room=ROOMS.find(function(r){return r.id===_opsRoomId;});
     if(room){
       var idx=ROOMS.indexOf(room);
@@ -246,4 +244,72 @@ $('opsMembersOk').addEventListener('click',function(){
     ev('编辑成员 '+room.name+' → agent + '+ids.length+' 评审');
   }
   closeRoomOpsSheet();
+});
+
+/* ============ 会话多选删除 ============
+   入口: 房间操作 sheet「多选删除」→ 进入多选模式并预选该房间;
+   点卡片切换勾选 (render.js 点击守卫走 window._roomSelOn), 顶条全选/删除/取消;
+   删除走条内二次确认, 批量移除后退出。 */
+var _selMode=false,_selIds=[];
+window._roomSelOn=function(){return _selMode;};
+window.toggleRoomSel=function(id){
+  var i=_selIds.indexOf(id);
+  if(i>=0)_selIds.splice(i,1);else _selIds.push(id);
+  updateSelBar();
+};
+
+function enterSelMode(preId){
+  _selMode=true;_selIds=preId?[preId]:[];
+  $('selBar').style.display='flex';
+  $('roomList').classList.add('selmode');
+  $('selBtnsNormal').style.display='flex';$('selBtnsConfirm').style.display='none';
+  renderRooms();
+  updateSelBar();
+}
+function exitSelMode(){
+  _selMode=false;_selIds=[];
+  $('selBar').style.display='none';
+  $('roomList').classList.remove('selmode');
+  renderRooms();
+}
+function updateSelBar(){
+  $('selCount').textContent='已选 '+_selIds.length+' 项';
+  $('selDel').disabled=_selIds.length===0;
+  document.querySelectorAll('#roomList .room').forEach(function(el){
+    el.classList.toggle('sel',_selIds.indexOf(el.getAttribute('data-room'))>=0);
+  });
+}
+
+$('opsMultiSel').addEventListener('click',function(){
+  var id=_opsRoomId;
+  closeRoomOpsSheet();
+  enterSelMode(id);
+});
+$('selAll').addEventListener('click',function(){
+  var allIds=ROOMS.map(function(r){return r.id;});
+  _selIds=(_selIds.length===allIds.length)?[]:allIds;
+  updateSelBar();
+});
+$('selCancel').addEventListener('click',exitSelMode);
+$('selDel').addEventListener('click',function(){
+  if(!_selIds.length)return;
+  $('selCount').textContent='确定删除 '+_selIds.length+' 个房间？不可撤销。';
+  $('selBtnsNormal').style.display='none';$('selBtnsConfirm').style.display='flex';
+});
+$('selConfirmCancel').addEventListener('click',function(){
+  $('selBtnsNormal').style.display='flex';$('selBtnsConfirm').style.display='none';
+  updateSelBar();
+});
+$('selConfirmOk').addEventListener('click',function(){
+  var n=_selIds.length,removedCurrent=false;
+  ROOMS=ROOMS.filter(function(r){
+    if(_selIds.indexOf(r.id)>=0){if(r.id===curRoomId)removedCurrent=true;return false;}
+    return true;
+  });
+  genCounter++; /* 进行中的 agent 任务作废 (同单删语义) */
+  if(removedCurrent){curRoomId=null;try{if(window.HermesBridge)HermesBridge.setRoomOpen('');}catch(e){}}
+  exitSelMode();
+  persistRooms();
+  setTab('chat');showView('view-rooms');
+  B.toast('已删除 '+n+' 个房间');
 });

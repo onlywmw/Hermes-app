@@ -34,10 +34,14 @@ public class StorageManager {
 
     private static final String TAG = "StorageManager";
     private final File baseDir;
+    /** 内嵌 Linux 交换目录 (guest 里挂 /exchange): getFilesDir()/linux-exchange */
+    private final File exchangeDir;
 
     public StorageManager(Context context) {
         this.baseDir = new File(context.getExternalFilesDir(null), "mov");
         this.baseDir.mkdirs();
+        this.exchangeDir = new File(context.getFilesDir(), "linux-exchange");
+        this.exchangeDir.mkdirs();
         migrateIfNeeded();
     }
 
@@ -524,6 +528,54 @@ public class StorageManager {
             if (children != null) for (File c : children) deleteRecursive(c);
         }
         f.delete();
+    }
+
+    // ==================== Linux /exchange 交换 (内嵌 Ubuntu ⇆ 房间) ====================
+
+    public File getExchangeDir() { return exchangeDir; }
+
+    /** 房间工作区文件 → linux-exchange (二进制拷贝, canonical 双向防越界) */
+    public String pushToExchange(String roomId, String path) {
+        try {
+            if (!isValidId(roomId)) return errJson("非法房间ID");
+            File workDir = new File(baseDir, "rooms/" + roomId + "/files/work");
+            File src = new File(workDir, path);
+            if (!isSafe(workDir, src)) return errJson("路径越界");
+            if (!src.isFile()) return errJson("文件不存在: " + path);
+            File dst = new File(exchangeDir, new File(path).getName()).getCanonicalFile();
+            if (!isSafe(exchangeDir, dst)) return errJson("路径越界");
+            exchangeDir.mkdirs();
+            Files.copy(src.toPath(), dst.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            return new JSONObject().put("ok", true)
+                    .put("message", "已送进 Linux: /exchange/" + dst.getName())
+                    .put("size", dst.length()).toString();
+        } catch (Exception e) {
+            return errJson(e);
+        }
+    }
+
+    /** linux-exchange 产物 → 房间工作区 (取回 APK 后可走安装流程) */
+    public String pullFromExchange(String roomId, String name) {
+        try {
+            if (!isValidId(roomId)) return errJson("非法房间ID");
+            File src = new File(exchangeDir, name);
+            if (!isSafe(exchangeDir, src)) return errJson("路径越界");
+            if (!src.isFile()) return errJson("/exchange 里不存在: " + name);
+            File workDir = new File(baseDir, "rooms/" + roomId + "/files/work");
+            File dst = new File(workDir, new File(name).getName()).getCanonicalFile();
+            if (!isSafe(workDir, dst)) return errJson("路径越界");
+            workDir.mkdirs();
+            Files.copy(src.toPath(), dst.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            updateMeta(roomId, dst.getName(), "work", "linux", dst.length());
+            return new JSONObject().put("ok", true)
+                    .put("message", "已取回房间: " + dst.getName()
+                            + " · " + (dst.length() / 1024) + "KB")
+                    .put("file", dst.getName()).toString();
+        } catch (Exception e) {
+            return errJson(e);
+        }
     }
 
     // ==================== 内部工具 ====================

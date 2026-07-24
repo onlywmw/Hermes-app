@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingWebReq;
     private android.media.MediaRecorder rec;
     private String recResult;
+    private String recBase64;
     private String pendingNotifyTitle, pendingNotifyText;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -231,9 +232,20 @@ public class MainActivity extends Activity {
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     try {
                         rec.stop();
-                        recResult = out.exists() && out.length() > 44
-                                ? "ok:" + out.length() + "字节:" + out.getAbsolutePath()
-                                : "err:无数据";
+                        if (out.exists() && out.length() > 44) {
+                            recResult = "ok:" + out.length() + "字节:" + out.getAbsolutePath();
+                            /* 语音消息回放: 小文件直接 base64 吐给 JS (file:// 被 WebView 禁) */
+                            if (out.length() <= 512 * 1024) {
+                                byte[] data = new byte[(int) out.length()];
+                                java.io.FileInputStream fis = new java.io.FileInputStream(out);
+                                int off = 0, n;
+                                while (off < data.length && (n = fis.read(data, off, data.length - off)) > 0) off += n;
+                                fis.close();
+                                recBase64 = android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP);
+                            }
+                        } else {
+                            recResult = "err:无数据";
+                        }
                     } catch (Exception e) {
                         recResult = "err:" + e.getMessage();
                     }
@@ -252,6 +264,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String recordResult() {
             return recResult;
+        }
+
+        /** 取录音 base64 (语音消息回放进 localStorage; ≤512KB 才有, 否则 null) */
+        @JavascriptInterface
+        public String recordBase64() {
+            return recBase64;
         }
     }
 

@@ -47,6 +47,13 @@
             android:textColor="@color/accent_light"
             android:textSize="14sp" />
 
+        <!-- ═══ Linux 环境 (内嵌 Ubuntu + proot, 内容由代码构建) ═══ -->
+        <LinearLayout
+            android:id="@+id/linuxContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
         <!-- ═══ 模型列表 ═══ -->
         <TextView
             android:layout_width="match_parent"

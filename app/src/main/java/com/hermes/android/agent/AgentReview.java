@@ -70,45 +70,50 @@ public class AgentReview implements AgentLoop.Reviewer {
     }
 
     @Override
-    public JSONObject deliveryVote(String goal, String logDigest, JSONArray files) {
+    public JSONObject deliveryVote(String goal, String logDigest, JSONArray files, String productsDigest) {
         JSONObject out = new JSONObject();
         JSONArray comments = new JSONArray();
         int[] tokens = {0, 0};
         int pass = 0, fail = 0;
         try {
+            /* 无评审模型: 明确 notReviewed, 不再 pass=1 假装通过 */
             if (reviewers == null || reviewers.isEmpty()) {
-                return out.put("pass", 1).put("fail", 0).put("comments", comments)
-                        .put("pt", 0).put("ct", 0);
+                return out.put("pass", 0).put("fail", 0).put("notReviewed", true)
+                        .put("comments", comments).put("pt", 0).put("ct", 0);
             }
-            String prompt = "你是交付评审员, 对 agent 的交付投票。你只能看到目标和工作日志摘要,"
-                    + "执行者接触过你看不到的完整上下文 (文件全文/工具结果)。\n"
-                    + "核心原则: 证伪而非证实 — 只有当日志/文件清单里有直接证据表明交付有缺陷时才投 false;"
-                    + "怀疑但无法证实的, 一律投 true (借鉴 OpenCodeReview 的 veto rule, 防误报返工白烧 token)。\n"
-                    + "验收清单 (逐项对照): 1.承诺的产出文件都在清单里 2.单文件应用自洽(不引用不存在的本地资源) "
-                    + "3.交互元素真绑定了事件(按钮/方向键不是摆设) 4.要求持久化的数据用了 localStorage "
-                    + "5.完成度: 无占位符/桩代码/TODO, 计划承诺的功能全部真实现 "
-                    + "6.能力边界: 需后端的场景(多用户/财务系统)已明示「演示版」, 打包APK内相机/联网等 "
-                    + "未交付的能力已在交付说明中给出替代方案。\n"
-                    + "不要报: 缺后端/缺美术资源/文件该拆分/代码风格 — 这些不是交付缺陷。\n"
+            String prompt = "你是交付评审员, 对 agent 的交付投票。你能看到目标、工作日志摘要,"
+                    + "以及产物内容节选 (含 HTML 交互元素清单)。\n"
+                    + "评审方式: 逐一对照计划承诺的功能, 在下面的产物内容里找实现证据。\n"
+                    + "发现以下任一硬伤, 投 false 并指出具体位置 (文件名+元素):\n"
+                    + "- 死按钮: button/控件没有事件绑定, 或绑定的函数是空函数体/只打日志\n"
+                    + "- 占位符/桩代码/TODO/「后续实现」\n"
+                    + "- 计划承诺的文件缺失, 或内容与承诺功能明显不符\n"
+                    + "怀疑但内容里找不到直接证据的, 投 true (防误报返工白烧 token)。\n"
+                    + "不要报: 缺美术资源/文件该拆分/代码风格 — 这些不是交付缺陷。\n"
                     + logDigest
-                    + "\n只输出 JSON: {\"pass\":true或false,\"reason\":\"一句理由, false 时必须引用日志中的证据\"}。";
-            // 并行收集 (需要可变计数, 用数组)
+                    + "\n产物内容节选:\n" + (productsDigest != null ? productsDigest : "(无)")
+                    + "\n只输出 JSON: {\"pass\":true或false,\"reason\":\"一句理由, false 时必须引用产物中的具体位置\"}。";
             int[] votes = {0, 0};
             parallelCollect(prompt, (name, role, resp) -> {
                 if (resp == null) return;
+                /* 评审调用失败: 只记录, 不计票 (修复 fail-open「调用失败视为通过」) */
+                if (!resp.success) {
+                    try {
+                        comments.put(new JSONObject().put("name", name)
+                                .put("pass", JSONObject.NULL)
+                                .put("reason", "(评审调用失败, 不计票)"));
+                    } catch (Exception ignored) {}
+                    return;
+                }
                 boolean p = true;
                 String reason = "(无反馈)";
-                if (!resp.success) {
-                    reason = "(评审调用失败, 视为通过)";
-                } else {
-                    String json = ActionParser.extractJson(resp.content);
-                    if (json != null) {
-                        try {
-                            JSONObject v = new JSONObject(json);
-                            p = v.optBoolean("pass", true);
-                            reason = v.optString("reason", reason);
-                        } catch (Exception ignored) {}
-                    }
+                String json = ActionParser.extractJson(resp.content);
+                if (json != null) {
+                    try {
+                        JSONObject v = new JSONObject(json);
+                        p = v.optBoolean("pass", true);
+                        reason = v.optString("reason", reason);
+                    } catch (Exception ignored) {}
                 }
                 try {
                     comments.put(new JSONObject()

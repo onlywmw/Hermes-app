@@ -27,6 +27,9 @@ public class ToolRegistryTest {
             @Override public String capabilityOf(String text) { return "unknown"; }
             @Override public String deviceCmd(String text) { return "ok"; }
             @Override public String packageApk(String roomId, String path, String appName) { return "ERR: 不支持"; }
+            @Override public String shellExec(String cmd, int timeoutSec) { return "exit=0\nok"; }
+            @Override public String filePush(String roomId, String path) { return "{\"ok\":true}"; }
+            @Override public String filePull(String roomId, String name) { return "{\"ok\":true}"; }
         };
     }
 
@@ -100,6 +103,9 @@ public class ToolRegistryTest {
             @Override public String capabilityOf(String text) { return "unknown"; }
             @Override public String deviceCmd(String text) { return "ok"; }
             @Override public String packageApk(String roomId, String path, String appName) { return "ERR:"; }
+            @Override public String shellExec(String cmd, int timeoutSec) { return "exit=0\nok"; }
+            @Override public String filePush(String roomId, String path) { return "{\"ok\":true}"; }
+            @Override public String filePull(String roomId, String name) { return "{\"ok\":true}"; }
         }, "room1", HashSet::new, new ToolRegistry.DevicePolicy(Collections.<String>emptySet()));
         ToolRegistry.Result res = read(r, "{\"path\":\"ghost.html\"}");
         assertFalse(res.ok);
@@ -111,5 +117,86 @@ public class ToolRegistryTest {
         String p = registryWith("x").promptText();
         assertTrue("prompt 必须写明分页参数: " + p, p.contains("\"offset\":0"));
         assertTrue(p.contains("\"length\":32768"));
+    }
+
+    // ==================== app.package 结构化解析 ====================
+
+    /** 造一个 packageApk 返回值可配的注册表 */
+    private static ToolRegistry registryWithPackageRes(String packageRes) {
+        return ToolRegistry.build(new AgentLoop.Tools() {
+            @Override public String fileList(String roomId) { return "[]"; }
+            @Override public String fileRead(String roomId, String path) { return ""; }
+            @Override public String fileWrite(String roomId, String path, String c) { return "OK:"; }
+            @Override public String capabilityOf(String text) { return "unknown"; }
+            @Override public String deviceCmd(String text) { return "ok"; }
+            @Override public String packageApk(String roomId, String path, String appName) { return packageRes; }
+            @Override public String shellExec(String cmd, int timeoutSec) { return "exit=0\nok"; }
+            @Override public String filePush(String roomId, String path) { return "{\"ok\":true}"; }
+            @Override public String filePull(String roomId, String name) { return "{\"ok\":true}"; }
+        }, "room1", HashSet::new, new ToolRegistry.DevicePolicy(Collections.<String>emptySet()));
+    }
+
+    private static ToolRegistry.Result runPackage(ToolRegistry r, String path) throws Exception {
+        ToolRegistry.Tool t = r.find("app.package");
+        assertNotNull(t);
+        return t.handler.run(new JSONObject("{\"path\":\"" + path + "\"}"));
+    }
+
+    @Test
+    public void appPackage_jsonResultParsed() throws Exception {
+        ToolRegistry.Result res = runPackage(registryWithPackageRes(
+                "{\"ok\":true,\"file\":\"snake.apk\",\"msg\":\"snake.apk · 24KB\"}"), "snake.html");
+        assertTrue(res.ok);
+        assertEquals("snake.apk", res.produced);
+        assertEquals("snake.apk · 24KB", res.text);
+    }
+
+    @Test
+    public void appPackage_jsonErrorPropagated() throws Exception {
+        ToolRegistry.Result res = runPackage(registryWithPackageRes(
+                "{\"ok\":false,\"error\":\"模板不兼容, 请重新构建模板\"}"), "snake.html");
+        assertFalse(res.ok);
+        assertTrue(res.text.contains("模板不兼容"));
+    }
+
+    @Test
+    public void appPackage_legacyFormatFallback() throws Exception {
+        /* 旧文本格式仍兼容; 文件名含 " · " 时旧逻辑切错但不抛异常 */
+        ToolRegistry.Result res = runPackage(registryWithPackageRes(
+                "OK: snake.apk · 24KB · com.mov.test"), "snake.html");
+        assertTrue(res.ok);
+        assertEquals("snake.apk", res.produced);
+        ToolRegistry.Result weird = runPackage(registryWithPackageRes(
+                "OK: done"), "snake.html");
+        assertTrue("无分隔符的旧格式不得抛异常", weird.ok);
+        assertEquals("done", weird.produced);
+    }
+
+    // ==================== linuxAvailable 门控 (内嵌 Linux) ====================
+
+    @Test
+    public void linuxTools_hiddenWhenUnavailable() {
+        ToolRegistry r = registryWith("x");
+        assertNull("rootfs 未就绪不得注册 shell.exec", r.find("shell.exec"));
+        assertNull(r.find("file.push"));
+        assertNull(r.find("file.pull"));
+        assertFalse("prompt 不得出现 shell.exec", r.promptText().contains("shell.exec"));
+    }
+
+    @Test
+    public void linuxTools_registeredWhenAvailable() throws Exception {
+        ToolRegistry r = ToolRegistry.build(toolsWith("x"), "room1",
+                HashSet::new, new ToolRegistry.DevicePolicy(Collections.<String>emptySet()), true);
+        assertNotNull(r.find("shell.exec"));
+        assertNotNull(r.find("file.push"));
+        assertNotNull(r.find("file.pull"));
+        assertTrue("prompt 必须写明 cmd 参数: " + r.promptText(),
+                r.promptText().contains("\"cmd\""));
+        ToolRegistry.Result res = r.find("shell.exec").handler.run(
+                new JSONObject("{\"cmd\":\"uname -a\"}"));
+        assertTrue(res.ok);
+        assertTrue(res.text.startsWith("exit=0"));
+        ToolRegistry.Result empty = r.find("shell.exec").handler.run(new JSONObject("{}"));
+        assertFalse("空 cmd 应拒绝", empty.ok);
     }
 }

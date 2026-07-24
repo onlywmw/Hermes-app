@@ -65,6 +65,8 @@ button,input,textarea{font-family:inherit;}
 .badge.run{color:var(--seal);}
 .badge.run .dot{background:var(--seal);animation:nodepulse 1.4s infinite;}
 .badge.ok{color:var(--ok);}
+.badge.council{color:var(--seal);}
+.badge.council .dot{background:var(--seal);}
 .badge.ok .dot{background:var(--ok);}
 .badge.off{color:var(--ink-4);}
 .badge.off .dot{background:var(--ink-4);}
@@ -128,22 +130,43 @@ button,input,textarea{font-family:inherit;}
 .toolcall .tb .err-line{color:var(--err);font-weight:700;}
 
 /* ---------- 卡片族 (soft-card 风) ---------- */
-.plan-card,.vote-card{width:100%;background:var(--fill);border-radius:14px;padding:14px 16px;border:none;border-left:none;}
-.plan-card .ph,.vote-card .vh{font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.24em;color:var(--ink-3);margin-bottom:9px;display:flex;align-items:center;gap:8px;height:auto;padding:0;background:none;}
-.vote-card .vh::before{content:'';width:7px;height:7px;border-radius:2px;background:var(--seal);flex:none;}
+.plan-card{width:100%;background:var(--fill);border-radius:14px;padding:14px 16px;border:none;border-left:none;}
+.plan-card .ph{font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.24em;color:var(--ink-3);margin-bottom:9px;display:flex;align-items:center;gap:8px;height:auto;padding:0;background:none;}
 .plan-card .pb{font-size:12.5px;font-weight:400;line-height:2;color:var(--ink-2);padding:0;background:none;}
 .plan-card .pb li{margin-left:18px;}
 .plan-card .pb li::marker{color:var(--seal);font-weight:700;}
 .plan-card .pf{display:flex;gap:8px;margin-top:12px;padding:0;border:none;background:none;}
-.vote-row{display:flex;align-items:center;gap:9px;padding:8px 0;font-size:12px;color:var(--ink-2);min-height:0;border:none;}
-.vote-row+.vote-row{border-top:1px solid var(--hair);}
-.vote-row .av{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-family:var(--font-mono);font-size:7.5px;font-weight:700;color:var(--ink);font-style:normal;flex:none;}
-.vote-row .nm{font-weight:600;color:var(--ink);}
-.vote-row .st{margin-left:auto;font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ok);}
-.vote-tally{padding:9px 0 0;font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--seal);display:flex;height:auto;background:none;border:none;}
+/* P1: 写盘预览内容区 (复用 plan-card 风格, 可滚动) */
+.plan-card .pvw{max-height:220px;overflow-y:auto;margin:0;padding:8px 10px;background:var(--paper);border-radius:8px;font-family:var(--font-mono);font-size:11px;line-height:1.6;color:var(--ink-2);white-space:pre-wrap;word-break:break-all;}
+/* 失败卡 (失败三问: 原因/进度/部分产物) */
+.plan-card .fail-reason{font-size:13px;font-weight:500;color:#d94848;line-height:1.7;word-break:break-all;}
+.plan-card .fail-meta{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);margin-top:6px;letter-spacing:.04em;}
+.plan-card .fail-files{font-size:12px;color:var(--ink-2);margin-top:10px;}
+.plan-card .fail-file{font-family:var(--font-mono);font-size:11px;color:var(--seal);line-height:1.9;}
+/* 理解闸: 计划卡顶部的需求理解区 (分行标签, 一眼扫完) */
+.plan-card .pu{background:var(--paper);border-radius:8px;padding:9px 10px;margin-bottom:10px;border-left:3px solid var(--seal);}
+.plan-card .pu-row{display:flex;gap:8px;line-height:1.8;}
+.plan-card .pu-k{flex:none;width:62px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);padding-top:2px;letter-spacing:.06em;}
+.plan-card .pu-v{flex:1;font-size:12.5px;font-weight:500;color:var(--ink);}
+.plan-card .pu-guess{font-size:11.5px;color:#b37400;line-height:1.6;margin-top:5px;}
+/* 提问卡选项 (grill-me: 点选代替打字) */
+.plan-card .ask-q{font-size:13.5px;font-weight:500;color:var(--ink);line-height:1.7;}
+.plan-card .ask-opts{flex-direction:column;gap:8px;}
+.plan-card .ask-opt{width:100%;text-align:left;padding:12px 14px;font-size:13px;}
+.plan-card .ask-chosen{border-color:var(--seal) !important;color:var(--seal) !important;font-weight:700;}
+.plan-card .ask-hint{font-size:10.5px;color:var(--ink-3);margin-top:9px;font-family:var(--font-mono);letter-spacing:.04em;}
 
 .deliver-card{display:flex;align-items:center;gap:11px;width:100%;background:var(--fill);border-radius:14px;padding:14px 16px;border:none;border-left:none;}
 .deliver-card .ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;background:var(--ok-soft);color:var(--ok);font-family:var(--font-mono);font-size:11px;font-weight:700;border:none;}
+/* 交付验收: 产出文件行 (每文件可预览/安装) */
+.deliver-card .dl-files{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+.deliver-card .dl-file{display:flex;align-items:center;gap:8px;}
+.deliver-card .dl-checklist{margin:4px 0 8px;padding:8px 10px;background:var(--fill);border-radius:8px;display:flex;flex-direction:column;gap:4px;}
+.deliver-card .dl-check{font-size:12px;line-height:1.5;}
+.deliver-card .dl-check.ok{color:var(--ok);}
+.deliver-card .dl-check.demo{color:#B45309;}
+.deliver-card .dl-name{flex:1;font-family:var(--font-mono);font-size:11px;color:var(--ink-2);word-break:break-all;}
+.deliver-card .dl-btn{flex:none;padding:6px 14px;font-size:11px;}
 .deliver-card .tt{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--ink);}
 .deliver-card .ss{font-family:var(--font-mono);font-size:9.5px;font-weight:500;color:var(--ink-3);margin-top:2px;}
 .deliver-card .btn{margin-left:auto;}
@@ -163,6 +186,18 @@ button,input,textarea{font-family:inherit;}
 .btn-acc:active{background:var(--seal-deep);}
 .btn-pri{background:var(--ink);color:var(--paper);}
 .btn-ghost{background:var(--fill);color:var(--ink-2);border:none;}
+.btn-danger{background:var(--err);color:#fff;}
+
+/* ---------- 会话多选删除 ---------- */
+.selbar{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2);padding:10px 16px;background:var(--paper);border-bottom:1px solid var(--hair);}
+.selbar-count{font-size:13px;font-weight:600;color:var(--ink);letter-spacing:.03em;}
+.selbar-btns{display:flex;gap:var(--sp-2);}
+.selbar-btns .btn{height:34px;padding:0 14px;font-size:12px;}
+/* 多选模式: 房间卡右侧勾选圈, 选中高亮 */
+#roomList.selmode .room{position:relative;padding-right:44px;cursor:pointer;}
+#roomList.selmode .room::after{content:'';position:absolute;right:14px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:50%;border:1.5px solid var(--ink-4);background:var(--paper);display:grid;place-items:center;font-size:13px;color:#fff;line-height:1;}
+#roomList.selmode .room.sel{background:var(--seal-soft);}
+#roomList.selmode .room.sel::after{content:'✓';background:var(--seal);border-color:var(--seal);}
 .btn-sm{height:32px;padding:0 15px;font-size:12px;border-radius:8px;}
 .btn[disabled]{opacity:.3;cursor:not-allowed;transform:none!important;box-shadow:none!important;}
 .chip-btn{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--seal);background:none;border:none;cursor:pointer;height:28px;padding:0 4px;display:inline-flex;align-items:center;flex:none;}
@@ -200,9 +235,11 @@ html.dark .chat-foot{background:linear-gradient(to top,var(--paper) 78%,rgba(20,
 .skill.longpress-hl,.room.longpress-hl{box-shadow:0 0 0 2px var(--seal);border-radius:var(--r-md);}
 
 /* ---------- Sheet (机制: z30/visibility, 皮: demo) ---------- */
-.sheet-mask{position:absolute;inset:0;background:rgba(25,29,20,.36);opacity:0;visibility:hidden;transition:opacity .26s,visibility 0s .26s;z-index:29;}
+.sheet-mask{position:fixed;inset:0;background:rgba(25,29,20,.36);opacity:0;visibility:hidden;transition:opacity .26s,visibility 0s .26s;z-index:29;}
 .sheet-mask.open{opacity:1;visibility:visible;transition:opacity .26s;}
-.sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--paper);border:none;border-radius:18px 18px 0 0;box-shadow:0 -18px 48px rgba(25,29,20,.16);padding:10px 20px calc(var(--sp-6) + env(safe-area-inset-bottom,0px));transform:translateY(103%);visibility:hidden;transition:transform .4s var(--spring),visibility 0s .4s;z-index:30;}
+/* fixed 而非 absolute: 锚定视觉视口, 键盘弹起时 (interactive-widget=resizes-content) 始终贴键盘上方,
+   不受 WebView 平移/缩放残留影响 (2026-07-24 新建房间 sheet 悬浮半空+大片空白 的根因) */
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92%;overflow-y:auto;background:var(--paper);border:none;border-radius:18px 18px 0 0;box-shadow:0 -18px 48px rgba(25,29,20,.16);padding:10px 20px calc(var(--sp-6) + env(safe-area-inset-bottom,0px));transform:translateY(103%);visibility:hidden;transition:transform .4s var(--spring),visibility 0s .4s;z-index:30;}
 .sheet.open{transform:none;visibility:visible;transition:transform .4s var(--spring);}
 .sheet::before{content:'';display:block;width:34px;height:4px;border-radius:2px;background:var(--fill-2);margin:4px auto 16px;}
 .sheet h5{font-family:var(--font-display);font-size:20px;font-weight:400;letter-spacing:.2em;color:var(--ink);margin-bottom:var(--sp-1);}
@@ -312,26 +349,6 @@ html.dark .personal-row .pr-avatar{box-shadow:0 6px 16px rgba(0,0,0,.5);}
 .model-add{border:1.5px dashed var(--hair);background:transparent;justify-content:center;}
 .model-add .md{color:var(--seal);font-weight:600;}
 .model-row .go-in{margin-left:auto;font-size:15px;color:var(--ink-4);flex:none;}
-
-/* cron */
-.auto-input{margin:var(--sp-3) var(--sp-4);display:flex;gap:var(--sp-2);}
-.auto-input .field{flex:1;height:44px;background:var(--fill);border:none;border-radius:12px;padding:0 var(--sp-4);font-size:var(--fs-base);color:var(--ink);transition:all var(--t-fast);min-width:0;outline:none;}
-.auto-input .field:focus{box-shadow:0 0 0 3px var(--seal-soft);}
-.auto-input .go{border:none;background:var(--ink);color:var(--paper);border-radius:12px;height:44px;padding:0 var(--sp-4);font-size:var(--fs-base);font-weight:600;cursor:pointer;transition:all var(--t-fast);}
-.auto-input .go:active{transform:scale(.96);background:var(--seal);}
-.job{margin:0 12px;padding:12px 10px;border-radius:13px;transition:background .13s;border:none;overflow:hidden;}
-.job:active,.job:hover{background:var(--fill);}
-.job .r1{display:flex;align-items:center;gap:var(--sp-2);padding:0;}
-.job .r1 b{flex:1;font-size:13.5px;font-weight:600;letter-spacing:.01em;color:var(--ink);}
-.job .r2{padding:6px 0 0;font-family:var(--font-mono);font-size:10px;font-weight:500;color:var(--ink-3);display:flex;gap:var(--sp-3);letter-spacing:.03em;border:none;background:none;}
-.job .r2 .cron{color:var(--seal);font-weight:700;}
-.job .r3{padding:4px 0 0;font-family:var(--font-mono);font-size:9px;font-weight:500;color:var(--ink-4);letter-spacing:.05em;border:none;background:none;height:auto;}
-.job .r3 .ok{color:var(--ok);}
-.job .r3 .del-cron{color:var(--err);}
-.switch{width:40px;height:24px;border-radius:99px;background:var(--ok);position:relative;cursor:pointer;flex:none;transition:background .22s;}
-.switch::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;right:3px;transition:right .22s var(--spring);box-shadow:0 1px 3px rgba(25,29,20,.3);}
-.switch.off{background:var(--fill-2);}
-.switch.off::after{right:19px;}
 
 /* 详情弹层 */
 .preview-mask{position:absolute;inset:0;background:rgba(25,29,20,.36);z-index:29;}

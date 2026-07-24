@@ -26,7 +26,8 @@ import java.util.Locale;
 
 /**
  * Capability executor - directly calls Android APIs.
- * No Termux dependency. All capabilities run in-process.
+ * All capabilities run in-process (device.cmd 路径)。
+ * 内嵌 Linux shell 能力不走这里 — 见 com.hermes.android.linux (M1, shell.exec)。
  */
 public class CapabilityExecutor {
 

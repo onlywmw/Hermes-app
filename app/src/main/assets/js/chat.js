@@ -102,6 +102,11 @@ function routeMessage(id,text){
     runAiChat(id,text,mids[0]);
     return;
   }
+  /* desk 单聊: 优先注册表默认模型 (ModelRegistry; toJson 无 isConfigured 字段,
+     用 apiKey 非空判断已配置), 兜底旧版单模型配置 */
+  var dm=null;
+  try{dm=(B.listModels()||[]).find(function(m){return m.isDefault&&m.apiKey&&m.apiKey.length>0;})||null;}catch(e){}
+  if(dm){runAiChat(id,text,dm.id);return;}
   var info=B.aiInfo();
   if(info.enabled&&info.configured){
     runAiChat(id,text);
@@ -152,7 +157,7 @@ function sendMsg(){
 }
 
 /* ---------- Agentic 任务 (DESIGN_AGENT_LOOP v1: 1 驱动 + 工作日志) ---------- */
-var _agentLoop=null;   /* {loopId, roomId, gen, awaiting: null|'plan'|'ask'} */
+var _agentLoop=null;   /* {loopId, roomId, gen, goal, planSteps, awaiting: null|'plan'|'ask'} */
 var _agentExecuting=false;
 var _agentLogBuf=[];   /* 竞态缓冲: 原生循环启动即吐日志, 回调还没拿到 loopId 时先存后放 */
 
@@ -167,7 +172,7 @@ function runAgentTask(id,goal,gen){
     if(curRoomId!==id)return;
     if(!resp.ok){push(id,mkMsg({t:'agent',who:'mov',h:resp.error||'任务启动失败'}));return;}
     if(resp.queued){push(id,mkMsg({t:'sys',h:'mov 还在执行上一个任务, 此任务已排队'}));}
-    _agentLoop={loopId:resp.loopId,roomId:id,gen:gen,awaiting:null};
+    _agentLoop={loopId:resp.loopId,roomId:id,gen:gen,goal:goal,planSteps:0,awaiting:null};
     /* 回放启动竞态期缓冲的日志 (phase/plan 可能早于回调到达) */
     var buf=_agentLogBuf;_agentLogBuf=[];
     buf.forEach(function(d){window._agentLog(d);});
@@ -185,25 +190,25 @@ window._agentLog=function(data){
   if(data.loopId!==_agentLoop.loopId)return;
   var id=_agentLoop.roomId;
   if(data.type==='phase'){setPhase(id,data.phase);return;}
-  /* 切房守卫: 不渲染 UI, 但终态事件仍要清理状态, plan/filePreview 自动驳回防原生挂起 */
+  /* 切房守卫: 不渲染 UI, 但终态事件仍要清理状态, plan/filePreview/shellPreview 自动驳回防原生挂起 */
   if(curRoomId!==id||genCounter!==_agentLoop.gen){
     if(data.type==='plan'&&_agentLoop){B.agentPlanRespond(_agentLoop.loopId,false,'房间已切换, 计划自动驳回');}
     else if(data.type==='filePreview'&&_agentLoop){B.agentFileWriteRespond(_agentLoop.loopId,false);}
+    else if(data.type==='shellPreview'&&_agentLoop){B.agentShellRespond(_agentLoop.loopId,false);}
     else if(data.type==='deliver'||data.type==='fail'||data.type==='stopped'){endAgentTask(id);}
     return;
   }
   switch(data.type){
     case 'plan': renderAgentPlan(id,data);break;
     case 'filePreview': renderAgentFilePreview(id,data);break;
+    case 'shellPreview': renderAgentShellPreview(id,data);break;
     case 'step':
       push(id,toolNode(data.name,data.arg||'',((data.durMs||0)/1000).toFixed(2)+'s',
         esc(data.result||'')+'\n<span class="'+(data.ok?'ok-line':'err-line')+'">'+(data.ok?'exit 0':'exit 1')+'</span>'));
       setAgentStatus(id,data);
       break;
     case 'ask':
-      _agentLoop.awaiting='ask';
-      push(id,mkMsg({t:'agent',who:'mov',h:data.question}));
-      setAgentInputHint('回答问题后发送…');
+      renderAskCard(id,data);
       break;
     case 'note':
       push(id,mkMsg({t:'sys',h:esc(data.text)}));break;
@@ -212,34 +217,162 @@ window._agentLog=function(data){
       push(id,mkMsg({t:'sys',h:'交付评审·第'+data.round+'轮: '+(data.pass||0)+' 通过 / '+(data.fail||0)+' 返工'}));
       break;
     case 'deliver':
-      renderDeliverCard(id,data.files||[]);
+      renderDeliverCard(id,data.files||[],data);
       var metric='实际 '+((data.promptTokens||0)+(data.completionTokens||0))+' tokens · '+fmtSec(data.elapsedSec)+' (预估 ~'+Math.round((data.estTokens||0)/1000)+'k · '+fmtSec(data.estSeconds)+')';
       if(data.reviewTokens>0)metric+=' · 含评审 '+data.reviewTokens;
       if(data.reworkRounds>0)metric+=' · 返工 '+data.reworkRounds+' 轮';
       push(id,mkMsg({t:'sys',h:metric}));
+      /* 评审状态 (M-QUALITY 三态: 通过含票数/打回已返工/未评审) */
+      if(data.reviewState==='not_reviewed'){
+        push(id,mkMsg({t:'sys',h:'⚠ 未评审 (评审团未配置或评审调用失败), 请自行验收产物'}));
+      }else if(data.reviewState==='reworked'){
+        push(id,mkMsg({t:'sys',h:'评审打回后已返工, 复审通过 ✓ ('+(data.pass||0)+' 通过 / '+(data.failVotes||0)+' 返工)'}));
+      }else if(data.reviewState==='passed'){
+        push(id,mkMsg({t:'sys',h:'评审通过 ✓ ('+(data.pass||0)+' 通过 / '+(data.failVotes||0)+' 返工)'}));
+      }
       /* v2: 交付评审结论 */
       if(data.comments&&data.comments.length){
         data.comments.forEach(function(c){
+          if(c.pass===null){push(id,mkMsg({t:'sys',h:'评审 · '+esc(c.name||'')+': '+esc(c.reason||'(未参与)')}));return;}
           push(id,mkMsg({t:'sys',h:'评审 '+(c.pass?'✓':'✗')+' '+esc(c.name||'')+': '+esc(c.reason||'')}));
         });
       }
       endAgentTask(id);break;
     case 'fail':
-      push(id,mkMsg({t:'agent',who:'mov',h:'任务失败: '+(data.reason||'未知原因')}));
+      renderFailCard(id,data); /* 失败三问: 人话原因+部分产物+一键重开 */
       endAgentTask(id);break;
     case 'stopped':
-      push(id,mkMsg({t:'sys',h:'任务已停止'}));
+      var stoppedMsg='任务已停止';
+      if(data.files&&data.files.length)stoppedMsg+=' · 已产出的 '+data.files.length+' 个文件已保留在房间';
+      push(id,mkMsg({t:'sys',h:stoppedMsg}));
       endAgentTask(id);break;
   }
 };
 
+/* 提问卡: 有选项就点选(grill-me 模式, 一次一问+具体选项), 没选项走输入框 */
+function renderAskCard(id,data){
+  _agentLoop.awaiting='ask';
+  var opts=(data.options&&data.options.length)?data.options:null;
+  if(!opts){
+    push(id,mkMsg({t:'agent',who:'mov',h:data.question}));
+    setAgentInputHint('回答问题后发送…');
+    return;
+  }
+  var p=document.createElement('div');p.className='msg wide';
+  var pc=document.createElement('div');pc.className='plan-card';
+  var phd=document.createElement('div');phd.className='ph';
+  phd.textContent='mov 需要你确认';
+  pc.appendChild(phd);
+  var pb=document.createElement('div');pb.className='pb';
+  var q=document.createElement('div');q.className='ask-q';
+  q.textContent=data.question||'';
+  pb.appendChild(q);
+  pc.appendChild(pb);
+  var pf=document.createElement('div');pf.className='pf ask-opts';
+  var chosen=null;
+  opts.forEach(function(o){
+    var b=document.createElement('button');b.className='btn btn-ghost ask-opt';b.textContent=o;
+    b.addEventListener('click',function(){
+      /* 任务已结束/换轮时禁止再点 */
+      if(!_agentLoop||_agentLoop.loopId!==data.loopId){disableAll();return;}
+      if(chosen)return;
+      chosen=o;
+      disableAll();
+      b.classList.add('ask-chosen');
+      b.textContent=o+' ✓';
+      _agentLoop.awaiting=null;
+      restoreAgentInput();
+      B.agentAnswer(data.loopId,o);
+      ev('已选: '+o);
+    });
+    pf.appendChild(b);
+  });
+  function disableAll(){
+    pf.querySelectorAll('button').forEach(function(x){x.disabled=true;});
+  }
+  pc.appendChild(pf);
+  /* 兜底: 都不合适就在输入框手答 */
+  var hint=document.createElement('div');hint.className='ask-hint';
+  hint.textContent='都不合适? 直接在下方输入回答';
+  pc.appendChild(hint);
+  setAgentInputHint('点选项回答, 或在此输入…');
+  p.appendChild(pc);
+  push(id,p);
+}
+
+/* 失败卡: 原因说人话 + 部分产物清单 + 穷人版续跑 (重开时把已有文件喂回目标, 大脑自然跳过已完成步骤) */
+function renderFailCard(id,data){
+  var goal0=(_agentLoop&&_agentLoop.goal)||data.goal||'';
+  var planSteps=(_agentLoop&&_agentLoop.planSteps)||0;
+  var p=document.createElement('div');p.className='msg wide';
+  var pc=document.createElement('div');pc.className='plan-card';
+  var phd=document.createElement('div');phd.className='ph';
+  phd.textContent='✗ 任务失败';
+  pc.appendChild(phd);
+  var pb=document.createElement('div');pb.className='pb';
+  var r=document.createElement('div');r.className='fail-reason';
+  r.textContent=data.reason||'未知原因';
+  pb.appendChild(r);
+  var meta=document.createElement('div');meta.className='fail-meta';
+  var parts=[];
+  if(data.stepsDone)parts.push('已完成 '+data.stepsDone+(planSteps?'/'+planSteps:'')+' 步');
+  parts.push('实际 '+((data.promptTokens||0)+(data.completionTokens||0))+' tokens · '+fmtSec(data.elapsedSec));
+  meta.textContent=parts.join(' · ');
+  pb.appendChild(meta);
+  var files=(data.files&&data.files.length)?data.files:null;
+  if(files){
+    var fl=document.createElement('div');fl.className='fail-files';
+    fl.textContent='已产出的 '+files.length+' 个文件已保留在房间, 可直接使用:';
+    pb.appendChild(fl);
+    files.forEach(function(f){
+      var li=document.createElement('div');li.className='fail-file';
+      li.textContent='· '+f;
+      pb.appendChild(li);
+    });
+  }
+  pc.appendChild(pb);
+  var pf=document.createElement('div');pf.className='pf';
+  var bRetry=document.createElement('button');bRetry.className='btn btn-acc';bRetry.textContent='重开任务 (跳过已完成)';
+  bRetry.addEventListener('click',function(){
+    /* 任务已结束/换轮时禁止再点 */
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bRetry.disabled=true;return;}
+    bRetry.disabled=true;bRetry.textContent='已重开 ▲';
+    var g='上次任务失败 ('+(data.reason||'未知')+')。';
+    if(files)g+='已产出文件: '+files.join(', ')+' —— 已存在, 不要重写, 在其基础上继续。';
+    g+='原目标: '+goal0;
+    runAgentTask(id,g,genCounter);
+  });
+  pf.appendChild(bRetry);pc.appendChild(pf);
+  p.appendChild(pc);
+  push(id,p);
+}
+
 function renderAgentPlan(id,data){
   _agentLoop.awaiting='plan';
+  _agentLoop.planSteps=data.steps.length;   /* 失败卡显示 "已完成 N/M 步" 用 */
   var p=document.createElement('div');p.className='msg wide';
   var pc=document.createElement('div');pc.className='plan-card';
   var phd=document.createElement('div');phd.className='ph';
   phd.textContent='PLAN · '+data.steps.length+' 步 · 预计 ~'+Math.round(data.estTokens/1000)+'k tokens · ~'+fmtSec(data.estSeconds)+(data.revised?' · 修订':'');
   pc.appendChild(phd);
+  /* 理解闸: 批准计划 = 批准理解 — 分行标签展示, 一眼扫完 (给谁用/在哪用/干什么/猜的) */
+  if(data.understanding){
+    var u=data.understanding;
+    var ud=document.createElement('div');ud.className='pu';
+    [['给谁用',u.user],['什么场景',u.scenario],['核心闭环',u.loop]].forEach(function(row){
+      if(!row[1])return;
+      var d=document.createElement('div');d.className='pu-row';
+      var k=document.createElement('span');k.className='pu-k';k.textContent=row[0];
+      var v=document.createElement('span');v.className='pu-v';v.textContent=row[1];
+      d.appendChild(k);d.appendChild(v);ud.appendChild(d);
+    });
+    if(u.guess){
+      var u2=document.createElement('div');u2.className='pu-guess';
+      u2.textContent='⚠ 我猜的(可能错): '+u.guess;
+      ud.appendChild(u2);
+    }
+    if(ud.children.length)pc.appendChild(ud);
+  }
   var pb=document.createElement('div');pb.className='pb';
   data.steps.forEach(function(s){
     var li=document.createElement('li');
@@ -283,12 +416,12 @@ function renderAgentPlan(id,data){
   push(id,p);
 }
 
-/* P1: 写盘前强制预览卡 (落盘前 loop 挂起, 确认才写; 驳回=该步失败, AI 重试/改计划) */
+/* 写入预览卡: 仅计划外写入触发 (计划内 = 批准计划时已授权)。确认=临时授权该路径, 驳回=该步失败 */
 function renderAgentFilePreview(id,data){
   var p=document.createElement('div');p.className='msg wide';
   var pc=document.createElement('div');pc.className='plan-card';
   var phd=document.createElement('div');phd.className='ph';
-  phd.textContent='写入预览 · '+(data.path||'');
+  phd.textContent=(data.outOfPlan?'计划外写入':'写入预览')+' · '+(data.path||'');
   pc.appendChild(phd);
   /* 内容只走 textContent, 不拼 HTML (安全红线) */
   var pre=document.createElement('pre');pre.className='pvw';
@@ -317,6 +450,41 @@ function renderAgentFilePreview(id,data){
   push(id,p);
 }
 
+/* shell 确认卡: 仅计划外 shell.exec 触发 (计划内含 shell.exec = 批准计划时已授权)。
+   允许 = 本任务不再询问; 拒绝 = 该步失败并回灌 */
+function renderAgentShellPreview(id,data){
+  var p=document.createElement('div');p.className='msg wide';
+  var pc=document.createElement('div');pc.className='plan-card';
+  var phd=document.createElement('div');phd.className='ph';
+  phd.textContent='计划外 shell 命令 · 超时 '+(data.timeoutSec||120)+'s';
+  pc.appendChild(phd);
+  /* 命令只走 textContent, 不拼 HTML (安全红线, 同写入预览) */
+  var pre=document.createElement('pre');pre.className='pvw';
+  pre.textContent=data.cmd||'';
+  pc.appendChild(pre);
+  var pf=document.createElement('div');pf.className='pf';
+  var bOk=document.createElement('button');bOk.className='btn btn-acc';bOk.textContent='允许 (本任务不再询问)';
+  var bRj=document.createElement('button');bRj.className='btn btn-ghost';bRj.textContent='拒绝';
+  bOk.addEventListener('click',function(){
+    /* 任务已结束/换轮时禁止再点, 先置灰再 return */
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bOk.disabled=true;bRj.disabled=true;return;}
+    bOk.disabled=true;bRj.disabled=true;bOk.textContent='已允许 ✓';
+    B.agentShellRespond(data.loopId,true);
+    ev('允许 shell 命令');
+  });
+  bRj.addEventListener('click',function(){
+    if(!_agentLoop||_agentLoop.loopId!==data.loopId){bOk.disabled=true;bRj.disabled=true;return;}
+    bOk.disabled=true;bRj.disabled=true;bRj.textContent='已拒绝';
+    B.agentShellRespond(data.loopId,false);
+    ev('拒绝 shell 命令');
+  });
+  pf.appendChild(bOk);pf.appendChild(bRj);pc.appendChild(pf);
+  p.appendChild(pc);
+  /* 持久化只留一行摘要 (同写入预览卡) */
+  p._md={t:'sys',h:'shell 确认 · '+esc((data.cmd||'').slice(0,80))};
+  push(id,p);
+}
+
 /* 执行中状态: 发送键变 ■ 停止, 副标题实时计量 */
 function setAgentStatus(id,data){
   _agentExecuting=true;
@@ -336,7 +504,7 @@ function restoreAgentInput(){$('msgInput').placeholder=t('room.input');}
 function fmtSec(s){s=Math.round(s||0);return s>=60?Math.floor(s/60)+'分'+(s%60)+'秒':s+'秒';}
 
 /* ---------- 交付物卡片 ---------- */
-function renderDeliverCard(id,produced){
+function renderDeliverCard(id,produced,data){
   var d=document.createElement('div');d.className='msg wide';
   var dc=document.createElement('div');dc.className='deliver-card';
   var ic=document.createElement('span');ic.className='ic';ic.textContent='▣';
@@ -345,6 +513,44 @@ function renderDeliverCard(id,produced){
   var ss=document.createElement('div');ss.className='ss';
   ss.textContent=produced.length?produced.join(' · '):t('plan.noOutput');
   info.appendChild(tt);info.appendChild(ss);
+  /* 功能自检清单 (M-QUALITY: ✅真实现/⚠️演示 分色结构化展示) */
+  var checklist=(data&&data.checklist)||[];
+  if(checklist.length){
+    var cl=document.createElement('div');cl.className='dl-checklist';
+    checklist.forEach(function(it){
+      var row=document.createElement('div');row.className='dl-check '+(it.real?'ok':'demo');
+      row.textContent=(it.real?'✅ ':'⚠️ ')+(it.text||'');
+      cl.appendChild(row);
+    });
+    info.appendChild(cl);
+  }
+  /* 交付验收: 每个产出文件可点开预览内容 (非 APK), 验收一次完成 */
+  if(produced.length){
+    var fl=document.createElement('div');fl.className='dl-files';
+    produced.forEach(function(f){
+      var row=document.createElement('div');row.className='dl-file';
+      var nm=document.createElement('span');nm.className='dl-name';nm.textContent=f;
+      row.appendChild(nm);
+      if(/\.apk$/i.test(f)){
+        var bi=document.createElement('button');bi.className='btn btn-acc dl-btn';bi.textContent='安装';
+        bi.addEventListener('click',function(){
+          var r=B.installApk(id,f);
+          if(!r.ok)B.toast(r.error||'安装失败');
+        });
+        row.appendChild(bi);
+      }else{
+        var bv=document.createElement('button');bv.className='btn btn-ghost dl-btn';bv.textContent='预览';
+        bv.addEventListener('click',function(){
+          var res=B.readFile(id,'files/work/'+f);
+          if(res.ok)showFilePreview(f,res.content);
+          else B.toast(res.error||t('files.loadFail'));
+        });
+        row.appendChild(bv);
+      }
+      fl.appendChild(row);
+    });
+    info.appendChild(fl);
+  }
   /* APK 产出 → 主按钮变「安装」直调系统安装器 */
   var apk=null;
   for(var i=0;i<produced.length;i++){if(/\.apk$/i.test(produced[i])){apk=produced[i];break;}}

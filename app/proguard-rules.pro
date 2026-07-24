@@ -5,6 +5,3 @@
 -keep class com.hermes.android.bridge.** {
     @android.webkit.JavascriptInterface <methods>;
 }
-
-# WorkManager Worker — 反射实例化
--keep class com.hermes.android.cron.** { *; }
